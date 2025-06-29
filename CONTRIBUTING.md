@@ -3,9 +3,10 @@
 1. [Writing Issues](#writing-issues)
 2. [Taking Issues](#taking-issues)
 3. [Creating Branches](#creating-branches)
-4. [Writing Good Commit Messages](#writing-good-commit-messages)
-5. [Creating Pull Requests](#creating-pull-requests)
-6. [CI/CD and Environment](#cicd-and-environment)
+4. [Commiting](#commiting)
+5. [Writing Good Commit Messages](#writing-good-commit-messages)
+6. [Creating Pull Requests](#creating-pull-requests)
+7. [CI/CD and Environment](#cicd-and-environment)
 5. [Writing Tests](#writing-tests)
 6. [Best Practices](#best-practices)
 
@@ -88,6 +89,14 @@ You can take any issue which is in the `Ready` column of [the Team Plan](https:/
   
 - Do not use special characters. Keep an eye on that if you use githubs autoname function for branches.
 
+## Commiting
+
+Commits must be fine grained to a certain change or feature and should not contain too much or too little changes.
+
+### Data Handling Constraint: 
+
+DO NOT publish PDFs or XMLs originating from Mercedes and Eplan in the public repository. Any necessary handling of such data during internal development must be performed offline (including LLMs) or through secure, private channels.
+
 ## Writing Good Commit Messages
 
 ### Structure
@@ -136,12 +145,13 @@ The commit message should follow the structure:
 - Have comprehensive documentation.
 
 ### Writing a good PR description
-- Ensure traceability:
+- **Ensure traceability**:
   - In the PR state which issue it closes. E.g. `Ref. #<issue ID>.`
   - In the Issue state which PR is going to address it. E.g. `Will be solved through #<PR ID>.`
 - Add a summary information what is changed/fixed with a description how a reviewer can observe it.
 - Follow similar rules for description as in [Writing Issues](#writing-issues).
 - Do not forget screenshots.
+- **Explicitly state what LLMs, where, and how were used, what result they achieved**.
   
 ### After Submitting a PR
 
