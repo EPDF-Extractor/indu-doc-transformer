@@ -1,6 +1,30 @@
 # InduDoc Transformer
-This repository is a core part of the project for PDF industrial extractor software. The project will follow a lean development approach, integrate Software Engineering processes, and be developed publicly on GitHub under an MIT License.
-The project aim is to develop an open-source software solution for the conversion of industry-specific PDF documents, such as EPlan documentation, into structured XML format. This process will involve an intermediate step - a database (potentially a VectorDB for future LLM integration) to assist data extraction and transformation. Key features will include the ability to handle user-configurable "levels" or separators within documents, track content across pages, and associate these structural elements with embedded images.
+This is the core repository of the project.
+
+## Installation
+We are using [uv](https://docs.astral.sh/uv/) for package management. just install it and run the project with: 
+
+```bash
+uv run
+```
+It will automatically create a virtual environment and install the necessary dependencies from `pyproject.toml`.
+After that, It shows the available commands. for example you can run the main script with:
+
+```bash
+uv run indu-doc-transformer
+```
+
+You can add more commands to the `pyproject.toml` file under the `project.scripts` section.
+
+### Integration with Jupyter Notebooks
+
+Once you have the virtual environment set up, you can directly use it in Jupyter Notebooks. It offers a convenient way to isolate dependencies and run the code in a controlled environment.
+
+If you need to add dependencies to the virtual environment, you can do so by modifying the `pyproject.toml` file and then running:
+
+```bash
+uv sync
+```
 
 ## Resources for developers:
 - [Team Roles]()
@@ -8,5 +32,3 @@ The project aim is to develop an open-source software solution for the conversio
 - [Requirements](https://github.com/EPDF-Extractor/indu-doc-transformer/wiki/Requirements)
 - [Architecture](https://github.com/EPDF-Extractor/indu-doc-transformer/wiki/Architecture)
 - [Contributing Guidelines](CONTRIBUTING.md)
-
-
