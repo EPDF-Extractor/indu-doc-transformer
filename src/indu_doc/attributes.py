@@ -1,0 +1,146 @@
+from __future__ import annotations
+import json
+from abc import ABC, abstractmethod
+from enum import Enum
+
+
+class Attribute(ABC):
+    def __init__(self, name: str) -> None:
+        self.name: str = name
+
+    @abstractmethod
+    def get_db_representation(self) -> str:
+        """return a string representation suitable for database storage.
+
+        Returns:
+            str: A string representation suitable for database storage, can be JSON or other format.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def from_db_representation(cls, db_str: str) -> "Attribute":
+        """Create an Attribute instance from its database string representation.
+
+        Args:
+            db_str (str): The string representation from the database.
+
+        Returns:
+            Attribute: An instance of Attribute or its subclass.
+        """
+        pass
+
+    @abstractmethod
+    def get_search_entries(self) -> list[str]:
+        """Return a list of strings that can be used for searching, e.g., in a search index.
+        The idea is to extract relevant text from the attribute for search purposes and create a table inside the db for this.
+        Returns:
+            list[str]: A list of strings for searching.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_value_type(cls) -> type:
+        """Return the type of value this attribute holds.
+
+        Returns:
+            type: The type of value (e.g., str, int, list).
+        """
+        pass
+
+    @abstractmethod
+    def __hash__(self) -> int:
+        pass
+
+    @abstractmethod
+    def __eq__(self, other) -> bool:
+        pass
+
+    def __repr__(self) -> str:
+        return f"Attribute(name={self.name})"
+
+
+class SimpleAttribute(Attribute):
+    """A simple attribute with a string value.
+    Represents a basic attribute with a name and a string value.
+    It can be used for connection colors, cross-sections, or other simple metadata.
+    """
+
+    def __init__(self, name: str, value: str) -> None:
+        super().__init__(name)
+        self.value: str = value
+
+    def get_db_representation(self) -> str:
+        return json.dumps({"name": self.name, "value": self.value})
+
+    @classmethod
+    def from_db_representation(cls, db_str: str) -> "SimpleAttribute":
+        data = json.loads(db_str)
+        return cls(name=data["name"], value=data["value"])
+
+    def get_search_entries(self) -> list[str]:
+        return [self.value]
+
+    @classmethod
+    def get_value_type(cls) -> type:
+        return str
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.value))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, SimpleAttribute):
+            return False
+        return self.name == other.name and self.value == other.value
+
+    def __repr__(self) -> str:
+        return f"SimpleAttribute(name={self.name}, value={self.value})"
+
+
+class RoutingTracksAttribute(Attribute):
+    """An attribute representing routing tracks.
+    This attribute holds a list of routing tracks associated with an object.
+    """
+
+    def __init__(self, name: str, tracks: list[str]) -> None:
+        super().__init__(name)
+        self.tracks: list[str] = tracks
+
+    def get_db_representation(self) -> str:
+        return json.dumps({"name": self.name, "tracks": self.tracks})
+
+    @classmethod
+    def from_db_representation(cls, db_str: str) -> "RoutingTracksAttribute":
+        data = json.loads(db_str)
+        return cls(name=data["name"], tracks=data["tracks"])
+
+    def get_search_entries(self) -> list[str]:
+        return self.tracks
+
+    @classmethod
+    def get_value_type(cls) -> type:
+        return list[str]
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.tracks)))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, RoutingTracksAttribute):
+            return False
+        return self.name == other.name and self.tracks == other.tracks
+
+    def __repr__(self) -> str:
+        return f"RoutingTracksAttribute(name={self.name}, tracks={self.tracks})"
+
+
+# IMP: please register new attributes here
+class AttributeType(Enum):
+    SIMPLE = "SimpleAttribute"
+    ROUTING_TRACKS = "RoutingTracksAttribute"
+
+
+AvailableAttributes = {
+    AttributeType.SIMPLE: SimpleAttribute,
+    AttributeType.ROUTING_TRACKS: RoutingTracksAttribute,
+}
