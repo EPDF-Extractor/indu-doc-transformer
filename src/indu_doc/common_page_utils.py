@@ -34,6 +34,34 @@ header_map_en = {
         "From",
         "To",
     ],
+    PageType.CABLE_DIAGRAM: [
+        "Function Text (source)",
+        "Page / Column (source)",
+        "src_tag",
+        "src_pin",
+        "Color",
+        "dst_tag",
+        "dst_pin",
+        "Page / Column (dest)",
+        "Function Text (dest)",
+        "cable_tag",
+    ],
+    PageType.TERMINAL_DIAGRAM: [
+        "strip_tag",
+        "src_cable_tag",
+        "Color:1",
+        "Function Text",
+        "src_tag",
+        "src_pin",
+        "strip_pin",
+        "Jumpers",
+        "PLC connection point",
+        "dst_tag",
+        "dst_pin",
+        "dst_cable_tag",
+        "Color:2",
+        "Page / Column"
+    ],
 }
 
 
