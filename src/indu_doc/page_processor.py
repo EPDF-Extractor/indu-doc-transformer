@@ -236,14 +236,13 @@ class PageProcessor:
                 self.god.create_connection(tag, t1, t2, tuple(attributes), footer)
 
     def process_wires_part_list(self, table, footer: PageFooter):
-        target = table.columns[0]
-        target_src = table.columns[4]
-        target_dst = table.columns[7]
-        target_route = table.columns[6]  # TODO as attribute
+        target_src = table.columns[0]
+        target_dst = table.columns[1]
+        target_route = table.columns[-1]  # TODO as attribute
         other = [
             col
             for col in table.columns
-            if col not in (target, target_src, target_dst, target_route)
+            if col not in (target_src, target_dst, target_route)
         ]
 
         for _, row in table.iterrows():
@@ -300,11 +299,10 @@ class PageProcessor:
             pin_dst = str(row[target_dst_pin]).strip()
 
             if (
-                tag == ""
-                or tag_src == ""
-                or tag_dst == ""
-                or pin_src == ""
-                or pin_dst == ""
+                tag_src == ""
+                and tag_dst == ""
+                and pin_src == ""
+                and pin_dst == ""
             ):
                 logger.warning(
                     f"empty cable diagram info (is that intended?): {tag} {tag_src} {tag_dst} {pin_src} {pin_dst}"
@@ -331,8 +329,9 @@ class PageProcessor:
 
     def process_terminal_diagram(self, table, footer: PageFooter):
         # this table has to be treated as 2 tables
-        self.process_cable_diagram(table.iloc[:, range(0, 7)], footer)
-        self.process_cable_diagram(table.iloc[:, [0, 11, 12, 3, 9, 10, 6]], footer)
+        # TODO awful double mapping
+        self.process_cable_diagram(table.iloc[:, [2, 3, 4, 5, 8, 0, 6, 13, 1]], footer)
+        self.process_cable_diagram(table.iloc[:, [12, 3, 0, 6, 8, 9, 10, 13, 11]], footer)
 
 
 if __name__ == "__main__":
