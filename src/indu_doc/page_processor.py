@@ -104,7 +104,7 @@ class PageProcessor:
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
                     )
             # build
-            self.god.create_connection(
+            self.god.create_connection_with_link(
                 None, tag_from, tag_to, tuple(attributes), footer
             )
 
@@ -189,7 +189,7 @@ class PageProcessor:
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
                     )
             # build
-            self.god.create_connection(tag, tag_src, tag_dst, tuple(attributes), footer)
+            self.god.create_connection_with_link(tag, tag_src, tag_dst, tuple(attributes), footer)
 
     def process_topology(self, table, footer: PageFooter):
         target = table.columns[0]
@@ -274,7 +274,7 @@ class PageProcessor:
                 )
 
             # build
-            self.god.create_connection(
+            self.god.create_connection_with_link(
                 None, tag_src, tag_dst, tuple(attributes), footer
             )
 
@@ -321,7 +321,7 @@ class PageProcessor:
                     )
 
             # build (TODO HOW TO TREAT PINS SEPARATELY)
-            self.god.create_connection(
+            self.god.create_connection_with_link(
                 tag,
                 tag_src + ":" + pin_src,
                 tag_dst + ":" + pin_dst,
@@ -347,11 +347,6 @@ if __name__ == "__main__":
     else:
         logger.warning(f"Could not detect page type for page #{page.number + 1}")
     print(god)
-
-    def process_terminal_diagram(self, table, footer: PageFooter):
-        # this table has to be treated as 2 tables
-        self.process_cable_diagram(table.iloc[:, range(0, 7)], footer)
-        self.process_cable_diagram(table.iloc[:, [0, 11, 12, 3, 9, 10, 6]], footer)
 
 
 if __name__ == "__main__":
