@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pymupdf
 import logging
-from .common_page_utils import PageType
+from common_page_utils import PageType
 
 logger = logging.getLogger(__name__)
 # In pt
@@ -131,6 +131,12 @@ class TableExtractor:
             return None
         table_df = pd.concat(tables, ignore_index=True)
         assert table_df.shape[1] == tables[0].shape[1], f"Table headers do not match"
+        # fill all inconsistent empty stuff with empty line
+        table_df = table_df.fillna('').map(lambda x: str(x).strip() if x is not None else '')
+        # clean empty rows (some extractors do it also to prevent general data expansion)
+        # required as sometimes detects "fake" rows
+        table_df = table_df[(table_df != '').any(axis=1)]
+        #
         return table_df
 
     @staticmethod
@@ -222,6 +228,8 @@ class TableExtractor:
             )
         df[["from", "to"]] = split_cols
         df = df.drop(columns=[col_to_drop])
+        # clean empty rows
+        df = df[(df != '').any(axis=1)]
         return df
 
     @staticmethod
@@ -334,7 +342,6 @@ class TableExtractor:
             raise ValueError("No required tables found on the page")
         # No way I can separate tables by coods - need to detect here
         df = tables[0].to_pandas()
-        df = df.replace({None: np.nan})
         i = 0
         tables = []
         while i < len(df):
@@ -478,7 +485,7 @@ class TableExtractor:
         )
 
         # clean empty rows
-        df = df.where(df != "").dropna(how="all")
+        df = df[(df != '').any(axis=1)]
         # insert strip name as 1st column
         df.insert(0, "Strip", strip_name)
 
