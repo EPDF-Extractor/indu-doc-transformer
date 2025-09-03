@@ -80,7 +80,7 @@ def detect_page_type(page: pymupdf.Page) -> Optional[PageType]:
                 for s in line["spans"]:  # iterate through the text spans
                     if s["size"] > 20:  # if fontsize > 20 pt
                         for pt in PageType:
-                            if pt.value.lower() in s["text"].lower():
+                            if pt.value.lower() == s["text"].lower():
                                 logger.info(
                                     f"Page {page.number + 1} is of type {pt.name}"
                                 )
