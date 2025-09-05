@@ -4,9 +4,9 @@ Tests for the tag.py module.
 import pytest
 import logging
 from typing import OrderedDict
-from tag import Tag, try_parse_tag
-from configs import AspectsConfig, LevelConfig
-from footers import PageFooter
+from indu_doc.tag import Tag, try_parse_tag
+from indu_doc.configs import AspectsConfig, LevelConfig
+from indu_doc.footers import PageFooter
 
 
 class TestTryParseTag:
@@ -37,8 +37,9 @@ class TestTryParseTag:
         result = try_parse_tag(tag_str, sample_config)
 
         assert result is not None
-        assert len(result) == 1
-        assert result[0] == ("+", "+A")
+        assert len(result) == 2
+        assert result[0] == ("+", "")
+        assert result[1] == ("+", "A")
 
     def test_parse_empty_tag(self, sample_config):
         """Test parsing an empty tag string."""
@@ -192,8 +193,8 @@ class TestTagWithFooter:
 
         tag = Tag.get_tag_with_footer("==Location", footer, sample_config)
 
-        # Should only use the valid tag from footer
-        assert tag.tag_str == "=ValidTag==Location"
+        # No added tags since == has higher precedence than = in the footer
+        assert tag.tag_str == "==Location"
 
 
 class TestTagValidation:
