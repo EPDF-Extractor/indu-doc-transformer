@@ -3,8 +3,8 @@ Pytest configuration and fixtures for the exploration project tests.
 """
 import pytest
 from typing import OrderedDict
-from configs import AspectsConfig, LevelConfig
-from footers import PageFooter
+from indu_doc.configs import AspectsConfig, LevelConfig
+from indu_doc.footers import PageFooter
 
 
 @pytest.fixture
