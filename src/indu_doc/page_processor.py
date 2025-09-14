@@ -88,8 +88,8 @@ class PageProcessor:
         other = [col for col in table.columns if col not in (target_1, target_2)]
         for _, row in table.iterrows():
             # get primary stuff
-            tag_from = row[target_1]
-            tag_to = row[target_2]
+            tag_from = str(row[target_1]).strip()
+            tag_to = str(row[target_2]).strip()
             if tag_from == "" or tag_to == "":
                 logger.warning(
                     f"one of the connection targets are empty (is that intended?): {tag_from} {tag_to}"
@@ -98,7 +98,7 @@ class PageProcessor:
             # get secondary stuff
             attributes = []
             for name in other:
-                value = row[name]
+                value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
@@ -112,14 +112,14 @@ class PageProcessor:
         target = table.columns[0]
         other = [col for col in table.columns if col != target]
         for _, row in table.iterrows():
-            tag = row[target]
+            tag = str(row[target]).strip()
             if tag == "":
                 logger.warning(f"empty device tag (is that intended?): {tag}")
                 continue
             # get secondary stuff
             attributes: list[Attribute] = []
             for name in other:
-                value = row[name]
+                value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
@@ -141,9 +141,9 @@ class PageProcessor:
         ]
         for _, row in table.iterrows():
             # get primary stuff
-            tag = row[target]
-            tag_from = row[target_from]
-            tag_to = row[target_to]
+            tag = str(row[target]).strip()
+            tag_from = str(row[target_from]).strip()
+            tag_to = str(row[target_to]).strip()
             if tag == "" or (tag_from == "" and tag_to == ""):
                 logger.warning(
                     f"empty cable tag (is that intended?): {tag} {tag_from} {tag_to}"
@@ -152,7 +152,7 @@ class PageProcessor:
             # get secondary stuff
             attributes: list[Attribute] = []
             for name in other:
-                value = row[name]
+                value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
@@ -172,9 +172,9 @@ class PageProcessor:
         ]
         for _, row in table.iterrows():
             # get primary stuff
-            tag = row[target]
-            tag_src = row[target_src]
-            tag_dst = row[target_dst]
+            tag = str(row[target]).strip()
+            tag_src = str(row[target_src]).strip()
+            tag_dst = str(row[target_dst]).strip()
             if tag == "" or tag_src == "" or tag_dst == "":
                 logger.warning(
                     f"empty cable connection info (is that intended?): {tag} {tag_src} {tag_dst}"
@@ -183,7 +183,7 @@ class PageProcessor:
             # get secondary stuff
             attributes: list[Attribute] = []
             for name in other:
-                value = row[name]
+                value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
@@ -204,10 +204,10 @@ class PageProcessor:
 
         for _, row in table.iterrows():
             # get primary stuff
-            tag = row[target]
-            tags_src = row[target_src]
-            tags_dst = row[target_dst]
-            tags_route = row[target_route]
+            tag = str(row[target]).strip()
+            tags_src = str(row[target_src]).strip()
+            tags_dst = str(row[target_dst]).strip()
+            tags_route = str(row[target_route]).strip()
 
             if tag == "" or tags_src == "" or tags_dst == "" or tags_route == "":
                 logger.warning(
@@ -218,7 +218,7 @@ class PageProcessor:
             # get secondary stuff
             attributes = []
             for name in other:
-                value = row[name]
+                value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
@@ -248,9 +248,9 @@ class PageProcessor:
 
         for _, row in table.iterrows():
             # get primary stuff
-            tag_src = row[target_src]
-            tag_dst = row[target_dst]
-            tags_route = row[target_route]
+            tag_src = str(row[target_src]).strip()
+            tag_dst = str(row[target_dst]).strip()
+            tags_route = str(row[target_route]).strip()
 
             if tag_src == "" or tag_dst == "":
                 logger.warning(
@@ -261,7 +261,7 @@ class PageProcessor:
             # get secondary stuff
             attributes = []
             for name in other:
-                value = row[name]
+                value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
@@ -293,11 +293,11 @@ class PageProcessor:
 
         for _, row in table.iterrows():
             # get primary stuff
-            tag = row[target]
-            tag_src = row[target_src]
-            tag_dst = row[target_dst]
-            pin_src = row[target_src_pin]
-            pin_dst = row[target_dst_pin]
+            tag = str(row[target]).strip()
+            tag_src = str(row[target_src]).strip()
+            tag_dst = str(row[target_dst]).strip()
+            pin_src = str(row[target_src_pin]).strip()
+            pin_dst = str(row[target_dst_pin]).strip()
 
             if (
                 tag == ""
@@ -314,7 +314,7 @@ class PageProcessor:
             # get secondary stuff
             attributes: list[Attribute] = []
             for name in other:
-                value = row[name]
+                value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
                         self.god.create_attribute(AttributeType.SIMPLE, name, value)
