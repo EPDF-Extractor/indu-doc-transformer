@@ -1,6 +1,16 @@
 # InduDoc Transformer
 This is the core repository of the project.
 
+
+## Resources for developers:
+- [Team Roles](https://github.com/EPDF-Extractor/indu-doc-transformer/wiki/Team-Roles)
+- [Team Planning](https://github.com/orgs/EPDF-Extractor/projects/5)
+- [Requirements](https://github.com/EPDF-Extractor/indu-doc-transformer/wiki/Requirements)
+- [Architecture](https://github.com/EPDF-Extractor/indu-doc-transformer/wiki/Architecture)
+- [Contributing Guidelines](CONTRIBUTING.md)
+
+
+
 ## Installation
 We are using [uv](https://docs.astral.sh/uv/) for package management. just install it and run the project with: 
 
@@ -25,10 +35,3 @@ If you need to add dependencies to the virtual environment, you can do so by mod
 ```bash
 uv sync
 ```
-
-## Resources for developers:
-- [Team Roles]()
-- [Team Planning](https://github.com/orgs/EPDF-Extractor/projects/5)
-- [Requirements](https://github.com/EPDF-Extractor/indu-doc-transformer/wiki/Requirements)
-- [Architecture](https://github.com/EPDF-Extractor/indu-doc-transformer/wiki/Architecture)
-- [Contributing Guidelines](CONTRIBUTING.md)
