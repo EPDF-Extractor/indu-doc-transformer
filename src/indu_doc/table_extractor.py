@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pymupdf
 import logging
-from common_page_utils import PageType
+from .common_page_utils import PageType
 
 logger = logging.getLogger(__name__)
 # In pt
@@ -229,7 +229,9 @@ class TableExtractor:
         df[["from", "to"]] = split_cols
         df = df.drop(columns=[col_to_drop])
         # clean empty rows
-        df = df[(df != '').any(axis=1)]
+        # TODO findot what chars to ignore: s.str.rstrip('.!? \n\t')
+        # TODO unit test this
+        df = df[df.apply(lambda row: row.astype(str).str.strip().ne('').any(), axis=1)]
         return df
 
     @staticmethod
@@ -485,7 +487,7 @@ class TableExtractor:
         )
 
         # clean empty rows
-        df = df[(df != '').any(axis=1)]
+        df = df[df.apply(lambda row: row.astype(str).str.strip().ne('').any(), axis=1)]
         # insert strip name as 1st column
         df.insert(0, "Strip", strip_name)
 
@@ -498,3 +500,4 @@ if __name__ == "__main__":
     df = TableExtractor.extract(doc[72:76], PageType.CABLE_DIAGRAM)
     logger.debug(df.iloc[0])
     logger.debug(df)
+
