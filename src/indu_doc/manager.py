@@ -37,9 +37,15 @@ class Manager:
                     f"Could not detect page type for page #{page.number + 1}")
 
     def update_configs(self, configs: AspectsConfig) -> None:
-        raise NotImplementedError(
-            "Update configs not implemented yet, It might be tricky"
-        )
+        """
+        WARNING: This will remove all existing data and start fresh with the new configs.
+        """
+        if configs != self.configs:
+            logger.info("Updating configs and resetting all data.")
+
+        self.configs = configs
+        self.god = God(self.configs)
+        self.page_processor = PageProcessor(self.god)
 
     def get_tree(self) -> Any:
         # form tree of objects by aspects. Level of the tree is aspect priority
@@ -61,7 +67,7 @@ class Manager:
             "num_links": len(self.god.links),
             "num_pins": len(self.god.pins),
         }
-
+        
     def get_xtargets(self) -> List[XTarget]:
         return list(self.god.xtargets)
 

@@ -1,32 +1,30 @@
-[
-  {
-    "Aspect": "Functional",
-    "Separator": "=",
-    "Order": 1
-  },
-  {
-    "Aspect": "Location",
-    "Separator": "+",
-    "Order": 2
-  },
-  {
-    "Aspect": "Product Aspect",
-    "Separator": "-",
-    "Order": 3
-  },
-  {
-    "Aspect": "Pins",
-    "Separator": ":",
-    "Order": 4
-  },
-  {
-    "Aspect": "Subdivision",
-    "Separator": "/",
-    "Order": 5
-  },
-  {
-    "Aspect": "Document",
-    "Separator": "&",
-    "Order": 6
-  }
-]
+{
+  "aspects": [
+    {
+      "label": "Functional",
+      "control": "select",
+      "options": [
+        "Functional",
+        "Option 2",
+        "Option 3"
+      ],
+      "default": "Functional"
+    },
+    {
+      "label": "Position",
+      "control": "select",
+      "options": [
+        "Position",
+        "Option A",
+        "Option B"
+      ],
+      "default": "Position"
+    },
+    {
+      "label": "Notes",
+      "control": "input",
+      "options": [],
+      "default": ""
+    }
+  ]
+}
