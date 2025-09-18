@@ -13,10 +13,10 @@ def sample_config():
     return AspectsConfig(
         OrderedDict(
             {
-                "===": LevelConfig(Order=1, Separator="===", Aspect="Functional"),
-                "==": LevelConfig(Order=2, Separator="==", Aspect="Location"),
-                "=": LevelConfig(Order=3, Separator="=", Aspect="Product"),
-                "+": LevelConfig(Order=4, Separator="+", Aspect="Terminal"),
+                "===": LevelConfig(Separator="===", Aspect="Functional"),
+                "==": LevelConfig(Separator="==", Aspect="Location"),
+                "=": LevelConfig(Separator="=", Aspect="Product"),
+                "+": LevelConfig(Separator="+", Aspect="Terminal"),
             }
         )
     )
@@ -28,8 +28,8 @@ def simple_config():
     return AspectsConfig(
         OrderedDict(
             {
-                "=": LevelConfig(Order=1, Separator="=", Aspect="Product"),
-                "+": LevelConfig(Order=2, Separator="+", Aspect="Terminal"),
+                "=": LevelConfig(Separator="=", Aspect="Product"),
+                "+": LevelConfig(Separator="+", Aspect="Terminal"),
             }
         )
     )
