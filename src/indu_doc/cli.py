@@ -9,6 +9,7 @@ and extracting industrial documentation components.
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -61,6 +62,8 @@ def format_stats(stats: Dict[str, Any]) -> str:
     """Format statistics for display."""
     output = ["Processing Statistics:", "=" * 20]
     for key, value in stats.items():
+        if key.startswith("processing_"):
+            continue  # Skip processing state info in stats display
         formatted_key = key.replace('_', ' ').replace('num ', '').title()
         output.append(f"{formatted_key}: {value}")
     return '\n'.join(output)
@@ -88,28 +91,81 @@ def export_data(manager: Manager, output_file: str, format_type: str) -> None:
     click.echo(f"Data exported to: {output_path}")
 
 
+def monitor_processing(manager: Manager, show_progress: bool = True) -> bool:
+    """
+    Monitor the processing state and display progress.
+    Returns True if processing completed successfully, False otherwise.
+    """
+    last_progress = -1
+
+    while True:
+        state_info = manager.get_processing_state()
+        state = state_info["state"]
+        progress = state_info["progress"]
+
+        if state == "idle":
+            return True
+        elif state == "error":
+            click.echo(
+                f"\nProcessing failed: {state_info['error_message']}", err=True)
+            return False
+        elif state in ["processing", "stopping"]:
+            if show_progress and progress["total_pages"] > 0:
+                current_progress = int(progress["percentage"] * 100)
+                if current_progress != last_progress:
+                    current_file = progress.get("current_file", "")
+                    file_name = Path(current_file).name if current_file else ""
+                    click.echo(
+                        f"\rProgress: {current_progress:3d}% ({progress['current_page']}/{progress['total_pages']}) - {file_name}", nl=False)
+                    last_progress = current_progress
+
+            time.sleep(0.1)  # Small delay to avoid excessive CPU usage
+
+        # Handle Ctrl+C gracefully
+        try:
+            time.sleep(0.1)
+        except KeyboardInterrupt:
+            click.echo("\n\nStopping processing...")
+            manager.stop_processing()
+            # Wait for graceful shutdown
+            while manager.is_processing():
+                time.sleep(0.1)
+            click.echo("Processing stopped.")
+            return False
+
+
 def process_pdf(pdf_file: Path, config: Path, show_stats: bool, export: Optional[str],
-                export_format: str) -> None:
-    """Process a PDF file."""
+                export_format: str, show_progress: bool = True) -> None:
+    """Process a PDF file using the async manager."""
     try:
-        manager = Manager(str(config))
+        manager = Manager.from_config_file(str(config))
         click.echo(f"Processing PDF: {pdf_file}")
 
+        # Start processing (this returns immediately)
         manager.process_pdfs(str(pdf_file))
+
+        # Monitor processing with progress display
+        success = monitor_processing(manager, show_progress)
+
+        if not success:
+            sys.exit(1)
+
+        click.echo("\n")  # New line after progress display
 
         # Display statistics if requested (default: True)
         if show_stats:
             stats = manager.get_stats()
-            click.echo("\n" + format_stats(stats))
+            click.echo(format_stats(stats))
 
         # Export data if requested
         if export:
             export_data(manager, export, export_format)
 
-        click.echo("\nProcessing completed successfully!")
+        click.echo("Processing completed successfully!")
 
     except Exception as e:
         logging.error(f"Processing failed: {e}")
+        click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
 
@@ -121,6 +177,8 @@ def process_pdf(pdf_file: Path, config: Path, show_stats: bool, export: Optional
               help='Path to configuration file (required)')
 @click.option('--no-stats', is_flag=True,
               help='Disable processing statistics display')
+@click.option('--no-progress', is_flag=True,
+              help='Disable progress display during processing')
 @click.option('--export', type=str,
               help='Export results to file')
 @click.option('--export-format', type=click.Choice(['json']), default='json',
@@ -133,9 +191,9 @@ def process_pdf(pdf_file: Path, config: Path, show_stats: bool, export: Optional
               help='Write logs to file')
 @click.option('--out-to-std', is_flag=True,
               help='Enable logging output to stdout (disabled by default)')
-def main(pdf_file: Path, config_file: Path, no_stats: bool, export: Optional[str],
-         export_format: str, verbose: bool, log_level: str, log_file: Optional[str],
-         out_to_std: bool) -> None:
+def main(pdf_file: Path, config_file: Path, no_stats: bool, no_progress: bool,
+         export: Optional[str], export_format: str, verbose: bool, log_level: str,
+         log_file: Optional[str], out_to_std: bool) -> None:
     """Industrial Document Transformer CLI - Process PDF files and extract industrial documentation components."""
 
     # Determine logging level (verbose flag overrides log-level)
@@ -144,8 +202,9 @@ def main(pdf_file: Path, config_file: Path, no_stats: bool, export: Optional[str
     # Setup logging (only to stdout if --out-to-std is specified)
     setup_logging(actual_log_level, log_file, out_to_std)
 
-    # Execute the processing (show_stats is opposite of no_stats)
-    process_pdf(pdf_file, config_file, not no_stats, export, export_format)
+    # Execute the processing (show_stats is opposite of no_stats, show_progress is opposite of no_progress)
+    process_pdf(pdf_file, config_file, not no_stats,
+                export, export_format, not no_progress)
 
 
 if __name__ == "__main__":

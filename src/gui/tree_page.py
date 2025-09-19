@@ -32,6 +32,7 @@ def sanitize_tree_data(tree_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def filter_tree_by_description(tree_data: List[Dict[str, Any]], filter_str: str) -> List[Dict[str, Any]]:
     if not filter_str:
         return tree_data
+    filter_str = filter_str.lower().strip()
     filtered = []
     for node in tree_data:
         # Check if description matches (case-insensitive)
