@@ -191,7 +191,65 @@ class Manager:
 
     def get_tree(self) -> Any:
         # form tree of objects by aspects. Level of the tree is aspect priority
-        raise NotImplementedError("Tree view not implemented yet")
+        tags_parts = [(t, t.tag.get_tag_parts()) for t in self.god.xtargets]
+        # convert the parts into a prefex tree structure
+        """
+        tree_data = [
+        {'id': 'A', 'children': [{'id': 'A1'}, {'id': 'A2', 'description': 't.tag.tag_str'}]},
+        {'id': 'B', 'children': [{'id': 'B1'}, {'id': 'B2', 'description': 't.tag.tag_str'}]},
+        ]
+        """
+        raw_tree = {}
+        for t, parts in tags_parts:
+            current_level = raw_tree
+            for sep in self.configs.separators:
+                if sep in parts:
+                    TreeKey = sep + parts[sep]
+                    if TreeKey not in current_level:
+                        current_level[TreeKey] = {}
+                    current_level = current_level[TreeKey]
+
+            # at the leaf, we can store the full tag string or other info
+            if "_targets" not in current_level:
+                current_level["_targets"] = []
+            if t.tag.tag_str not in current_level["_targets"]:
+                current_level["_targets"].append(t)
+
+        # convert raw_tree to the desired format for the GUI
+        def get_gui_description(target: XTarget) -> str:
+            str_builder = ""
+            str_builder += f"{target.tag.tag_str}\n"
+            # str_builder += f"Type: {target.target_type.value}\n"
+            for attr in target.attributes:
+                str_builder += f" - {attr}\n"
+
+            return str_builder.strip()
+
+        def convert_to_gui_format(node):
+            if not isinstance(node, dict):
+                return []
+
+            gui_node = []
+            sorted_keys = sorted(
+                node.keys(), key=lambda k: (k != "_targets", k))
+            for key in sorted_keys:
+                child = node[key]
+                if key == "_targets":
+                    if isinstance(child, list):
+                        for target in child:
+                            if isinstance(target, XTarget):
+                                gui_node.append(
+                                    {'id': str(target.target_type.value.upper() + " : " + target.tag.tag_str), 'description': get_gui_description(target), 'children': []})
+                else:
+                    converted_children = convert_to_gui_format(child)
+                    gui_node.append({
+                        'id': str(key),
+                        'children': converted_children if converted_children else []
+                    })
+            return gui_node
+
+        tree_data = convert_to_gui_format(raw_tree)
+        return tree_data if tree_data else []
 
     def save_to_db(self) -> None:
         raise NotImplementedError("Save on DB not implemented yet")

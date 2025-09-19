@@ -12,9 +12,7 @@ logger = logging.getLogger(__name__)
 def load_aspects() -> List[LevelConfig]:
     # Build aspects list from default_configs (AspectsConfig) provided by configs.py
     try:
-        # default_configs.levels is an OrderedDict where keys are separators and
-        # values are LevelConfig objects in the correct order
-        logger.debug(f"Loaded default aspects: {default_configs}")
+        logger.debug(f"Trying to load default aspects: {default_configs}")
         return default_configs.to_list()
     except Exception as e:
         # fallback: minimal built-in defaults
@@ -54,19 +52,19 @@ def create_aspect_row_for_dialog(aspect: LevelConfig, index: int, mutable_aspect
                     i, i+1, mutable_aspects, rebuild_callback)).props('flat dense').classes('p-0 m-0')
 
 
-def do_swap(a: int, b: int, aspects: List[LevelConfig], rebuild_callback):
+def do_swap(a: int, b: int, mutable_aspects: List[LevelConfig], rebuild_callback):
     # swap indices if valid, then rebuild the rows in-place
-    if 0 <= b < len(aspects):
-        aspects[a], aspects[b] = aspects[b], aspects[a]
+    if 0 <= b < len(mutable_aspects):
+        mutable_aspects[a], mutable_aspects[b] = mutable_aspects[b], mutable_aspects[a]
         try:
             rebuild_callback()
         except Exception:
             pass
 
 
-def remove_aspect(index: int, aspects: List[LevelConfig], rebuild_callback):
-    if 0 <= index < len(aspects):
-        aspects.pop(index)
+def remove_aspect(index: int, mutable_aspects: List[LevelConfig], rebuild_callback):
+    if 0 <= index < len(mutable_aspects):
+        mutable_aspects.pop(index)
         try:
             rebuild_callback()
         except Exception:
@@ -103,19 +101,32 @@ def open_configuration_dialog(aspects: List[LevelConfig]):
 
         def save_and_close(aspects_to_save: List[LevelConfig], dialog):
             # convert to AspectsConfig and save back to the original list
+            # validate that no separators are empty and unique, aspect names non-empty
+            separators = [a.Separator for a in aspects_to_save]
+            aspect_names = [a.Aspect for a in aspects_to_save]
+            if not all(separators) or len(separators) != len(set(separators)):
+                ui.notify(
+                    'Invalid separators (ensure non-empty and unique)', color='negative')
+                return
+            if not all(aspect_names):
+                ui.notify('Invalid aspect names (ensure non-empty)',
+                          color='negative')
+                return
             aspects.clear()
             aspects.extend(mutable_aspects)
             dialog.close()
             ui.notify('Aspects saved')
 
         # footer actions (sticky at bottom of card area)
-        with ui.row().classes('justify-between items-center gap-2 mt-2'):
+        with ui.row().classes('justify-between items-center gap-2 mt-2 p-4'):
+            ui.button('Add', on_click=lambda _: add_aspect_inplace(
+                mutable_aspects, rebuild_rows)).props('flat').classes('text-green-600')
+
             with ui.row().classes('gap-2'):
-                ui.button('Discard', on_click=config_dialog.close).props('flat')
+                ui.button('Discard', on_click=config_dialog.close).props(
+                    'flat').classes('text-gray-600')
                 ui.button('Save', on_click=lambda: save_and_close(
-                    mutable_aspects, config_dialog)).props('flat primary')
-                ui.button('Add', on_click=lambda _: add_aspect_inplace(
-                    mutable_aspects, rebuild_rows)).props('flat')
+                    mutable_aspects, config_dialog)).props('flat').classes('bg-blue-600 text-white')
 
     # open after construction
     config_dialog.open()
@@ -128,7 +139,7 @@ def make_config_opener(aspects: List[LevelConfig]):
 
 
 def add_aspect_inplace(aspects: List[LevelConfig], rebuild_callback):
-    aspects.append(LevelConfig(Separator='', Aspect='New Aspect'))
+    aspects.append(LevelConfig(Separator='', Aspect=''))
     try:
         rebuild_callback()
     except Exception:
