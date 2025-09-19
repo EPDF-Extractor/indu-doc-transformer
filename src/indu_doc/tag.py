@@ -170,10 +170,10 @@ if __name__ == "__main__":
     configs: AspectsConfig = AspectsConfig(
         OrderedDict(
             {
-                "===": LevelConfig(Order=1, Separator="=", Aspect="Functional"),
-                "==": LevelConfig(Order=2, Separator="+", Aspect="Location"),
-                "=": LevelConfig(Order=3, Separator="-", Aspect="Product"),
-                "+": LevelConfig(Order=3, Separator="-", Aspect="Product"),
+                "===": LevelConfig(Separator="=", Aspect="Functional"),
+                "==": LevelConfig(Separator="+", Aspect="Location"),
+                "=": LevelConfig(Separator="-", Aspect="Product"),
+                "+": LevelConfig(Separator="-", Aspect="Product"),
             }
         )
     )

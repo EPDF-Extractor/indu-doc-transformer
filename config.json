@@ -1,30 +1,16 @@
 {
   "aspects": [
     {
-      "label": "Functional",
-      "control": "select",
-      "options": [
-        "Functional",
-        "Option 2",
-        "Option 3"
-      ],
-      "default": "Functional"
+      "Separator": "=",
+      "Aspect": "Functional"
     },
     {
-      "label": "Position",
-      "control": "select",
-      "options": [
-        "Position",
-        "Option A",
-        "Option B"
-      ],
-      "default": "Position"
+      "Separator": "+",
+      "Aspect": "Location"
     },
     {
-      "label": "Notes",
-      "control": "input",
-      "options": [],
-      "default": ""
+      "Separator": "-",
+      "Aspect": "Product"
     }
   ]
 }

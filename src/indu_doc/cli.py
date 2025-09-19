@@ -95,7 +95,7 @@ def process_pdf(pdf_file: Path, config: Path, show_stats: bool, export: Optional
         manager = Manager(str(config))
         click.echo(f"Processing PDF: {pdf_file}")
 
-        manager.process_pdf(str(pdf_file))
+        manager.process_pdfs(str(pdf_file))
 
         # Display statistics if requested (default: True)
         if show_stats:
