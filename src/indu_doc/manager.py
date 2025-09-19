@@ -217,13 +217,12 @@ class Manager:
 
         # convert raw_tree to the desired format for the GUI
         def get_gui_description(target: XTarget) -> str:
-            str_builder = ""
-            str_builder += f"{target.tag.tag_str}\n"
-            # str_builder += f"Type: {target.target_type.value}\n"
+            lines = []
+            lines.append(f"{target.tag.tag_str}")
+            # lines.append(f"Type: {target.target_type.value}")
             for attr in target.attributes:
-                str_builder += f" - {attr}\n"
-
-            return str_builder.strip()
+                lines.append(f" - {attr}")
+            return "\n".join(lines).strip()
 
         def convert_to_gui_format(node):
             if not isinstance(node, dict):
