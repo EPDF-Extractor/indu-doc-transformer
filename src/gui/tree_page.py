@@ -1,4 +1,3 @@
-from gc import enable
 from nicegui import ui
 from typing import List, Dict, Any
 from indu_doc.manager import Manager

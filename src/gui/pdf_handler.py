@@ -44,7 +44,6 @@ def create_pdf_picker():
     with ui.card().classes('flex-grow min-w-0 flex margin-0 p-0'):
         up = ui.upload(
             on_upload=lambda e: handle_pdf_upload(e),
-
             auto_upload=True,
             multiple=False,
         ).props('accept=.pdf color=primary label="Upload PDF" style="height:12rem; overflow:auto;"').classes('w-full')
