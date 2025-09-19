@@ -36,7 +36,7 @@ class AspectsConfig:
             AspectsConfig: An instance of AspectsConfig containing the extracted configuration.
         """
         with open(filepath, "r", encoding="utf-8") as f:
-            config = json.load(f)
+            config = json.load(f).get("aspects", [])
         entries_with_order = {}
         i = 1  # start order from 1
         for item in config:
