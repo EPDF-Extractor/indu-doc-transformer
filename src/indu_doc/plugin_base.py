@@ -74,32 +74,37 @@ class InternalElementBase(ISerializeable):
 
     guids: set[GUID] = set()
 
-    def __init__(self):
-        self.id = self._get_guid()
-        if self.id in InternalElementBase.guids:
-            print(f"Non-unique ID detected: {self.id}")
-            # raise ValueError(f"Non-unique GUID detected in the {self.__class__}")
-        InternalElementBase.guids.add(self.id)
+    def create_guid(self, unq: dict[str, str]) -> GUID:
+        data_str = json.dumps(unq, sort_keys=True) # ensure consistent order
+        hash = hashlib.md5(data_str.encode("utf-8")).digest()
+        guid = str(uuid.UUID(bytes=hash))
+        return guid
 
+    def set_guid(self, guid: GUID):
+        self.id = guid
+        if self.id in InternalElementBase.guids:
+            print(f"Non-unique ID detected: {self.__class__} {self.id}") 
+        InternalElementBase.guids.add(self.id)
+    
     @abstractmethod
     def serialize(self) -> et._Element:
-        pass
+        raise NotImplementedError("Serialize is not implemented")
 
     @abstractmethod
-    def _get_guid(self):
-        pass
+    def _get_guid(self, salt = ""):
+        raise NotImplementedError("Get guid is not implemented")
 
 class InternalPin(InternalElementBase):
-    def __init__(self, pin: Pin, salt: GUID):
-        self.salt = salt
+    def __init__(self, pin: Pin, link: Link):
         self.pin = pin
-        super().__init__()
+        # self.set_guid(self.create_guid({
+        #     link.
+        # }))
 
-    def _get_guid(self) -> GUID:
+    def _get_guid(self, salt = "") -> GUID:
         data = {
             "name": str(self.pin.name), 
-            "attributes": [str(a) for a in (self.pin.attributes or [])],
-            "salt": self.salt
+            "attributes": [str(a) for a in (self.pin.attributes or [])]
         }
         data_str = json.dumps(data, sort_keys=True) # ensure consistent order
         hash = hashlib.md5(data_str.encode("utf-8")).digest()
@@ -124,24 +129,10 @@ class InternalConnection(InternalElementBase):
     id_a: GUID
     id_b: GUID
 
-    def __init__(self, link: Link, salt: GUID):
-        self.salt = salt
+    def __init__(self, link: Link):
         self.link = link
-        super().__init__()
         self.id_a = self.id + ':' + link.src_pin.name
         self.id_b = self.id + ':' + link.dest_pin.name
-
-    def _get_guid(self) -> GUID:
-        data = {
-            "name": str(self.link.name), 
-            "src_pin": str(self.link.src_pin.name),
-            "dst_pin": str(self.link.dest_pin.name),
-            "attributes": [str(a) for a in (self.link.attributes or [])],
-            "salt": self.salt
-        }
-        data_str = json.dumps(data, sort_keys=True) # ensure consistent order
-        hash = hashlib.md5(data_str.encode("utf-8")).digest()
-        return str(uuid.UUID(bytes=hash))
     
     def serialize(self) -> et._Element:
         root = et.Element("InternalElement")
@@ -247,23 +238,11 @@ class InternalXTarget(InternalAspectBase):
         self.aspects: dict[str, str] = defaultdict(str)
         for sep, name in tag_parts.items():
             self.aspects[levels[sep].Aspect.lower()] += sep+name
-        #
-        super().__init__("", "", "")
 
     def set_base(self, base: InternalAspectBase):
         self.name = base.name
         self.bmk = base.bmk
         self.prefix = base.prefix
-             
-    def _get_guid(self) -> GUID:
-        data = {
-            "tag": str(self.xtarget.tag.tag_str), # TODO must be independent of tag order
-            "target_type": str(self.xtarget.target_type),
-            "attributes": [str(a) for a in (self.xtarget.attributes or [])]  # list of strings
-        }
-        data_str = json.dumps(data, sort_keys=True) # ensure consistent order
-        hash = hashlib.md5(data_str.encode("utf-8")).digest()
-        return str(uuid.UUID(bytes=hash))
     
     def serialize(self) -> et._Element:
         if self.name is None:
@@ -412,18 +391,18 @@ class AMLBuilder(BuilderPlugin):
         # TODO may be move to CAEXfile
         
         # Create a lookup map of xtargets
-        xtarget_lookup = {xtarget.tag.tag_str: InternalXTarget(xtarget, self.configs.levels) for xtarget in self.god.xtargets}
+        xtarget_lookup = {xtarget.tag.tag_str: InternalXTarget(xtarget, self.configs.levels) for xtarget in self.god.xtargets.values()}
         internal_links: list[InternalLink] = []
 
         # unpack connections and links
-        for connection in self.god.connections:
+        for connection in self.god.connections.values():
             src = xtarget_lookup.get(connection.src.tag.tag_str) if connection.src else None
             dst = xtarget_lookup.get(connection.dest.tag.tag_str) if connection.dest else None
             through = xtarget_lookup.get(connection.through.tag.tag_str) if connection.through else None
             # 
             for link in connection.links:
                 src_pin = InternalPin(link.src_pin, src.id) if src else None
-                dst_pin = InternalPin(link.dest_pin, src.id) if dst else None
+                dst_pin = InternalPin(link.dest_pin, dst.id) if dst else None
 
                 if dst_pin is not None:
                     dst.connPoints.append(dst_pin)
@@ -449,7 +428,7 @@ class AMLBuilder(BuilderPlugin):
         for sep, config in self.configs.levels.items():
             aspects[config.Aspect.lower()].append(sep)
         for aspect, levels in aspects.items():
-            file.hierarchies.append(InstanceHierarchy(aspect.capitalize(), "0.0.1", levels, targets, internal_links))
+            file.hierarchies.append(InstanceHierarchy(aspect.capitalize(), "0.0.1", levels, targets))
 
         # Save to file with 2-space indentation
         tree = et.ElementTree(file.serialize())
@@ -535,7 +514,7 @@ if __name__ == "__main__":
 
     success = monitor_processing(manager)
     if success:
-        # print(manager.get_stats())
+        print(manager.get_stats())
 
         builder = AMLBuilder(manager.god, manager.configs)
         builder.process()
