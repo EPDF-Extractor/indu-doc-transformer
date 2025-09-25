@@ -2,7 +2,7 @@
   "aspects": [
     {
       "Separator": "=",
-      "Aspect": "Functional"
+      "Aspect": "Function"
     },
     {
       "Separator": "+",
