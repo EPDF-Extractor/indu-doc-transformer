@@ -76,6 +76,7 @@ class PageProcessor:
         try:
             f(table, footer)
         except ValueError as ve:
+            logger.warning(ve.__context__)
             logger.warning(f"ValueError processing table '{page_type_}': {ve}")
         except Exception as e:
             logger.warning(f"Unexpected error processing table '{page_type_}': {e}")
@@ -332,20 +333,6 @@ class PageProcessor:
         # TODO awful double mapping
         self.process_cable_diagram(table.iloc[:, [2, 3, 4, 5, 8, 0, 6, 13, 1]], footer)
         self.process_cable_diagram(table.iloc[:, [12, 3, 0, 6, 8, 9, 10, 13, 11]], footer)
-
-
-if __name__ == "__main__":
-    doc = pymupdf.open("pdfs/sample.pdf")
-    god = God(configs=default_configs)
-    processor = PageProcessor(god)
-
-    page = doc.load_page(140)  # Load the first page
-    page_type = detect_page_type(page)
-    if page_type is not None:
-        processor.run(page, page_type)
-    else:
-        logger.warning(f"Could not detect page type for page #{page.number + 1}")
-    print(god)
 
 
 if __name__ == "__main__":

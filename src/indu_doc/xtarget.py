@@ -15,6 +15,14 @@ class XTargetType(Enum):
     OTHER = "other"  # Fallback type
 
 
+XTargetTypePriority = { # higher value means higher priority
+    XTargetType.CABLE: 3,
+    XTargetType.DEVICE: 2,
+    XTargetType.STRIP: 1,
+    XTargetType.OTHER: 0,
+}
+
+
 class XTarget(AttributedBase):
     def __init__(
         self,
@@ -29,12 +37,10 @@ class XTarget(AttributedBase):
         self.configs: AspectsConfig = configs
 
     def add_attribute(self, attribute: Attribute) -> None:
-        self.attributes.append(attribute)
+        self.attributes.add(attribute)
 
     def remove_attribute(self, attr: Attribute) -> None:
-        self.attributes = [
-            attribute for attribute in self.attributes if attribute is not attr
-        ]
+        self.attributes.discard(attr)
 
     def get_attributes(self, name: str):
         return [attribute for attribute in self.attributes if attribute.name == name]
@@ -54,5 +60,7 @@ class XTarget(AttributedBase):
         # The tag string should always be the same for the same object
         return hashlib.md5(self.tag.tag_str.encode()).hexdigest()
 
+    def __str__(self) -> str:
+        return self.tag.tag_str
     def __repr__(self) -> str:
         return f"Object(tag={self.tag}, attributes={self.attributes})"

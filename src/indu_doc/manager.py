@@ -191,7 +191,8 @@ class Manager:
 
     def get_tree(self) -> Any:
         # form tree of objects by aspects. Level of the tree is aspect priority
-        tags_parts = [(t, t.tag.get_tag_parts()) for t in self.god.xtargets]
+        tags_parts = [(t, t.tag.get_tag_parts())
+                      for t in self.god.xtargets.values()]
         # convert the parts into a prefex tree structure
         """
         tree_data = [
@@ -277,19 +278,19 @@ class Manager:
         return base_stats
 
     def get_xtargets(self) -> list[XTarget]:
-        return list(self.god.xtargets)
+        return list(self.god.xtargets.values())
 
     def get_connections(self) -> list:
-        return list(self.god.connections)
+        return list(self.god.connections.values())
 
     def get_attributes(self) -> list:
-        return list(self.god.attributes)
+        return list(self.god.attributes.values())
 
     def get_links(self) -> list:
-        return list(self.god.links)
+        return list(self.god.links.values())
 
     def get_pins(self) -> list:
-        return list(self.god.pins)
+        return list(self.god.pins.values())
 
     @property
     def has_data(self) -> bool:
