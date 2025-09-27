@@ -140,7 +140,7 @@ class AttributeType(Enum):
     ROUTING_TRACKS = "RoutingTracksAttribute"
 
 
-AvailableAttributes = {
+AvailableAttributes: dict[AttributeType, type[Attribute]] = {
     AttributeType.SIMPLE: SimpleAttribute,
     AttributeType.ROUTING_TRACKS: RoutingTracksAttribute,
 }
