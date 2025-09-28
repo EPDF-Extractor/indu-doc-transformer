@@ -18,6 +18,13 @@ logger = logging.getLogger(__name__)
 class God:
     """
     Factory class for creating different objects.
+    Operates:
+    - xtargets
+    - connections
+    - attributes
+    - connections
+    - links
+    - pins
     """
 
     def __init__(self, configs: AspectsConfig):
