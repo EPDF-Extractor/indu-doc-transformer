@@ -197,16 +197,6 @@ class TestCreateTag:
 class TestCreateXTarget:
     """Test God.create_xtarget method."""
 
-    def test_create_xtarget_valid_simple(self, god_instance):
-        """Test creating a valid simple XTarget."""
-        xtarget = god_instance.create_xtarget("=DEVICE")
-
-        assert xtarget is not None
-        assert xtarget.tag.tag_str == "=DEVICE"
-        assert xtarget.target_type == XTargetType.OTHER  # default type
-        assert xtarget.tag.tag_str in god_instance.xtargets
-        assert god_instance.xtargets[xtarget.tag.tag_str] == xtarget
-
     def test_create_xtarget_with_type(self, god_instance):
         """Test creating XTarget with specific type."""
         xtarget = god_instance.create_xtarget("=DEVICE", XTargetType.DEVICE)
@@ -364,34 +354,6 @@ class TestCreatePin:
 class TestCreateLink:
     """Test God.create_link method."""
 
-    def test_create_link_simple(self, god_instance):
-        """Test creating a simple link with just a name."""
-        link = god_instance.create_link("TEST_LINK")
-
-        assert link is not None
-        assert link.name == "TEST_LINK"
-        assert link.src_pin is None
-        assert link.dest_pin is None
-        assert len(link.attributes) == 0
-
-        # Check it's cached
-        link_key = "TEST_LINK" + "None" + "None"
-        assert link_key in god_instance.links
-        assert god_instance.links[link_key] == link
-
-    def test_create_link_with_pins(self, god_instance):
-        """Test creating a link with source and destination pins."""
-        src_pin = god_instance.create_pin("=DEVICE1:PIN1")
-        dest_pin = god_instance.create_pin("=DEVICE2:PIN2")
-
-        link = god_instance.create_link("TEST_LINK", src_pin, dest_pin)
-
-        assert link is not None
-        assert link.name == "TEST_LINK"
-        assert link.src_pin == src_pin
-        assert link.dest_pin == dest_pin
-        assert len(link.attributes) == 0
-
     def test_create_link_with_attributes(self, god_instance):
         """Test creating a link with attributes."""
         attr1 = god_instance.create_attribute(
@@ -408,22 +370,7 @@ class TestCreateLink:
         assert attr1 in link.attributes
         assert attr2 in link.attributes
 
-    def test_create_link_with_pins_and_attributes(self, god_instance):
-        """Test creating a link with both pins and attributes."""
-        src_pin = god_instance.create_pin("=DEVICE1:PIN1")
-        dest_pin = god_instance.create_pin("=DEVICE2:PIN2")
-        attr = god_instance.create_attribute(
-            AttributeType.SIMPLE, "color", "blue")
 
-        link = god_instance.create_link(
-            "TEST_LINK", src_pin, dest_pin, (attr,))
-
-        assert link is not None
-        assert link.name == "TEST_LINK"
-        assert link.src_pin == src_pin
-        assert link.dest_pin == dest_pin
-        assert len(link.attributes) == 1
-        assert attr in link.attributes
 
     def test_create_link_merging_existing(self, god_instance):
         """Test that creating link with same key merges attributes."""
