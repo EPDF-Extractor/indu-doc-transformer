@@ -35,7 +35,7 @@ def filter_tree_by_description(tree_data: List[Dict[str, Any]], filter_str: str)
     filtered = []
     for node in tree_data:
         # Check if description matches (case-insensitive)
-        desc = str(node.get('description', '')).split('\n')[0].lower()
+        desc = str(node.get('description', '')).lower()
 
         match = filter_str.lower() in desc
         print(

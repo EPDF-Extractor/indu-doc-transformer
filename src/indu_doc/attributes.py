@@ -2,6 +2,8 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from enum import Enum
+import hashlib
+import uuid
 
 
 class Attribute(ABC):
@@ -57,6 +59,10 @@ class Attribute(ABC):
     def __eq__(self, other) -> bool:
         pass
 
+    @abstractmethod
+    def get_guid(self) -> str:
+        raise NotImplementedError("GET GUID NOT IMPLEMENTED")
+
     def __repr__(self) -> str:
         return f"Attribute(name={self.name})"
 
@@ -97,6 +103,9 @@ class SimpleAttribute(Attribute):
     def __repr__(self) -> str:
         return f"SimpleAttribute(name={self.name}, value={self.value})"
 
+    def get_guid(self) -> str:
+        return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{self.value}".encode()).digest()))
+
 
 class RoutingTracksAttribute(Attribute):
     """An attribute representing routing tracks.
@@ -133,8 +142,13 @@ class RoutingTracksAttribute(Attribute):
     def __repr__(self) -> str:
         return f"RoutingTracksAttribute(name={self.name}, tracks={self.tracks})"
 
+    def get_guid(self) -> str:
+        tracks_str = ",".join(sorted(self.tracks))
+        return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{tracks_str}".encode()).digest()))
 
 # IMP: please register new attributes here
+
+
 class AttributeType(Enum):
     SIMPLE = "SimpleAttribute"
     ROUTING_TRACKS = "RoutingTracksAttribute"

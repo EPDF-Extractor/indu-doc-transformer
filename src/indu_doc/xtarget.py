@@ -1,6 +1,8 @@
+from functools import cache
 import hashlib
 from enum import Enum
 from typing import List, Optional
+import uuid
 
 from .attributed_base import AttributedBase
 from .attributes import Attribute
@@ -15,7 +17,7 @@ class XTargetType(Enum):
     OTHER = "other"  # Fallback type
 
 
-XTargetTypePriority = { # higher value means higher priority
+XTargetTypePriority = {  # higher value means higher priority
     XTargetType.CABLE: 3,
     XTargetType.DEVICE: 2,
     XTargetType.STRIP: 1,
@@ -55,12 +57,14 @@ class XTarget(AttributedBase):
             [f"{sep}{tag_parts[sep]}" for sep in ordered_seps])
         return new_tag_str
 
-    def get_unique_id(self) -> str:
+    @cache
+    def get_guid(self) -> str:
         # Everytime we process the pdf -> generate the same ID for the same tag
-        # The tag string should always be the same for the same object
-        return hashlib.md5(self.tag.tag_str.encode()).hexdigest()
+        # The tag string should always be the same for the same object -> It's how we see them in the PDF
+        return str(uuid.UUID(bytes=hashlib.md5(self.tag.tag_str.encode("utf-8")).digest()))
 
     def __str__(self) -> str:
         return self.tag.tag_str
+
     def __repr__(self) -> str:
         return f"Object(tag={self.tag}, attributes={self.attributes})"
