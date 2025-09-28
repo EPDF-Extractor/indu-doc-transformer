@@ -75,37 +75,39 @@ class God:
             logger.warning(f"Failed to create xtarget with tag: {tag_str}")
             return None
 
-        # Now that we have a valid tag, create the xtarget, lets see if it exists already
-        if tag.tag_str in self.xtargets:
-            # we have it already, merge attributes and use higher priority type
-            existing_xtarget = self.xtargets[tag.tag_str]
-            new_type = target_type if XTargetTypePriority[target_type] > XTargetTypePriority[
-                existing_xtarget.target_type] else existing_xtarget.target_type
-            existing_xtarget.target_type = new_type
-            if attributes:
-                for attr in attributes:
-                    if attr not in existing_xtarget.attributes:
-                        existing_xtarget.add_attribute(attr)
-
-            return existing_xtarget
-
-        # create new xtarget
+            # create new xtarget
         xtarget = XTarget(
             tag=tag,
             configs=self.configs,
             target_type=target_type,
             attributes=list(attributes or []),
         )
+        # Now that we have a valid tag, create the xtarget, lets see if it exists already
+        Target_key = xtarget.get_guid()
+        if Target_key in self.xtargets:
+            # we have it already, merge attributes and use higher priority type
+            # +A1:1 -> GUID(tag.tag_str)
+            existing_xtarget = self.xtargets[Target_key]
+            new_type = target_type if XTargetTypePriority[target_type] > XTargetTypePriority[
+                existing_xtarget.target_type] else existing_xtarget.target_type
 
-        return self.xtargets.setdefault(tag.tag_str, xtarget)
+            existing_xtarget.target_type = new_type
 
-    @cache
+            if attributes:
+                for attr in attributes:
+                    existing_xtarget.add_attribute(attr)
+
+            return existing_xtarget
+
+        return self.xtargets.setdefault(Target_key, xtarget)
+
     def create_pin(self, tag_pin: str) -> Optional[Pin]:
         # for example a tag like =B+A1:PIN1:PIN2 creates a chain of pins PIN1 -> PIN2
         pins_names = tag_pin.split(":")[1:]
         if not pins_names:
             logger.warning(f"Invalid pin tag: {tag_pin}")
             return None
+
         # TODO: what if pin name is empty?
         current_pin = None
         for pin in reversed(pins_names):
@@ -117,7 +119,7 @@ class God:
 
         return (
             # this is the first pin in the chain, get all children from it
-            self.pins.setdefault(str(current_pin), current_pin)
+            self.pins.setdefault(current_pin.get_guid(), current_pin)
         )
 
     def _is_pin_tag(self, tag: str) -> bool:
@@ -130,10 +132,10 @@ class God:
         # every pin for error handling starts from ':'
         return (tags[0], None if len(tags) == 1 else ':' + tags[1])
 
-    @cache
     def create_link(
         self,
         name: str,
+        parent: Any = None,
         src_pin: Optional[Pin] = None,
         dest_pin: Optional[Pin] = None,
         attributes: Optional[tuple[Attribute]] = None,
@@ -142,24 +144,25 @@ class God:
             f"create_link {name} {src_pin} {dest_pin}"
         )
 
+        link = Link(
+            name=name,
+            src_pin=src_pin,
+            parent=parent,
+            dest_pin=dest_pin,
+            attributes=list(attributes or []),
+        )
+
         # if we had this link already, merge attributes and return existing one
-        Linkkey = name + str(src_pin) + str(dest_pin)
+        Linkkey = link.get_guid()
+
         if Linkkey in self.links:
             existing_link = self.links[Linkkey]
             if attributes:
                 for attr in attributes:
-                    if attr not in existing_link.attributes:
-                        existing_link.attributes.add(attr)
+                    existing_link.attributes.add(attr)
             return existing_link
 
-        link = Link(
-            name=name,
-            src_pin=src_pin,
-            dest_pin=dest_pin,
-            attributes=list(attributes or []),
-        )
-        self.links.setdefault(Linkkey, link)
-        return link
+        return self.links.setdefault(Linkkey, link)
 
     @cache
     def create_connection(
@@ -188,10 +191,9 @@ class God:
         obj_to = self.create_xtarget(
             tag_to, XTargetType.DEVICE, footer=footer
         )
+        conn = Connection(src=obj_from, dest=obj_to, through=through, links=[])
 
-        ConnKey = str(obj_from) + str(obj_to) + str(through)
-
-        return self.connections.setdefault(ConnKey, Connection(src=obj_from, dest=obj_to, through=through, links=[]))
+        return self.connections.setdefault(conn.get_guid(), conn)
 
     @cache
     def create_connection_with_link(
@@ -222,11 +224,13 @@ class God:
         pin_obj_to = self.create_pin(pin_to)
         link = self.create_link(
             name=tag or "virtual_link",
+            parent=connection,
             src_pin=pin_obj_from,
             dest_pin=pin_obj_to,
             attributes=attributes,
         )
         connection.add_link(link)
+
         # already in dict from create_connection
         return connection
 

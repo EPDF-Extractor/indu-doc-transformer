@@ -15,11 +15,13 @@ from indu_doc.xtarget import XTarget
 
 logger = logging.getLogger(__name__)
 
+
 class ProcessingState(Enum):
     IDLE = "idle"
     PROCESSING = "processing"
     STOPPING = "stopping"
     ERROR = "error"
+
 
 class Manager:
     def __init__(self, configs: AspectsConfig) -> None:
@@ -41,13 +43,24 @@ class Manager:
 
     @classmethod
     def from_config_file(cls, config_path: str) -> "Manager":
+        """_summary_
+
+        Args:
+            config_path (str): _description_
+
+        Returns:
+            Manager: _description_
+        """
         configs = AspectsConfig.init_from_file(config_path)
         return cls(configs)
 
-    def process_pdfs(self, pdf_paths: str | list[str]) -> None:
+    def process_pdfs(self, pdf_paths: str | list[str], blocking: bool = False) -> None:
         """
         Start PDF processing in a separate thread.
-        Returns immediately, use get_processing_state() to monitor progress.
+
+        Args:
+            blocking: If True, process in the current thread (blocking). If False, process in a new thread (non-blocking) and returns immediately, use get_processing_state() to monitor progress.
+
         """
         with self._state_lock:
             if self._processing_state != ProcessingState.IDLE:
@@ -62,7 +75,16 @@ class Manager:
                 "current_file": "",
                 "error_message": ""
             }
+        if blocking:
+            # process in the current thread (blocking)
+            self._process_pdfs_worker(pdf_paths)
+            with self._state_lock:
+                if self._processing_state == ProcessingState.PROCESSING:
+                    self._processing_state = ProcessingState.IDLE
+                    logger.info("PDF processing completed successfully")
+            return
 
+        # Start processing in a separate thread
         self._processing_thread = threading.Thread(
             target=self._process_pdfs_worker,
             args=(pdf_paths,),
@@ -200,7 +222,7 @@ class Manager:
         {'id': 'B', 'children': [{'id': 'B1'}, {'id': 'B2', 'description': 't.tag.tag_str'}]},
         ]
         """
-        raw_tree = {}
+        raw_tree: dict[str, Any] = {}
         for t, parts in tags_parts:
             current_level = raw_tree
             for sep in self.configs.separators:
@@ -212,15 +234,15 @@ class Manager:
 
             # at the leaf, we can store the full tag string or other info
             if "_targets" not in current_level:
-                current_level["_targets"] = []
-            if t.tag.tag_str not in current_level["_targets"]:
-                current_level["_targets"].append(t)
+                current_level["_targets"] = set()
+            current_level["_targets"].add(t)
 
         # convert raw_tree to the desired format for the GUI
         def get_gui_description(target: XTarget) -> str:
             lines = []
+            lines.append(f"{target.target_type.value.upper()}")
             lines.append(f"{target.tag.tag_str}")
-            # lines.append(f"Type: {target.target_type.value}")
+            lines.append(f"{target.get_guid()}")
             for attr in target.attributes:
                 lines.append(f" - {attr}")
             return "\n".join(lines).strip()
@@ -231,25 +253,29 @@ class Manager:
 
             gui_node = []
             sorted_keys = sorted(
+                # sorted by 2 keys, to have _targets last and others alphabetically
                 node.keys(), key=lambda k: (k != "_targets", k))
             for key in sorted_keys:
                 child = node[key]
                 if key == "_targets":
-                    if isinstance(child, list):
-                        for target in child:
-                            if isinstance(target, XTarget):
-                                gui_node.append(
-                                    {'id': str(target.target_type.value.upper() + " : " + target.tag.tag_str), 'description': get_gui_description(target), 'children': []})
+                    if not isinstance(child, set):
+                        logger.debug(
+                            f"Expected set of targets, got {type(child)}")
+                        continue
+
+                    for target in (c for c in child if isinstance(c, XTarget)):
+                        gui_node.append(
+                            {'id': target.tag.tag_str, 'description': get_gui_description(target), 'children': []})
                 else:
                     converted_children = convert_to_gui_format(child)
                     gui_node.append({
                         'id': str(key),
-                        'children': converted_children if converted_children else []
+                        'children': converted_children or []
                     })
             return gui_node
 
         tree_data = convert_to_gui_format(raw_tree)
-        return tree_data if tree_data else []
+        return tree_data or []
 
     def save_to_db(self) -> None:
         raise NotImplementedError("Save on DB not implemented yet")
