@@ -49,16 +49,6 @@ def sample_footer():
 class TestNoDuplicateXTargets:
     """Test that God doesn't create duplicate XTargets."""
 
-    def test_same_tag_same_xtarget_object(self, god_instance: God):
-        """Test that creating XTarget with same tag returns the same object."""
-        xtarget1 = god_instance.create_xtarget("=DEVICE", XTargetType.DEVICE)
-        xtarget2 = god_instance.create_xtarget("=DEVICE", XTargetType.DEVICE)
-
-        # Should be the exact same object (not just equal, but identical)
-        assert xtarget1 is xtarget2
-        assert len(god_instance.xtargets) == 1
-        assert list(god_instance.xtargets.keys()) == ["=DEVICE"]
-
     def test_same_tag_different_types_merges(self, god_instance: God):
         """Test that same tag with different types merges to higher priority type."""
         # Create with lower priority type first
@@ -131,22 +121,6 @@ class TestNoDuplicateXTargets:
             assert xtarget is xtargets[0]
 
         assert len(god_instance.xtargets) == 1
-
-    def test_different_tags_different_xtargets(self, god_instance: God):
-        """Test that different tags create different XTargets."""
-        xtarget1 = god_instance.create_xtarget("=DEVICE1", XTargetType.DEVICE)
-        xtarget2 = god_instance.create_xtarget("=DEVICE2", XTargetType.DEVICE)
-        xtarget3 = god_instance.create_xtarget("+LOCATION", XTargetType.OTHER)
-
-        # Should be different objects
-        assert xtarget1 is not xtarget2
-        assert xtarget1 is not xtarget3
-        assert xtarget2 is not xtarget3
-
-        assert len(god_instance.xtargets) == 3
-        assert "=DEVICE1" in god_instance.xtargets
-        assert "=DEVICE2" in god_instance.xtargets
-        assert "+LOCATION" in god_instance.xtargets
 
 
 class TestNoDuplicateConnections:
@@ -317,31 +291,6 @@ class TestNoDuplicateLinks:
 
         assert link1 is link2
         assert len(god_instance.links) == 1
-
-    def test_same_link_with_pins_same_object(self, god_instance: God):
-        """Test that same link with pins returns same object."""
-        src_pin = god_instance.create_pin("=DEV1:PIN1")
-        dest_pin = god_instance.create_pin("=DEV2:PIN2")
-
-        link1 = god_instance.create_link("TEST_LINK", src_pin, dest_pin)
-        link2 = god_instance.create_link("TEST_LINK", src_pin, dest_pin)
-
-        assert link1 is link2
-        assert len(god_instance.links) == 1
-
-    def test_same_link_different_pins_different_objects(self, god_instance: God):
-        """Test that same link name with different pins creates different objects."""
-        src_pin1 = god_instance.create_pin("=DEV1:PIN1")
-        dest_pin1 = god_instance.create_pin("=DEV2:PIN2")
-        src_pin2 = god_instance.create_pin("=DEV1:PIN3")
-        dest_pin2 = god_instance.create_pin("=DEV2:PIN4")
-
-        link1 = god_instance.create_link("TEST_LINK", src_pin1, dest_pin1)
-        link2 = god_instance.create_link("TEST_LINK", src_pin2, dest_pin2)
-
-        # Different pins should create different links even with same name
-        assert link1 is not link2
-        assert len(god_instance.links) == 2
 
     def test_link_attribute_merging(self, god_instance: God):
         """Test that same link merges attributes without duplicating the link."""

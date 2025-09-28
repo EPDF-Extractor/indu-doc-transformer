@@ -27,6 +27,9 @@ class Pin(AttributedBase):
             f"Pin(name={self.name}, child={self.child}, attributes={self.attributes})"
         )
 
+    def __str__(self) -> str:
+        return self.get_id()
+
     @cache
     def get_guid(self) -> str:
         raise NotImplementedError("GET GUID CALLED ON PIN, USE GET_ID INSTEAD")
@@ -34,7 +37,7 @@ class Pin(AttributedBase):
     @cache
     def get_id(self) -> str:
         e = [self.name]
-        e += self.child.get_guid() if self.child else ["CHILD:None"]
+        e += self.child.get_id() if self.child else ["CHILD:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"PIN:{":".join(e)}".encode()).digest()))
 
 

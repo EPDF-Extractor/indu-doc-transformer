@@ -119,7 +119,7 @@ class God:
 
         return (
             # this is the first pin in the chain, get all children from it
-            self.pins.setdefault(current_pin.get_guid(), current_pin)
+            self.pins.setdefault(current_pin.get_id(), current_pin)
         )
 
     def _is_pin_tag(self, tag: str) -> bool:
