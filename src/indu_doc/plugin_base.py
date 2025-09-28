@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 
 class BuilderPlugin(ABC):
     @abstractmethod
-    def process(self, god: God) -> None:
+    def process(self) -> None:
         pass
 
 ###################
@@ -72,24 +72,34 @@ class InternalElementBase(ISerializeable):
     name: str
     id: GUID
 
+    guids: set[GUID] = set()
+
+    def __init__(self):
+        self.id = self._get_guid()
+        if self.id in InternalElementBase.guids:
+            print(f"Non-unique ID detected: {self.id}")
+            # raise ValueError(f"Non-unique GUID detected in the {self.__class__}")
+        InternalElementBase.guids.add(self.id)
+
     @abstractmethod
     def serialize(self) -> et._Element:
         pass
 
     @abstractmethod
-    def _get_guid(self) -> GUID:
+    def _get_guid(self):
         pass
 
 class InternalPin(InternalElementBase):
-    def __init__(self, pin: Pin, owner: XTarget):
+    def __init__(self, pin: Pin, salt: GUID):
+        self.salt = salt
         self.pin = pin
-        self.owner = owner
-        self.id = self._get_guid()
+        super().__init__()
 
     def _get_guid(self) -> GUID:
         data = {
             "name": str(self.pin.name), 
-            "attributes": [str(a) for a in (self.pin.attributes or [])] 
+            "attributes": [str(a) for a in (self.pin.attributes or [])],
+            "salt": self.salt
         }
         data_str = json.dumps(data, sort_keys=True) # ensure consistent order
         hash = hashlib.md5(data_str.encode("utf-8")).digest()
@@ -114,10 +124,10 @@ class InternalConnection(InternalElementBase):
     id_a: GUID
     id_b: GUID
 
-    def __init__(self, link: Link, owner: XTarget):
+    def __init__(self, link: Link, salt: GUID):
+        self.salt = salt
         self.link = link
-        self.owner = owner
-        self.id = self._get_guid()
+        super().__init__()
         self.id_a = self.id + ':' + link.src_pin.name
         self.id_b = self.id + ':' + link.dest_pin.name
 
@@ -126,7 +136,8 @@ class InternalConnection(InternalElementBase):
             "name": str(self.link.name), 
             "src_pin": str(self.link.src_pin.name),
             "dst_pin": str(self.link.dest_pin.name),
-            "attributes": [str(a) for a in (self.link.attributes or [])] 
+            "attributes": [str(a) for a in (self.link.attributes or [])],
+            "salt": self.salt
         }
         data_str = json.dumps(data, sort_keys=True) # ensure consistent order
         hash = hashlib.md5(data_str.encode("utf-8")).digest()
@@ -161,7 +172,7 @@ class InternalAspectBase(InternalElementBase):
         self.name = name
         self.prefix = prefix
         self.bmk = bmk
-        # id is not set!
+        super().__init__()
 
     def serialize(self) -> et._Element:
         root = et.Element("InternalElement")
@@ -192,22 +203,24 @@ class InternalAspect(InternalAspectBase):
     perspective: str   
     diamondID: GUID
 
-    def _get_guid(self, salt: str = "") -> GUID:
+    def _get_guid(self) -> GUID:
         data = {
             "whoami": "InternalAspect",
             "prefix": self.prefix, 
             "name": self.name,
-            "salt": salt 
+            "salt": self.perspective 
         }
         data_str = json.dumps(data, sort_keys=True) # ensure consistent order
         hash = hashlib.md5(data_str.encode("utf-8")).digest()
         return str(uuid.UUID(bytes=hash))
 
     def __init__(self, name: str, prefix: str, bmk: str, perspective: str):
-        super().__init__(name, prefix, bmk)
         self.perspective = perspective
-        self.id = self._get_guid(perspective)
+        super().__init__(name, prefix, bmk)
+        # Now set diamondId (TODO I has to clear perspective - thats a dirty hack to fix)
+        self.perspective = ""
         self.diamondID = self._get_guid()
+        self.perspective = perspective
     
     def serialize(self) -> et._Element:
         root = super().serialize()
@@ -227,7 +240,6 @@ class InternalXTarget(InternalAspectBase):
 
     def __init__(self, xtarget: XTarget, levels: dict[str, LevelConfig]):
         self.xtarget = xtarget
-        self.id = self._get_guid()
         self.connections = []
         self.connPoints = []
         # get distinct aspects 
@@ -235,6 +247,8 @@ class InternalXTarget(InternalAspectBase):
         self.aspects: dict[str, str] = defaultdict(str)
         for sep, name in tag_parts.items():
             self.aspects[levels[sep].Aspect.lower()] += sep+name
+        #
+        super().__init__("", "", "")
 
     def set_base(self, base: InternalAspectBase):
         self.name = base.name
@@ -263,8 +277,8 @@ class InternalXTarget(InternalAspectBase):
             item.set("AttributeDataType", "xs:string")
             et.SubElement(item, "Value").text = name
 
-        print("attributes")
-        print(self.xtarget)
+        # print("attributes")
+        # print(self.xtarget)
         # Add all attributes
         for attr in self.xtarget.attributes:
             item = InternalAttribute(attr).serialize()
@@ -408,8 +422,8 @@ class AMLBuilder(BuilderPlugin):
             through = xtarget_lookup.get(connection.through.tag.tag_str) if connection.through else None
             # 
             for link in connection.links:
-                src_pin = InternalPin(link.src_pin) if src else None
-                dst_pin = InternalPin(link.dest_pin) if dst else None
+                src_pin = InternalPin(link.src_pin, src.id) if src else None
+                dst_pin = InternalPin(link.dest_pin, src.id) if dst else None
 
                 if dst_pin is not None:
                     dst.connPoints.append(dst_pin)
@@ -417,7 +431,7 @@ class AMLBuilder(BuilderPlugin):
                     src.connPoints.append(src_pin)
 
                 if through is not None:
-                    through_conn = InternalConnection(link)
+                    through_conn = InternalConnection(link, through.id)
                     through.connections.append(through_conn)
                     # add InternalLinks src -> through; through -> dst
                     internal_links.append(InternalLink(src_pin.id, through_conn.id_a))
@@ -425,7 +439,6 @@ class AMLBuilder(BuilderPlugin):
                 else:
                     # Add InternalLink: src -> dst
                     internal_links.append(InternalLink(src_pin.id, dst_pin.id))
-
         
         targets = list(xtarget_lookup.values())
         # ECAD tree InstanceHierarchy
@@ -456,7 +469,7 @@ if __name__ == "__main__":
     item = InternalLink("bcda-1234", "abcd-1234").serialize()
     print(et.tostring(item, pretty_print=True))
 
-    item = InternalPin(Pin("A1", [SimpleAttribute("a", "a test value"), SimpleAttribute("b", "b test value")])).serialize()
+    item = InternalPin(Pin("A1", [SimpleAttribute("a", "a test value"), SimpleAttribute("b", "b test value")]), "").serialize()
     print(et.tostring(item, pretty_print=True))
 
     item = InternalConnection(Link(
@@ -464,7 +477,7 @@ if __name__ == "__main__":
         Pin("A1", [SimpleAttribute("a", "a test value"), SimpleAttribute("b", "b test value")]), 
         Pin("B2", [SimpleAttribute("c", "c test value"), SimpleAttribute("d", "d test value")]), 
         [SimpleAttribute("e", "e test value")]
-    )).serialize()
+    ), "").serialize()
     print(et.tostring(item, pretty_print=True))
 
     item = InternalAspect("A1", "=", "=A1", "ECAD").serialize()
@@ -522,7 +535,7 @@ if __name__ == "__main__":
 
     success = monitor_processing(manager)
     if success:
-        print(manager.get_stats())
+        # print(manager.get_stats())
 
         builder = AMLBuilder(manager.god, manager.configs)
         builder.process()

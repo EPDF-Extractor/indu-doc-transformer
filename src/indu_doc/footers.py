@@ -115,10 +115,9 @@ def get_footer_coordinates(page: pymupdf.Page, verbose: bool = False) -> dict:
 
     # Calculate table cell coordinates
     cell_width, cell_height = config["cell_size"]
-    table_coords = {}
 
     # calculate how many cells we have
-    table_coords = []
+    table_coords: list[list[tuple[float, float, float, float]]] = []
 
     num_rows = round((page_h - config["table_start"][1]) / cell_height)
     num_cols = round((page_w - config["table_start"][0]) / cell_width)
@@ -128,10 +127,10 @@ def get_footer_coordinates(page: pymupdf.Page, verbose: bool = False) -> dict:
     for i in range(num_rows):  # rows
         row_coords = []
         for j in range(num_cols):  # columns
-            x1 = start_x + j * cell_width
-            y1 = start_y + i * cell_height
-            x2 = x1 + cell_width
-            y2 = y1 + cell_height
+            x1: float = start_x + j * cell_width
+            y1: float = start_y + i * cell_height
+            x2: float = x1 + cell_width
+            y2: float = y1 + cell_height
             row_coords.append((x1, y1, x2, y2))
         table_coords.append(row_coords)
 
