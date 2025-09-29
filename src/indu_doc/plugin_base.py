@@ -8,6 +8,7 @@ from .xtarget import XTarget
 from .attributes import Attribute, SimpleAttribute, RoutingTracksAttribute
 from .configs import AspectsConfig, LevelConfig
 from .connection import Connection, Link, Pin
+from .tag import Tag
 
 import lxml.objectify as ob
 import lxml.etree as et
@@ -30,7 +31,7 @@ GUID: TypeAlias = str
 class ISerializeable(ABC):
     @abstractmethod
     def serialize(self) -> et._Element:
-        pass
+        raise NotImplementedError("Serialize is not implemented")
 
 @dataclass
 class InternalAttribute(ISerializeable):
@@ -55,10 +56,10 @@ class InternalLink(ISerializeable):
     refA: GUID
     refB: GUID
 
-    def __init__(self, refA: GUID, refB: GUID):
+    def __init__(self, refA: "ExternalInterface", refB: "ExternalInterface"):
         # IDK what is name
-        self.refA = refA
-        self.refB = refB
+        self.refA = refA.id
+        self.refB = refB.id
         self.name = "ImALink"
 
     def serialize(self) -> et._Element:
@@ -74,43 +75,50 @@ class InternalElementBase(ISerializeable):
 
     guids: set[GUID] = set()
 
-    def create_guid(self, unq: dict[str, str]) -> GUID:
+    def _create_guid(self, unq: dict[str, str]) -> GUID:
         data_str = json.dumps(unq, sort_keys=True) # ensure consistent order
         hash = hashlib.md5(data_str.encode("utf-8")).digest()
         guid = str(uuid.UUID(bytes=hash))
         return guid
 
-    def set_guid(self, guid: GUID):
+    def _set_guid(self, guid: GUID):
         self.id = guid
         if self.id in InternalElementBase.guids:
             print(f"Non-unique ID detected: {self.__class__} {self.id}") 
         InternalElementBase.guids.add(self.id)
-    
-    @abstractmethod
-    def serialize(self) -> et._Element:
-        raise NotImplementedError("Serialize is not implemented")
 
-    @abstractmethod
-    def _get_guid(self, salt = ""):
-        raise NotImplementedError("Get guid is not implemented")
+class ExternalInterface(InternalElementBase):
+    def __init__(self, owner_guid: GUID, role: str):
+        self.role = role
+        self._set_guid(f"{owner_guid}:{role}")
+
+    def serialize(self) -> et._Element:
+        ext = et.Element("ExternalInterface")
+        ext.set("Name", self.role) # TODO IDK what name
+        ext.set("ID", self.id)
+        return ext
 
 class InternalPin(InternalElementBase):
-    def __init__(self, pin: Pin, link: Link):
-        self.pin = pin
-        # self.set_guid(self.create_guid({
-        #     link.
-        # }))
-
-    def _get_guid(self, salt = "") -> GUID:
-        data = {
-            "name": str(self.pin.name), 
-            "attributes": [str(a) for a in (self.pin.attributes or [])]
-        }
-        data_str = json.dumps(data, sort_keys=True) # ensure consistent order
-        hash = hashlib.md5(data_str.encode("utf-8")).digest()
-        return str(uuid.UUID(bytes=hash))
+    pin: Pin
+    external: ExternalInterface  # ExternalInterface requires unique ID also
+    def __init__(self, link: Link, pin_type: str):
+        match pin_type:
+            case 'src':
+                self.pin = link.src_pin
+            case 'dst':
+                self.pin = link.dest_pin
+            case _:
+                raise ValueError("Intalid pin type")
+        self._set_guid(self._create_guid({
+            "lnk": link.get_guid(),
+            "pin": self.pin.get_id(),
+            "type": pin_type
+        }))
+        self.external = ExternalInterface(self.id, "ConnectionPoint")
 
     def serialize(self) -> et._Element:
+        if self.id is None:
+            raise ValueError("Can not serialize with no ID")
         root = et.Element("InternalElement")
         root.set("Name", f"ConnPoint {self.pin.name}") 
         root.set("ID", self.id)
@@ -118,23 +126,24 @@ class InternalPin(InternalElementBase):
         for attr in self.pin.attributes:
             item = InternalAttribute(attr).serialize()
             root.append(item)
-        # Add external interfaces (TODO generalize through ISerialize?)
-        ext = et.SubElement(root, "ExternalInterface")
-        ext.set("Name", "ConnectionPoint") # TODO IDK what name
-        ext.set("ID", self.id) # TODO it has to be unq also?
+        # Add external interface
+        root.append(self.external.serialize())
         return root
 
 # do not mix with InternalLink!
 class InternalConnection(InternalElementBase):
-    id_a: GUID
-    id_b: GUID
+    external_a: ExternalInterface
+    external_b: ExternalInterface
 
     def __init__(self, link: Link):
         self.link = link
-        self.id_a = self.id + ':' + link.src_pin.name
-        self.id_b = self.id + ':' + link.dest_pin.name
+        self._set_guid(link.get_guid())
+        self.external_a = ExternalInterface(self.id, "SideA")
+        self.external_b = ExternalInterface(self.id, "SideB")
     
     def serialize(self) -> et._Element:
+        if self.id is None:
+            raise ValueError("Can not serialize with no ID")
         root = et.Element("InternalElement")
         root.set("Name", f"Connection {self.link.name}") 
         root.set("ID", self.id)
@@ -143,14 +152,9 @@ class InternalConnection(InternalElementBase):
             item = InternalAttribute(attr).serialize()
             root.append(item)
 
-        # Add external interfaces (TODO generalize through ISerialize?)
-        ext = et.SubElement(root, "ExternalInterface")
-        ext.set("Name", "SideA") # TODO IDK what name
-        ext.set("ID", self.id_a)
-
-        ext = et.SubElement(root, "ExternalInterface")
-        ext.set("Name", "SideB") # TODO IDK what name
-        ext.set("ID", self.id_b)
+        # Add external interfaces
+        root.append(self.external_a.serialize())
+        root.append(self.external_b.serialize())
 
         return root
 
@@ -158,20 +162,28 @@ class InternalAspectBase(InternalElementBase):
     prefix: str  # = separator
     bmk: str     # accumulated separators and levels
     name: str    # name of current level aspect
+    base: "InternalAspectBase | None" = None
 
-    def __init__(self, name: str, prefix: str, bmk: str):
+    def __init__(self, name: str, prefix: str, base: "InternalAspectBase | None" = None):
         self.name = name
         self.prefix = prefix
-        self.bmk = bmk
-        super().__init__()
+        self.base = base 
+        # accumulate bmk
+        self.bmk = (base.bmk if base else "") + prefix + name
+        # accumulate guid
+        self._set_guid(self._create_guid({
+            "prefix": self.prefix, 
+            "name": self.name,
+            "base": self.base.id if self.base else ""
+        }))
 
     def serialize(self) -> et._Element:
+        if self.__class__ == type(InternalAspectBase):
+            raise ValueError("Do not serialize InternalAspectBase directly")
+
         root = et.Element("InternalElement")
         root.set("Name", self.name) 
         root.set("ID", self.id)
-
-        if self.id is None:
-            raise ValueError("Do not use InternalAspectBase directly! (id is not set)")
 
         # Add Prefix
         item = et.SubElement(root, "Attribute")
@@ -194,24 +206,18 @@ class InternalAspect(InternalAspectBase):
     perspective: str   
     diamondID: GUID
 
-    def _get_guid(self) -> GUID:
-        data = {
-            "whoami": "InternalAspect",
-            "prefix": self.prefix, 
-            "name": self.name,
-            "salt": self.perspective 
+    def __init__(self, perspective: str, name: str, prefix: str, base: "InternalAspectBase | None" = None):
+        super().__init__(name, prefix, base)
+        # set diamondId
+        self.diamondID = self.id
+        # Update ID based on perspective
+        self.perspective = perspective
+        unq = { # do not copy to reuse!
+            "base": self.id, 
+            "salt": self.perspective
         }
-        data_str = json.dumps(data, sort_keys=True) # ensure consistent order
-        hash = hashlib.md5(data_str.encode("utf-8")).digest()
-        return str(uuid.UUID(bytes=hash))
-
-    def __init__(self, name: str, prefix: str, bmk: str, perspective: str):
-        self.perspective = perspective
-        super().__init__(name, prefix, bmk)
-        # Now set diamondId (TODO I has to clear perspective - thats a dirty hack to fix)
-        self.perspective = ""
-        self.diamondID = self._get_guid()
-        self.perspective = perspective
+        self._set_guid(self._create_guid(unq)) # will override self.id
+        
     
     def serialize(self) -> et._Element:
         root = super().serialize()
@@ -222,17 +228,23 @@ class InternalAspect(InternalAspectBase):
         #
         return root
 
-class InternalXTarget(InternalAspectBase): 
+class InternalXTarget(InternalElementBase): 
     xtarget: XTarget
     connections: list[InternalConnection]
     connPoints: list[InternalPin]
     # this one required to create ...OrientedReferenceDesignation stuff
     aspects: dict[str, str]
+    #
+    base: InternalAspectBase | None
+
+    serialized: bool = False
 
     def __init__(self, xtarget: XTarget, levels: dict[str, LevelConfig]):
         self.xtarget = xtarget
+        self._set_guid(xtarget.get_guid())
         self.connections = []
         self.connPoints = []
+        self.base = None
         # get distinct aspects 
         tag_parts = self.xtarget.tag.get_tag_parts()
         self.aspects: dict[str, str] = defaultdict(str)
@@ -240,15 +252,12 @@ class InternalXTarget(InternalAspectBase):
             self.aspects[levels[sep].Aspect.lower()] += sep+name
 
     def set_base(self, base: InternalAspectBase):
-        self.name = base.name
-        self.bmk = base.bmk
-        self.prefix = base.prefix
+        self.base = base
     
     def serialize(self) -> et._Element:
-        if self.name is None:
+        if self.base is None:
             raise ValueError("Can not serialize InternalXTarget until InternalAspect base is set")
-        
-        root = super().serialize()
+        root = self.base.serialize()
         # Add "[...]OrientedReferenceDesignation" stuff
         for aspect, name in self.aspects.items():
             item = et.SubElement(root, "Attribute")
@@ -256,8 +265,6 @@ class InternalXTarget(InternalAspectBase):
             item.set("AttributeDataType", "xs:string")
             et.SubElement(item, "Value").text = name
 
-        # print("attributes")
-        # print(self.xtarget)
         # Add all attributes
         for attr in self.xtarget.attributes:
             item = InternalAttribute(attr).serialize()
@@ -273,12 +280,15 @@ class InternalXTarget(InternalAspectBase):
         for cp in self.connPoints:
             root.append(cp.serialize())
 
+        self.serialized = True
+
         return root
 
 
 @dataclass
 class TreeNode():
-    item: InternalAspectBase | None = None
+    item: InternalAspect | None = None
+    leaf: InternalXTarget | None = None
     children: dict[str, "TreeNode"] = field(default_factory=dict)
 
 class InstanceHierarchy(ISerializeable):
@@ -301,22 +311,25 @@ class InstanceHierarchy(ISerializeable):
         root = TreeNode()
         for t, parts in tags_parts:
             current = root
-            accumulated_tag = ""
             for sep in self.levels:
                 if sep in parts:
                     key = sep + parts[sep]
-                    accumulated_tag += key
                     #
                     if key not in current.children:
                         current.children[key] = TreeNode(
-                            InternalAspect(parts[sep], sep, accumulated_tag, self.name)
+                            InternalAspect(
+                                self.name, 
+                                parts[sep], 
+                                sep, 
+                                current.item
+                            )
                         )
                     current = current.children[key]
             
             # at the leaf, promote aspect to target (only for ECAD)
             if self.name == "ECAD" and current.item:
                 t.set_base(current.item)
-                current.item = t
+                current.leaf = t
 
         self.root = root
 
@@ -327,11 +340,22 @@ class InstanceHierarchy(ISerializeable):
         version.text = self.version
         # traverse tree
         def traverse_tree(el: et._Element, node: TreeNode):
+            bmk = node.item.bmk if node.item else "root"
+            flag = bmk.startswith("=K2+B2.Y1") or bmk.startswith("+A2")
+            if flag:
+                print(f"traverse {bmk}")
             # el and node are same level
             for n in node.children.values():
-                if n.item is None:
+                if n.leaf:
+                    if flag:
+                        print(f"> leaf {n.leaf.xtarget}")
+                    el.append(n.leaf.serialize())
+                elif n.item:
+                    if flag:
+                        print(f"> item {n.item.bmk}")
+                    el.append(n.item.serialize()) 
+                else:
                     raise ValueError("InternlNode is None")
-                el.append(n.item.serialize())
                 traverse_tree(el[-1], n)
 
         traverse_tree(root, self.root)
@@ -391,18 +415,18 @@ class AMLBuilder(BuilderPlugin):
         # TODO may be move to CAEXfile
         
         # Create a lookup map of xtargets
-        xtarget_lookup = {xtarget.tag.tag_str: InternalXTarget(xtarget, self.configs.levels) for xtarget in self.god.xtargets.values()}
+        xtarget_lookup = {xtarget.get_guid(): InternalXTarget(xtarget, self.configs.levels) for xtarget in self.god.xtargets.values()}
         internal_links: list[InternalLink] = []
 
         # unpack connections and links
         for connection in self.god.connections.values():
-            src = xtarget_lookup.get(connection.src.tag.tag_str) if connection.src else None
-            dst = xtarget_lookup.get(connection.dest.tag.tag_str) if connection.dest else None
-            through = xtarget_lookup.get(connection.through.tag.tag_str) if connection.through else None
+            src = xtarget_lookup.get(connection.src.get_guid()) if connection.src else None
+            dst = xtarget_lookup.get(connection.dest.get_guid()) if connection.dest else None
+            through = xtarget_lookup.get(connection.through.get_guid()) if connection.through else None
             # 
             for link in connection.links:
-                src_pin = InternalPin(link.src_pin, src.id) if src else None
-                dst_pin = InternalPin(link.dest_pin, dst.id) if dst else None
+                src_pin = InternalPin(link, 'src') if src else None
+                dst_pin = InternalPin(link, 'dst') if dst else None
 
                 if dst_pin is not None:
                     dst.connPoints.append(dst_pin)
@@ -410,15 +434,15 @@ class AMLBuilder(BuilderPlugin):
                     src.connPoints.append(src_pin)
 
                 if through is not None:
-                    through_conn = InternalConnection(link, through.id)
+                    through_conn = InternalConnection(link)
                     through.connections.append(through_conn)
                     # add InternalLinks src -> through; through -> dst
-                    internal_links.append(InternalLink(src_pin.id, through_conn.id_a))
-                    internal_links.append(InternalLink(through_conn.id_b, dst_pin.id))
+                    internal_links.append(InternalLink(src_pin.external, through_conn.external_a))
+                    internal_links.append(InternalLink(through_conn.external_b, dst_pin.external))
                 else:
                     # Add InternalLink: src -> dst
-                    internal_links.append(InternalLink(src_pin.id, dst_pin.id))
-        
+                    internal_links.append(InternalLink(src_pin.external, dst_pin.external))
+
         targets = list(xtarget_lookup.values())
         # ECAD tree InstanceHierarchy
         file.hierarchies.append(InstanceHierarchy("ECAD", "0.0.1", list(self.configs.levels.keys()), targets, internal_links))
@@ -438,29 +462,68 @@ class AMLBuilder(BuilderPlugin):
             xml_declaration=True,
             encoding="utf-8"
         )
+        # Do some error handling
+        for t in targets:
+            if not t.serialized:
+                print(f"target not serialized! {t.xtarget}")
     
 
 if __name__ == "__main__":
+    from collections import OrderedDict
+    from typing import cast
+    # Tests
+    configs = AspectsConfig(OrderedDict([
+        ('=', LevelConfig(Separator='=', Aspect='Function')),
+        ('+', LevelConfig(Separator='+', Aspect='Location')),
+    ]))
+    tgt = XTarget(Tag("=A+B+F", configs), configs) 
+    for sep, val in tgt.tag.get_tag_parts().items():
+        print(f"tag part {sep}{val}")
+        
+    tgt_a = XTarget(Tag("=A+B", configs), configs, attributes=[SimpleAttribute("a", "tgt_a a"), SimpleAttribute("a", "tgt_a b")]) 
+    tgt_b = XTarget(Tag("=A+C", configs), configs, attributes=[SimpleAttribute("b", "tgt_b a"), SimpleAttribute("b", "tgt_b b")])
+    tgt_c = XTarget(Tag("=D", configs), configs, attributes=[SimpleAttribute("b", "tgt_b a"), SimpleAttribute("b", "tgt_b b")])
+    pins_a = [
+        Pin("A1", [SimpleAttribute("a", "A1 test value"), SimpleAttribute("b", "A1 test value")]),
+        Pin("A1", [SimpleAttribute("a", "A1 test value"), SimpleAttribute("b", "A1 test value")])
+    ]
+    pins_b = [
+        Pin("B1", [SimpleAttribute("a", "B1 test value"), SimpleAttribute("b", "B1 test value")]),
+        Pin("B1", [SimpleAttribute("a", "B1 test value"), SimpleAttribute("b", "B1 test value")])
+    ]
+    links_attrs: list[list[Attribute]] = [
+       [cast(Attribute, SimpleAttribute("a", "lnk a test value"))], 
+       [cast(Attribute, SimpleAttribute("b", "lnk b test value"))],
+    ]
+    conn = Connection(tgt_a, tgt_b, tgt_c) 
+    links = [
+        Link("lnk", conn, pa, pb, attrs) for pa, pb, attrs in zip(pins_a, pins_b, links_attrs)
+    ]
+    conn.links = links
     # Tests
     item = InternalAttribute(SimpleAttribute("test", "test value")).serialize()
     print(et.tostring(item, pretty_print=True))
 
-    item = InternalLink("bcda-1234", "abcd-1234").serialize()
+    item = InternalLink(
+        ExternalInterface("bcda-1234", "src"), 
+        ExternalInterface("abcd-1234", "dst")
+    ).serialize()
     print(et.tostring(item, pretty_print=True))
 
-    item = InternalPin(Pin("A1", [SimpleAttribute("a", "a test value"), SimpleAttribute("b", "b test value")]), "").serialize()
+    item = InternalPin(
+        links[0], 'src').serialize()
     print(et.tostring(item, pretty_print=True))
 
-    item = InternalConnection(Link(
-        "Conn", 
-        Pin("A1", [SimpleAttribute("a", "a test value"), SimpleAttribute("b", "b test value")]), 
-        Pin("B2", [SimpleAttribute("c", "c test value"), SimpleAttribute("d", "d test value")]), 
-        [SimpleAttribute("e", "e test value")]
-    ), "").serialize()
+    item = InternalConnection(links[0]).serialize()
     print(et.tostring(item, pretty_print=True))
 
-    item = InternalAspect("A1", "=", "=A1", "ECAD").serialize()
-    item1 = InternalAspect("A1", "=", "=A1", "functional").serialize()
+    it = InternalXTarget(tgt_a, configs.levels)
+    it.set_base(InternalAspectBase("B", "+", InternalAspectBase("A", "=", None)))
+    item = it.serialize()
+    print(et.tostring(item, pretty_print=True))
+
+    item = InternalAspect("ECAD", "A1", "=", None).serialize()
+    item1 = InternalAspect( "functional", "A1", "=", None).serialize()
     print(et.tostring(item, pretty_print=True))
     print(et.tostring(item1, pretty_print=True))
 
