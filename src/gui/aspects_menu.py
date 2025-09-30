@@ -25,31 +25,26 @@ def load_aspects() -> List[LevelConfig]:
 
 
 def create_aspect_row_for_dialog(aspect: LevelConfig, index: int, mutable_aspects: List[LevelConfig], rebuild_callback):
-    """Create a single editable row inside the configuration dialog.
-
-    This uses inputs bound to the `aspects` list so edits update the in -memory model.
-    Reorder operations will re-open the dialog to reflect the updated order.
-    """
-    # Responsive row: separator | label
+    """Create a single editable row inside the configuration dialog."""
     with ui.row().classes('w-full items-center gap-2'):
         # separator (single char)
         ui.input(value=aspect.Separator, placeholder='sep', on_change=lambda e, i=index: mutable_aspects.__setitem__(
-            i, LevelConfig(Separator=e.value, Aspect=mutable_aspects[i].Aspect))).classes('w-16')
+            i, LevelConfig(Separator=e.value, Aspect=mutable_aspects[i].Aspect))).classes('w-16').props('dark outlined')
 
         # label edit
         ui.input(value=aspect.Aspect, on_change=lambda e, i=index: mutable_aspects.__setitem__(
-            i, LevelConfig(Separator=mutable_aspects[i].Separator, Aspect=e.value))).classes('flex-1 min-w-0')
+            i, LevelConfig(Separator=mutable_aspects[i].Separator, Aspect=e.value))).classes('flex-1 min-w-0').props('dark outlined')
 
         # controls column: up/down + delete
         with ui.column().classes('gap-1 items-center'):
             if index != 0:
                 ui.button(icon='arrow_drop_up', on_click=lambda _, i=index: do_swap(
-                    i, i-1, mutable_aspects, rebuild_callback)).props('flat dense').classes('p-0 m-0')
+                    i, i-1, mutable_aspects, rebuild_callback)).props('flat dense color=blue-5').classes('p-0 m-0')
             ui.button(icon='delete', on_click=lambda _, i=index: remove_aspect(
-                i, mutable_aspects, rebuild_callback)).props('flat dense').classes('p-0 m-0 text-red-600')
+                i, mutable_aspects, rebuild_callback)).props('flat dense color=red-5').classes('p-0 m-0')
             if index != len(mutable_aspects) - 1:
                 ui.button(icon='arrow_drop_down', on_click=lambda _, i=index: do_swap(
-                    i, i+1, mutable_aspects, rebuild_callback)).props('flat dense').classes('p-0 m-0')
+                    i, i+1, mutable_aspects, rebuild_callback)).props('flat dense color=blue-5').classes('p-0 m-0')
 
 
 def do_swap(a: int, b: int, mutable_aspects: List[LevelConfig], rebuild_callback):
@@ -72,21 +67,17 @@ def remove_aspect(index: int, mutable_aspects: List[LevelConfig], rebuild_callba
 
 
 def open_configuration_dialog(aspects: List[LevelConfig]):
-    """Dynamically create and open a dialog that allows editing, reordering, and saving aspects.
+    """Dynamically create and open a dialog that allows editing, reordering, and saving aspects."""
 
-    The rows are placed inside a container that can be cleared and rebuilt so reordering/add
-    happen in -place without closing the dialog.
-    """
-
-    mutable_aspects = aspects.copy()  # work on a copy until saved
+    mutable_aspects = aspects.copy()
 
     # dialog + responsive card (max width 90vw or 900px) and tall but scrollable content
-    with ui.dialog() as config_dialog, ui.card().classes('w-[min(90vw,900px)]'):
-        ui.label('Edit Aspects').classes('text-lg font-semibold p-4')
+    with ui.dialog() as config_dialog, ui.card().classes('w-[min(90vw,900px)] bg-gray-800 border-2 border-gray-600'):
+        ui.label('Edit Aspects').classes('text-xl font-bold p-4 text-white')
 
         # editable rows container (responsive height)
         rows_container = ui.column().classes(
-            'w-full max-h-[68vh] overflow-auto gap-2 p-4')
+            'w-full max-h-[68vh] overflow-auto gap-2 p-4 bg-gray-900 rounded-lg')
 
         def rebuild_rows():
             # clear and repopulate the rows container
@@ -118,15 +109,15 @@ def open_configuration_dialog(aspects: List[LevelConfig]):
             ui.notify('Aspects saved')
 
         # footer actions (sticky at bottom of card area)
-        with ui.row().classes('justify-between items-center gap-2 mt-2 p-4'):
+        with ui.row().classes('justify-between items-center gap-2 mt-2 p-4 bg-gray-800'):
             ui.button('Add', on_click=lambda _: add_aspect_inplace(
-                mutable_aspects, rebuild_rows)).props('flat').classes('text-green-600')
+                mutable_aspects, rebuild_rows)).props('flat color=green-5').classes('font-semibold')
 
             with ui.row().classes('gap-2'):
                 ui.button('Discard', on_click=config_dialog.close).props(
-                    'flat').classes('text-gray-600')
+                    'flat color=grey-5').classes('font-semibold')
                 ui.button('Save', on_click=lambda: save_and_close(
-                    mutable_aspects, config_dialog)).props('flat').classes('bg-blue-600 text-white')
+                    mutable_aspects, config_dialog)).props('color=blue-6').classes('font-semibold')
 
     # open after construction
     config_dialog.open()
@@ -136,11 +127,3 @@ def make_config_opener(aspects: List[LevelConfig]):
     """Return a lightweight object with an open() method that opens the live dialog."""
     from types import SimpleNamespace
     return SimpleNamespace(open=lambda: open_configuration_dialog(aspects), close=lambda: None)
-
-
-def add_aspect_inplace(aspects: List[LevelConfig], rebuild_callback):
-    aspects.append(LevelConfig(Separator='', Aspect=''))
-    try:
-        rebuild_callback()
-    except Exception:
-        pass
