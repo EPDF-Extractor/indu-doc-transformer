@@ -16,12 +16,7 @@ import lxml.etree as et
 import hashlib
 import uuid
 import json
-from datetime import datetime, timezone, timedelta
-
-class BuilderPlugin(ABC):
-    @abstractmethod
-    def process(self) -> None:
-        pass
+from datetime import datetime
 
 ###################
 
@@ -339,20 +334,12 @@ class InstanceHierarchy(ISerializeable):
         version = et.SubElement(root, "Version")
         version.text = self.version
         # traverse tree
-        def traverse_tree(el: et._Element, node: TreeNode):
-            bmk = node.item.bmk if node.item else "root"
-            flag = bmk.startswith("=K2+B2.Y1") or bmk.startswith("+A2")
-            if flag:
-                print(f"traverse {bmk}")
+        def traverse_tree(el: et._Element, node: TreeNode) :
             # el and node are same level
             for n in node.children.values():
                 if n.leaf:
-                    if flag:
-                        print(f"> leaf {n.leaf.xtarget}")
                     el.append(n.leaf.serialize())
                 elif n.item:
-                    if flag:
-                        print(f"> item {n.item.bmk}")
                     el.append(n.item.serialize()) 
                 else:
                     raise ValueError("InternlNode is None")
@@ -403,15 +390,14 @@ class CAEXFile(ISerializeable):
         return now.isoformat()
 
 
-class AMLBuilder(BuilderPlugin):
+class AMLBuilder():
 
     def __init__(self, god: God, configs: AspectsConfig) -> None:
         self.god = god
         self.configs = configs
 
-    def process(self) -> None:
-        file_name = "text.aml"
-        file = CAEXFile(file_name)
+    def process(self) -> str:
+        file = CAEXFile("test.xml")
         # TODO may be move to CAEXfile
         
         # Create a lookup map of xtargets
@@ -456,16 +442,25 @@ class AMLBuilder(BuilderPlugin):
 
         # Save to file with 2-space indentation
         tree = et.ElementTree(file.serialize())
-        tree.write(
-            file_name,
-            pretty_print=True,  
-            xml_declaration=True,
-            encoding="utf-8"
-        )
+        # tree.write(
+        #     file_name,
+        #     pretty_print=True,  
+        #     xml_declaration=True,
+        #     encoding="utf-8"
+        # )
         # Do some error handling
         for t in targets:
             if not t.serialized:
                 print(f"target not serialized! {t.xtarget}")
+
+        # Serialize to string
+        xml_string = et.tostring(
+            tree,
+            pretty_print=True,
+            xml_declaration=True,
+            encoding="utf-8"
+        )
+        return xml_string.decode("utf-8") 
     
 
 if __name__ == "__main__":
