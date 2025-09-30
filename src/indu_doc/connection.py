@@ -77,7 +77,7 @@ class Connection:
         links: Optional[List[Link]] = None,
     ) -> None:
         self.src: Optional[XTarget] = src
-        self.dest: Optional[XTarget] = dest
+        self.dest: Optional[XTarget] = dest 
         self.through: Optional[XTarget] = through
         self.links: List[Link] = links or []
 

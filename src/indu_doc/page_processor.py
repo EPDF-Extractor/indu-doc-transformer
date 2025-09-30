@@ -3,16 +3,16 @@ from __future__ import annotations
 import logging
 
 import pandas as pd
-from pymupdf import pymupdf
+from pymupdf import pymupdf  # type: ignore
 
-from .attributes import AttributeType, Attribute
-from .common_page_utils import PageType, header_map_en, detect_page_type
-from .configs import default_configs
-from .footers import extract_footer, PageFooter
-from .god import God
-from .table_extractor import TableExtractor
-from .xtarget import XTargetType
-
+from indu_doc.attributes import AttributeType, Attribute
+from indu_doc.common_page_utils import PageType, header_map_en, detect_page_type, PageInfo
+from indu_doc.configs import default_configs
+from indu_doc.footers import extract_footer
+from indu_doc.god import God
+from indu_doc.table_extractor import TableExtractor
+from indu_doc.xtarget import XTargetType
+import traceback
 logger = logging.getLogger(__name__)
 
 
@@ -21,6 +21,7 @@ class PageProcessor:
         self.god = god_
 
     def run(self, page_: pymupdf.Page, page_type_: PageType):
+
         df = TableExtractor.extract(page_, page_type_)
         if df is None or df.shape[0] == 0:
             logger.warning(f"No table found on page for type '{page_type_}'")
@@ -30,12 +31,13 @@ class PageProcessor:
         footer = extract_footer(page_)
         if footer is None:
             logger.warning(
+                # type: ignore
                 f"No footer found on page {page_.number + 1} for type '{page_type_}'"
             )
             return
 
         # 4. process tables (using tables & footers TODO)
-        self.process(df, footer, page_type_)
+        self.process(df, PageInfo(page_, footer, page_type_))
 
     @staticmethod
     def internationalize(table, page_type_: PageType, internationalization_table):
@@ -51,8 +53,9 @@ class PageProcessor:
 
     # todo this stuff is very inefficient now, later will be grouped
 
-    def process(self, table: pd.DataFrame, footer: PageFooter, page_type_: PageType):
-        logger.info(f"Processing table '{page_type_}' of shape {table.shape}...")
+    def process(self, table: pd.DataFrame, page_info: PageInfo):
+        logger.info(
+            f"Processing table '{page_info.page_type}' of shape {table.shape}...")
         if table.shape[0] == 0:
             return
 
@@ -68,25 +71,29 @@ class PageProcessor:
             PageType.CABLE_DIAGRAM: self.process_cable_diagram,
         }
 
-        f = type_handlers.get(page_type_, None)
+        f = type_handlers.get(page_info.page_type, None)
         assert f is not None, (
-            f"Specified table type '{page_type_}' does not have a processor"
+            f"Specified table type '{page_info.page_type}' does not have a processor"
         )
         # concat the rest
         try:
-            f(table, footer)
+            f(table, page_info)
         except ValueError as ve:
             logger.warning(ve.__context__)
-            logger.warning(f"ValueError processing table '{page_type_}': {ve}")
+            logger.warning(
+                f"ValueError processing table '{page_info.page_type}': {ve}")
         except Exception as e:
-            logger.warning(f"Unexpected error processing table '{page_type_}': {e}")
-        return
+            logger.warning(e.__cause__)
+            logger.warning(traceback.format_exc())
+            logger.warning(
+                f"Unexpected error processing table '{page_info.page_type}': {e}")
 
-    def process_connection_list(self, table, footer: PageFooter):
+    def process_connection_list(self, table: pd.DataFrame, page_info: PageInfo):
         # TODO setting
         target_1 = table.columns[1]
         target_2 = table.columns[2]
-        other = [col for col in table.columns if col not in (target_1, target_2)]
+        other = [col for col in table.columns if col not in (
+            target_1, target_2)]
         for _, row in table.iterrows():
             # get primary stuff
             tag_from = str(row[target_1]).strip()
@@ -102,14 +109,15 @@ class PageProcessor:
                 value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
-                        self.god.create_attribute(AttributeType.SIMPLE, name, value)
+                        self.god.create_attribute(
+                            AttributeType.SIMPLE, name, value)
                     )
             # build
             self.god.create_connection_with_link(
-                None, tag_from, tag_to, tuple(attributes), footer
+                None, tag_from, tag_to, page_info, tuple(attributes)
             )
 
-    def process_device_tag_list(self, table, footer: PageFooter):
+    def process_device_tag_list(self, table: pd.DataFrame, page_info: PageInfo):
         target = table.columns[0]
         other = [col for col in table.columns if col != target]
         for _, row in table.iterrows():
@@ -123,17 +131,18 @@ class PageProcessor:
                 value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
-                        self.god.create_attribute(AttributeType.SIMPLE, name, value)
+                        self.god.create_attribute(
+                            AttributeType.SIMPLE, name, value)
                     )
 
             self.god.create_xtarget(
                 tag_str=tag,
+                page_info=page_info,
                 target_type=XTargetType.DEVICE,
-                footer=footer,
-                attributes=tuple(attributes),
+                attributes=tuple(attributes)
             )
 
-    def process_cable_overview(self, table, footer: PageFooter):
+    def process_cable_overview(self, table: pd.DataFrame, page_info: PageInfo):
         target = table.columns[0]
         target_from = table.columns[-1]
         target_to = table.columns[-2]
@@ -156,15 +165,17 @@ class PageProcessor:
                 value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
-                        self.god.create_attribute(AttributeType.SIMPLE, name, value)
+                        self.god.create_attribute(
+                            AttributeType.SIMPLE, name, value)
                     )
             # create connections if from/to specified
             if tag_from and tag_to:
                 self.god.create_connection(
-                    tag, tag_from, tag_to, tuple(attributes), footer
+                    tag, tag_from, tag_to, page_info, tuple(
+                        attributes)
                 )
 
-    def process_cable_plan(self, table, footer: PageFooter):
+    def process_cable_plan(self, table: pd.DataFrame, page_info: PageInfo):
         target = table.columns[-3]
         target_src = table.columns[1]
         target_dst = table.columns[-5]
@@ -187,12 +198,15 @@ class PageProcessor:
                 value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
-                        self.god.create_attribute(AttributeType.SIMPLE, name, value)
+                        self.god.create_attribute(
+                            AttributeType.SIMPLE, name, value)
                     )
             # build
-            self.god.create_connection_with_link(tag, tag_src, tag_dst, tuple(attributes), footer)
+            self.god.create_connection_with_link(
+                tag, tag_src, tag_dst, page_info, tuple(attributes)
+            )
 
-    def process_topology(self, table, footer: PageFooter):
+    def process_topology(self, table: pd.DataFrame, page_info: PageInfo):
         target = table.columns[0]
         target_src = table.columns[4]
         target_dst = table.columns[7]
@@ -222,21 +236,25 @@ class PageProcessor:
                 value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
-                        self.god.create_attribute(AttributeType.SIMPLE, name, value)
+                        self.god.create_attribute(
+                            AttributeType.SIMPLE, name, value)
                     )
 
             # Add route as attribute
             attributes.append(
-                self.god.create_attribute(AttributeType.SIMPLE, "route", tags_route)
+                self.god.create_attribute(
+                    AttributeType.ROUTING_TRACKS, "route", tags_route)
             )
 
             # build connections for all combinations of src and dst tags
             from itertools import product
 
             for t1, t2 in product(tags_src.split(";"), tags_dst.split(";")):
-                self.god.create_connection(tag, t1, t2, tuple(attributes), footer)
+                self.god.create_connection(
+                    tag, t1, t2, page_info, tuple(attributes)
+                )
 
-    def process_wires_part_list(self, table, footer: PageFooter):
+    def process_wires_part_list(self, table: pd.DataFrame, page_info: PageInfo):
         target_src = table.columns[0]
         target_dst = table.columns[1]
         target_route = table.columns[-1]  # TODO as attribute
@@ -264,21 +282,24 @@ class PageProcessor:
                 value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
-                        self.god.create_attribute(AttributeType.SIMPLE, name, value)
+                        self.god.create_attribute(
+                            AttributeType.SIMPLE, name, value)
                     )
 
             # Add route as attribute
             if tags_route != "":
                 attributes.append(
-                    self.god.create_attribute(AttributeType.SIMPLE, "route", tags_route)
+                    self.god.create_attribute(
+                        AttributeType.ROUTING_TRACKS, "route", tags_route)
                 )
 
             # build
             self.god.create_connection_with_link(
-                None, tag_src, tag_dst, tuple(attributes), footer
+                None, tag_src, tag_dst, page_info, tuple(
+                    attributes)
             )
 
-    def process_cable_diagram(self, table, footer: PageFooter):
+    def process_cable_diagram(self, table: pd.DataFrame, page_info: PageInfo):
         target = table.columns[-1]
         target_src = table.columns[2]
         target_dst = table.columns[5]
@@ -316,7 +337,8 @@ class PageProcessor:
                 value = str(row[name]).strip()
                 if name != "" and value != "":
                     attributes.append(
-                        self.god.create_attribute(AttributeType.SIMPLE, name, value)
+                        self.god.create_attribute(
+                            AttributeType.SIMPLE, name, value)
                     )
 
             # build (TODO HOW TO TREAT PINS SEPARATELY)
@@ -324,15 +346,17 @@ class PageProcessor:
                 tag,
                 tag_src + ":" + pin_src,
                 tag_dst + ":" + pin_dst,
-                tuple(attributes),
-                footer,
+                page_info,
+                tuple(attributes)
             )
 
-    def process_terminal_diagram(self, table, footer: PageFooter):
+    def process_terminal_diagram(self, table: pd.DataFrame, page_info: PageInfo):
         # this table has to be treated as 2 tables
         # TODO awful double mapping
-        self.process_cable_diagram(table.iloc[:, [2, 3, 4, 5, 8, 0, 6, 13, 1]], footer)
-        self.process_cable_diagram(table.iloc[:, [12, 3, 0, 6, 8, 9, 10, 13, 11]], footer)
+        self.process_cable_diagram(
+            table.iloc[:, [2, 3, 4, 5, 8, 0, 6, 13, 1]], page_info)
+        self.process_cable_diagram(
+            table.iloc[:, [12, 3, 0, 6, 8, 9, 10, 13, 11]], page_info)
 
 
 if __name__ == "__main__":
@@ -345,5 +369,7 @@ if __name__ == "__main__":
     if page_type is not None:
         processor.run(page, page_type)
     else:
-        logger.warning(f"Could not detect page type for page #{page.number + 1}")
+        logger.warning(
+            # type: ignore
+            f"Could not detect page type for page #{page.number + 1}")
     print(god)

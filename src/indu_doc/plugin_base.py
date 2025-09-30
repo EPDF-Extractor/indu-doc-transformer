@@ -28,6 +28,7 @@ class ISerializeable(ABC):
     def serialize(self) -> et._Element:
         raise NotImplementedError("Serialize is not implemented")
 
+
 @dataclass
 class InternalAttribute(ISerializeable):
     attr: Attribute
@@ -46,6 +47,7 @@ class InternalAttribute(ISerializeable):
                 raise ValueError(f"Unsupported attribute type")
         return item
 
+
 class InternalLink(ISerializeable):
     name: str
     refA: GUID
@@ -59,10 +61,11 @@ class InternalLink(ISerializeable):
 
     def serialize(self) -> et._Element:
         root = et.Element("InternalLink")
-        root.set("RefPartnerSideA", self.refA) 
+        root.set("RefPartnerSideA", self.refA)
         root.set("RefPartnerSideB", self.refB)
         root.set("Name", self.name)
         return root
+
 
 class InternalElementBase(ISerializeable):
     name: str
@@ -71,7 +74,7 @@ class InternalElementBase(ISerializeable):
     guids: set[GUID] = set()
 
     def _create_guid(self, unq: dict[str, str]) -> GUID:
-        data_str = json.dumps(unq, sort_keys=True) # ensure consistent order
+        data_str = json.dumps(unq, sort_keys=True)  # ensure consistent order
         hash = hashlib.md5(data_str.encode("utf-8")).digest()
         guid = str(uuid.UUID(bytes=hash))
         return guid
@@ -79,8 +82,9 @@ class InternalElementBase(ISerializeable):
     def _set_guid(self, guid: GUID):
         self.id = guid
         if self.id in InternalElementBase.guids:
-            print(f"Non-unique ID detected: {self.__class__} {self.id}") 
+            print(f"Non-unique ID detected: {self.__class__} {self.id}")
         InternalElementBase.guids.add(self.id)
+
 
 class ExternalInterface(InternalElementBase):
     def __init__(self, owner_guid: GUID, role: str):
@@ -89,13 +93,15 @@ class ExternalInterface(InternalElementBase):
 
     def serialize(self) -> et._Element:
         ext = et.Element("ExternalInterface")
-        ext.set("Name", self.role) # TODO IDK what name
+        ext.set("Name", self.role)  # TODO IDK what name
         ext.set("ID", self.id)
         return ext
+
 
 class InternalPin(InternalElementBase):
     pin: Pin
     external: ExternalInterface  # ExternalInterface requires unique ID also
+
     def __init__(self, link: Link, pin_type: str):
         match pin_type:
             case 'src':
@@ -115,7 +121,7 @@ class InternalPin(InternalElementBase):
         if self.id is None:
             raise ValueError("Can not serialize with no ID")
         root = et.Element("InternalElement")
-        root.set("Name", f"ConnPoint {self.pin.name}") 
+        root.set("Name", f"ConnPoint {self.pin.name}")
         root.set("ID", self.id)
         # Add all atributes
         for attr in self.pin.attributes:
@@ -126,6 +132,8 @@ class InternalPin(InternalElementBase):
         return root
 
 # do not mix with InternalLink!
+
+
 class InternalConnection(InternalElementBase):
     external_a: ExternalInterface
     external_b: ExternalInterface
@@ -135,12 +143,12 @@ class InternalConnection(InternalElementBase):
         self._set_guid(link.get_guid())
         self.external_a = ExternalInterface(self.id, "SideA")
         self.external_b = ExternalInterface(self.id, "SideB")
-    
+
     def serialize(self) -> et._Element:
         if self.id is None:
             raise ValueError("Can not serialize with no ID")
         root = et.Element("InternalElement")
-        root.set("Name", f"Connection {self.link.name}") 
+        root.set("Name", f"Connection {self.link.name}")
         root.set("ID", self.id)
         # Add all atributes
         for attr in self.link.attributes:
@@ -153,6 +161,7 @@ class InternalConnection(InternalElementBase):
 
         return root
 
+
 class InternalAspectBase(InternalElementBase):
     prefix: str  # = separator
     bmk: str     # accumulated separators and levels
@@ -162,12 +171,12 @@ class InternalAspectBase(InternalElementBase):
     def __init__(self, name: str, prefix: str, base: "InternalAspectBase | None" = None):
         self.name = name
         self.prefix = prefix
-        self.base = base 
+        self.base = base
         # accumulate bmk
         self.bmk = (base.bmk if base else "") + prefix + name
         # accumulate guid
         self._set_guid(self._create_guid({
-            "prefix": self.prefix, 
+            "prefix": self.prefix,
             "name": self.name,
             "base": self.base.id if self.base else ""
         }))
@@ -177,7 +186,7 @@ class InternalAspectBase(InternalElementBase):
             raise ValueError("Do not serialize InternalAspectBase directly")
 
         root = et.Element("InternalElement")
-        root.set("Name", self.name) 
+        root.set("Name", self.name)
         root.set("ID", self.id)
 
         # Add Prefix
@@ -194,11 +203,12 @@ class InternalAspectBase(InternalElementBase):
 
         return root
 
+
 class InternalAspect(InternalAspectBase):
-    # it is also an aspect but for the selected InstanceHierarchy. 
-    # For ECAD it is "ECAD". This is also to make diamondID distinct from ID 
+    # it is also an aspect but for the selected InstanceHierarchy.
+    # For ECAD it is "ECAD". This is also to make diamondID distinct from ID
     # (for DiamondID it is empty and thus consistent over trees; other Internal elements do not appear in not ECAD InstanceHierarchies)
-    perspective: str   
+    perspective: str
     diamondID: GUID
 
     def __init__(self, perspective: str, name: str, prefix: str, base: "InternalAspectBase | None" = None):
@@ -207,13 +217,12 @@ class InternalAspect(InternalAspectBase):
         self.diamondID = self.id
         # Update ID based on perspective
         self.perspective = perspective
-        unq = { # do not copy to reuse!
-            "base": self.id, 
+        unq = {  # do not copy to reuse!
+            "base": self.id,
             "salt": self.perspective
         }
-        self._set_guid(self._create_guid(unq)) # will override self.id
-        
-    
+        self._set_guid(self._create_guid(unq))  # will override self.id
+
     def serialize(self) -> et._Element:
         root = super().serialize()
         # Add diamondID
@@ -223,7 +232,8 @@ class InternalAspect(InternalAspectBase):
         #
         return root
 
-class InternalXTarget(InternalElementBase): 
+
+class InternalXTarget(InternalElementBase):
     xtarget: XTarget
     connections: list[InternalConnection]
     connPoints: list[InternalPin]
@@ -240,7 +250,7 @@ class InternalXTarget(InternalElementBase):
         self.connections = []
         self.connPoints = []
         self.base = None
-        # get distinct aspects 
+        # get distinct aspects
         tag_parts = self.xtarget.tag.get_tag_parts()
         self.aspects: dict[str, str] = defaultdict(str)
         for sep, name in tag_parts.items():
@@ -248,11 +258,13 @@ class InternalXTarget(InternalElementBase):
 
     def set_base(self, base: InternalAspectBase):
         self.base = base
-    
+
     def serialize(self) -> et._Element:
         if self.base is None:
-            raise ValueError("Can not serialize InternalXTarget until InternalAspect base is set")
+            raise ValueError(
+                "Can not serialize InternalXTarget until InternalAspect base is set")
         root = self.base.serialize()
+        root.set("ID", self.id)  # override Aspect GUID with XTarget GUID
         # Add "[...]OrientedReferenceDesignation" stuff
         for aspect, name in self.aspects.items():
             item = et.SubElement(root, "Attribute")
@@ -264,14 +276,14 @@ class InternalXTarget(InternalElementBase):
         for attr in self.xtarget.attributes:
             item = InternalAttribute(attr).serialize()
             root.append(item)
-        # TODO now I assume cant have both connections and points 
+        # TODO now I assume cant have both connections and points
         # Add pins TODO IDK what are two elements called Function
-        # item = et.SubElement(root, "InternalElement") 
-        # item.set("Name", "Function") 
+        # item = et.SubElement(root, "InternalElement")
+        # item.set("Name", "Function")
         for cn in self.connections:
             root.append(cn.serialize())
         # Add links TODO IDK what are two elements called Function
-        #item = et.SubElement(root, "InternalElement")
+        # item = et.SubElement(root, "InternalElement")
         for cp in self.connPoints:
             root.append(cp.serialize())
 
@@ -285,6 +297,7 @@ class TreeNode():
     item: InternalAspect | None = None
     leaf: InternalXTarget | None = None
     children: dict[str, "TreeNode"] = field(default_factory=dict)
+
 
 class InstanceHierarchy(ISerializeable):
     version: str
@@ -301,8 +314,8 @@ class InstanceHierarchy(ISerializeable):
         self.levels = levels
         #
         # form tree of objects by aspects. Level of the tree is aspect priority
-        tags_parts = [(t, t.xtarget.tag.get_tag_parts()) for t in self.targets]   
-        # 
+        tags_parts = [(t, t.xtarget.tag.get_tag_parts()) for t in self.targets]
+        #
         root = TreeNode()
         for t, parts in tags_parts:
             current = root
@@ -313,14 +326,14 @@ class InstanceHierarchy(ISerializeable):
                     if key not in current.children:
                         current.children[key] = TreeNode(
                             InternalAspect(
-                                self.name, 
-                                parts[sep], 
-                                sep, 
+                                self.name,
+                                parts[sep],
+                                sep,
                                 current.item
                             )
                         )
                     current = current.children[key]
-            
+
             # at the leaf, promote aspect to target (only for ECAD)
             if self.name == "ECAD" and current.item:
                 t.set_base(current.item)
@@ -334,23 +347,25 @@ class InstanceHierarchy(ISerializeable):
         version = et.SubElement(root, "Version")
         version.text = self.version
         # traverse tree
-        def traverse_tree(el: et._Element, node: TreeNode) :
+
+        def traverse_tree(el: et._Element, node: TreeNode):
             # el and node are same level
             for n in node.children.values():
                 if n.leaf:
                     el.append(n.leaf.serialize())
                 elif n.item:
-                    el.append(n.item.serialize()) 
+                    el.append(n.item.serialize())
                 else:
                     raise ValueError("InternlNode is None")
                 traverse_tree(el[-1], n)
 
         traverse_tree(root, self.root)
-        # 
+        #
         for l in self.links:
             root.append(l.serialize())
 
         return root
+
 
 class CAEXFile(ISerializeable):
     hierarchies: list[InstanceHierarchy]
@@ -369,11 +384,12 @@ class CAEXFile(ISerializeable):
     def _create_root(self) -> et._Element:
         XSI = "http://www.w3.org/2001/XMLSchema-instance"
         nsmap = {"xsi": XSI, None: "http://www.dke.de/CAEX"}
-        root = et.Element("CAEXFile", nsmap = nsmap)
+        root = et.Element("CAEXFile", nsmap=nsmap)
         # Just now are copy - allow to vary in the future if required
-        root.set("SchemaVersion", "3.0") 
+        root.set("SchemaVersion", "3.0")
         root.set("FileName", self.name)
-        root.set(f"{{{XSI}}}schemaLocation", "http://www.dke.de/CAEX CAEX_ClassModel_V.3.0.xsd") 
+        root.set(f"{{{XSI}}}schemaLocation",
+                 "http://www.dke.de/CAEX CAEX_ClassModel_V.3.0.xsd")
         #
         version = et.SubElement(root, "SuperiorStandardVersion")
         version.text = "AutomationML 2.10"
@@ -381,7 +397,8 @@ class CAEXFile(ISerializeable):
         src_info = et.SubElement(root, "SourceDocumentInformation")
         src_info.set("OriginName", "InduDoc Transformer")
         src_info.set("OriginVersion", "0.0.0")
-        src_info.set("OriginURL", "https://github.com/EPDF-Extractor/indu-doc-transformer")
+        src_info.set(
+            "OriginURL", "https://github.com/EPDF-Extractor/indu-doc-transformer")
         src_info.set("LastWritingDateTime", self._get_datetime())
         return root
 
@@ -399,17 +416,21 @@ class AMLBuilder():
     def process(self) -> str:
         file = CAEXFile("test.xml")
         # TODO may be move to CAEXfile
-        
+
         # Create a lookup map of xtargets
-        xtarget_lookup = {xtarget.get_guid(): InternalXTarget(xtarget, self.configs.levels) for xtarget in self.god.xtargets.values()}
+        xtarget_lookup = {xtarget.get_guid(): InternalXTarget(
+            xtarget, self.configs.levels) for xtarget in self.god.xtargets.values()}
         internal_links: list[InternalLink] = []
 
         # unpack connections and links
         for connection in self.god.connections.values():
-            src = xtarget_lookup.get(connection.src.get_guid()) if connection.src else None
-            dst = xtarget_lookup.get(connection.dest.get_guid()) if connection.dest else None
-            through = xtarget_lookup.get(connection.through.get_guid()) if connection.through else None
-            # 
+            src = xtarget_lookup.get(
+                connection.src.get_guid()) if connection.src else None
+            dst = xtarget_lookup.get(
+                connection.dest.get_guid()) if connection.dest else None
+            through = xtarget_lookup.get(
+                connection.through.get_guid()) if connection.through else None
+            #
             for link in connection.links:
                 src_pin = InternalPin(link, 'src') if src else None
                 dst_pin = InternalPin(link, 'dst') if dst else None
@@ -423,28 +444,33 @@ class AMLBuilder():
                     through_conn = InternalConnection(link)
                     through.connections.append(through_conn)
                     # add InternalLinks src -> through; through -> dst
-                    internal_links.append(InternalLink(src_pin.external, through_conn.external_a))
-                    internal_links.append(InternalLink(through_conn.external_b, dst_pin.external))
+                    internal_links.append(InternalLink(
+                        src_pin.external, through_conn.external_a))
+                    internal_links.append(InternalLink(
+                        through_conn.external_b, dst_pin.external))
                 else:
                     # Add InternalLink: src -> dst
-                    internal_links.append(InternalLink(src_pin.external, dst_pin.external))
+                    internal_links.append(InternalLink(
+                        src_pin.external, dst_pin.external))
 
         targets = list(xtarget_lookup.values())
         # ECAD tree InstanceHierarchy
-        file.hierarchies.append(InstanceHierarchy("ECAD", "0.0.1", list(self.configs.levels.keys()), targets, internal_links))
+        file.hierarchies.append(InstanceHierarchy("ECAD", "0.0.1", list(
+            self.configs.levels.keys()), targets, internal_links))
 
         # For all aspects build trees
         aspects: dict[str, list[str]] = defaultdict(list)
         for sep, config in self.configs.levels.items():
             aspects[config.Aspect.lower()].append(sep)
         for aspect, levels in aspects.items():
-            file.hierarchies.append(InstanceHierarchy(aspect.capitalize(), "0.0.1", levels, targets))
+            file.hierarchies.append(InstanceHierarchy(
+                aspect.capitalize(), "0.0.1", levels, targets))
 
         # Save to file with 2-space indentation
         tree = et.ElementTree(file.serialize())
         # tree.write(
         #     file_name,
-        #     pretty_print=True,  
+        #     pretty_print=True,
         #     xml_declaration=True,
         #     encoding="utf-8"
         # )
@@ -460,8 +486,8 @@ class AMLBuilder():
             xml_declaration=True,
             encoding="utf-8"
         )
-        return xml_string.decode("utf-8") 
-    
+        return xml_string.decode("utf-8")
+
 
 if __name__ == "__main__":
     from collections import OrderedDict
@@ -471,26 +497,33 @@ if __name__ == "__main__":
         ('=', LevelConfig(Separator='=', Aspect='Function')),
         ('+', LevelConfig(Separator='+', Aspect='Location')),
     ]))
-    tgt = XTarget(Tag("=A+B+F", configs), configs) 
+    tgt = XTarget(Tag("=A+B+F", configs), configs)
     for sep, val in tgt.tag.get_tag_parts().items():
         print(f"tag part {sep}{val}")
-        
-    tgt_a = XTarget(Tag("=A+B", configs), configs, attributes=[SimpleAttribute("a", "tgt_a a"), SimpleAttribute("a", "tgt_a b")]) 
-    tgt_b = XTarget(Tag("=A+C", configs), configs, attributes=[SimpleAttribute("b", "tgt_b a"), SimpleAttribute("b", "tgt_b b")])
-    tgt_c = XTarget(Tag("=D", configs), configs, attributes=[SimpleAttribute("b", "tgt_b a"), SimpleAttribute("b", "tgt_b b")])
+
+    tgt_a = XTarget(Tag("=A+B", configs), configs, attributes=[
+                    SimpleAttribute("a", "tgt_a a"), SimpleAttribute("a", "tgt_a b")])
+    tgt_b = XTarget(Tag("=A+C", configs), configs, attributes=[
+                    SimpleAttribute("b", "tgt_b a"), SimpleAttribute("b", "tgt_b b")])
+    tgt_c = XTarget(Tag("=D", configs), configs, attributes=[
+                    SimpleAttribute("b", "tgt_b a"), SimpleAttribute("b", "tgt_b b")])
     pins_a = [
-        Pin("A1", [SimpleAttribute("a", "A1 test value"), SimpleAttribute("b", "A1 test value")]),
-        Pin("A1", [SimpleAttribute("a", "A1 test value"), SimpleAttribute("b", "A1 test value")])
+        Pin("A1", [SimpleAttribute("a", "A1 test value"),
+            SimpleAttribute("b", "A1 test value")]),
+        Pin("A1", [SimpleAttribute("a", "A1 test value"),
+            SimpleAttribute("b", "A1 test value")])
     ]
     pins_b = [
-        Pin("B1", [SimpleAttribute("a", "B1 test value"), SimpleAttribute("b", "B1 test value")]),
-        Pin("B1", [SimpleAttribute("a", "B1 test value"), SimpleAttribute("b", "B1 test value")])
+        Pin("B1", [SimpleAttribute("a", "B1 test value"),
+            SimpleAttribute("b", "B1 test value")]),
+        Pin("B1", [SimpleAttribute("a", "B1 test value"),
+            SimpleAttribute("b", "B1 test value")])
     ]
     links_attrs: list[list[Attribute]] = [
-       [cast(Attribute, SimpleAttribute("a", "lnk a test value"))], 
-       [cast(Attribute, SimpleAttribute("b", "lnk b test value"))],
+        [cast(Attribute, SimpleAttribute("a", "lnk a test value"))],
+        [cast(Attribute, SimpleAttribute("b", "lnk b test value"))],
     ]
-    conn = Connection(tgt_a, tgt_b, tgt_c) 
+    conn = Connection(tgt_a, tgt_b, tgt_c)
     links = [
         Link("lnk", conn, pa, pb, attrs) for pa, pb, attrs in zip(pins_a, pins_b, links_attrs)
     ]
@@ -500,7 +533,7 @@ if __name__ == "__main__":
     print(et.tostring(item, pretty_print=True))
 
     item = InternalLink(
-        ExternalInterface("bcda-1234", "src"), 
+        ExternalInterface("bcda-1234", "src"),
         ExternalInterface("abcd-1234", "dst")
     ).serialize()
     print(et.tostring(item, pretty_print=True))
@@ -513,12 +546,13 @@ if __name__ == "__main__":
     print(et.tostring(item, pretty_print=True))
 
     it = InternalXTarget(tgt_a, configs.levels)
-    it.set_base(InternalAspectBase("B", "+", InternalAspectBase("A", "=", None)))
+    it.set_base(InternalAspectBase(
+        "B", "+", InternalAspectBase("A", "=", None)))
     item = it.serialize()
     print(et.tostring(item, pretty_print=True))
 
     item = InternalAspect("ECAD", "A1", "=", None).serialize()
-    item1 = InternalAspect( "functional", "A1", "=", None).serialize()
+    item1 = InternalAspect("functional", "A1", "=", None).serialize()
     print(et.tostring(item, pretty_print=True))
     print(et.tostring(item1, pretty_print=True))
 
@@ -568,7 +602,7 @@ if __name__ == "__main__":
                             f"\rProgress: {current_progress:3d}% ({progress['current_page']}/{progress['total_pages']})")
                         last_progress = current_progress
 
-                time.sleep(10)  
+                time.sleep(10)
 
     success = monitor_processing(manager)
     if success:
@@ -576,5 +610,3 @@ if __name__ == "__main__":
 
         builder = AMLBuilder(manager.god, manager.configs)
         builder.process()
-
-
