@@ -259,3 +259,101 @@ class TestTagIntegration:
         assert len(tag_set) == 2
         assert tag1 in tag_set
         assert tag2 in tag_set
+
+
+class TestTagEdgeCases:
+    """Test edge cases for Tag class."""
+
+    def test_tag_lt_with_non_tag_object(self, simple_config):
+        """Test less than comparison with non-Tag object."""
+        tag = Tag("=Product", simple_config)
+        result = tag.__lt__("not a tag")
+        assert result == NotImplemented
+
+    def test_tag_with_ampersand_in_footer(self, sample_config):
+        """Test that ampersand separator is ignored in footer merging."""
+        footer = PageFooter(
+            project_name="TestProject",
+            product_name="TestProduct",
+            tags=["&Ampersand", "=ValidTag"],
+        )
+
+        tag = Tag.get_tag_with_footer("==Location", footer, sample_config)
+
+        # Should not prepend &Ampersand since & is ignored
+        assert tag.tag_str == "==Location"
+        assert "&" not in tag.tag_str
+
+    def test_tag_with_empty_value_in_footer(self, sample_config):
+        """Test that empty values in footer are ignored."""
+        footer = PageFooter(
+            project_name="TestProject",
+            product_name="TestProduct",
+            tags=["=", "==ValidLoc"],  # First tag has empty value
+        )
+
+        tag = Tag.get_tag_with_footer("===Function", footer, sample_config)
+
+        # Empty values are filtered out, so nothing should be prepended
+        # since === has higher precedence than both = and ==
+        assert tag.tag_str == "===Function"
+
+    def test_try_parse_tag_multiple_sequential_separators(self, sample_config):
+        """Test parsing tag with multiple sequential separators."""
+        tag_str = "====Value"  # Four equals signs
+        result = try_parse_tag(tag_str, sample_config)
+
+        assert result is not None
+        # Should match === first, then = for the remaining =Value
+        assert len(result) == 2
+        assert result[0] == ("===", "")
+        assert result[1] == ("=", "Value")
+
+    def test_try_parse_tag_separator_at_end(self, sample_config):
+        """Test parsing tag with separator at the end."""
+        tag_str = "=Product="
+        result = try_parse_tag(tag_str, sample_config)
+
+        assert result is not None
+        assert len(result) == 2
+        assert result[0] == ("=", "Product")
+        assert result[1] == ("=", "")  # Empty value at end
+
+    def test_tag_get_tag_parts_with_empty_values(self, sample_config):
+        """Test get_tag_parts with empty values."""
+        tag_str = "===Func==="
+        tag = Tag(tag_str, sample_config)
+
+        parts = tag.get_tag_parts()
+        # After parsing ===Func===, we get: [("===", "Func"), ("===", "")]
+        assert "===" in parts
+        # Since it's a dict, only the last value for === is kept
+        # Empty string from the second === at the end
+        assert parts["==="] == ""
+
+    def test_tag_with_special_characters_in_value(self, sample_config):
+        """Test tag with special characters in values."""
+        tag_str = "=Product-123/ABC"
+        tag = Tag(tag_str, sample_config)
+
+        assert tag.tag_str == "=Product-123/ABC"
+        parts = tag.get_tag_parts()
+        assert "=" in parts
+
+    def test_tag_ordering_with_same_prefix(self, simple_config):
+        """Test tag ordering with same prefix."""
+        tag1 = Tag("=Product-A", simple_config)
+        tag2 = Tag("=Product-B", simple_config)
+        tag3 = Tag("=ProductA", simple_config)
+
+        assert tag1 < tag2  # "-A" < "-B"
+        assert tag1 < tag3  # "-" < "A" in ASCII
+
+    def test_tag_with_mixed_case_in_value(self, simple_config):
+        """Test tag with mixed case values."""
+        tag_str = "=ProductName"
+        tag = Tag(tag_str, simple_config)
+
+        assert tag.tag_str == "=ProductName"
+        parts = tag.get_tag_parts()
+        assert parts["="] == "ProductName"
