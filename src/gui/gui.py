@@ -3,6 +3,8 @@ from .ui_components import create_main_content
 from gui.global_state import manager, aspects, config_dialog_handler, uploaded_pdfs
 from indu_doc.configs import AspectsConfig
 from gui.tree_page import create_tree_page
+from gui.connections_page import create_connections_page
+from gui.pdf_preview_page import create_pdf_preview_page
 
 import logging
 
@@ -12,9 +14,21 @@ logger = logging.getLogger(__name__)
 # Register tree page route
 
 
-@ui.page('/tree')
+@ui.page('/tree', dark=True)
 def tree_page():
     create_tree_page()
+
+
+# Register connections page route
+@ui.page('/connections', dark=True)
+def connections_page():
+    create_connections_page()
+
+
+# Register PDF preview page route
+@ui.page('/pdf-preview', dark=True)
+def pdf_preview_page(file: str = '', page: int = 1):
+    create_pdf_preview_page(file, int(page))
 
 
 def create_gui():
@@ -32,16 +46,17 @@ def create_gui():
 
         progress_dialog = ui.dialog().props('persistent')
         with progress_dialog:
-            with ui.card().classes():
-                with ui.card_section():
+            with ui.card().classes('bg-gray-800 border-2 border-gray-600 min-w-96'):
+                with ui.card_section().classes('bg-gray-800'):
                     ui.label('Processing PDFs...').classes(
-                        'text-lg font-semibold')
-                    progress_label = ui.label('Initializing...')
+                        'text-xl font-bold text-white')
+                    progress_label = ui.label(
+                        'Initializing...').classes('text-gray-200 mt-2')
                     progress_bar = ui.linear_progress(
-                        0, show_value=False).classes('mt-2')
-                with ui.card_section():
+                        0, show_value=False).classes('mt-4').props('color=blue-5 size=8px')
+                with ui.card_section().classes('bg-gray-800 pt-0'):
                     cancel_button = ui.button('Cancel', color='negative',
-                                              on_click=lambda: manager.stop_processing())
+                                              on_click=lambda: manager.stop_processing()).props('color=red-6').classes('w-full font-semibold')
 
         progress_dialog.open()
 
@@ -126,9 +141,9 @@ def create_gui():
         progress_timer = ui.timer(0.5, update_progress)
 
     # Create main view
-    with ui.card().classes('w-full h-full no-shadow border-[1px] border-gray-300'):
+    with ui.card().classes('w-full h-full no-shadow border-2 border-gray-700 bg-gray-900'):
         ui.label('Home View').classes(
-            'text-xl font-semibold w-full text-center')
+            'text-2xl font-bold w-full text-center text-white py-4')
         create_main_content(config_dialog_handler,
                             extract_pdfs, start_progress_monitoring)
 

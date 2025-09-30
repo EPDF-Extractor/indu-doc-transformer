@@ -41,12 +41,12 @@ def _extract_pdf_filename_from_key(key: str) -> str | None:
 def create_pdf_picker():
     """Create the PDF list section."""
 
-    with ui.card().classes('flex-grow min-w-0 flex margin-0 p-0'):
+    with ui.card().classes('flex-grow min-w-0 flex margin-0 p-0 bg-gray-800 border-2 border-gray-600'):
         up = ui.upload(
             on_upload=lambda e: handle_pdf_upload(e),
             auto_upload=True,
             multiple=False,
-        ).props('accept=.pdf color=primary label="Upload PDF" style="height:12rem; overflow:auto;"').classes('w-full')
+        ).props('dark accept=.pdf color=blue-5 label="Upload PDF" style="height:12rem; overflow:auto;"').classes('w-full')
         up.on('removed', lambda e: handle_pdf_removal(e))
 
 

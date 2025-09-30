@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 # Initialize with empty uploaded PDFs list
-uploaded_pdfs = []
+uploaded_pdfs: list[str] = []
 
 # Load aspects and create a config opener to open the live dialog when requested
 aspects = load_aspects()
