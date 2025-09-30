@@ -26,6 +26,7 @@ dependencies = [
     "click>=8.0.0",
     "nicegui>=2.24.0",
     "lxml>=6.0.2",
+    "pywebview>=6.0",
 ]
 
 [project.scripts]
