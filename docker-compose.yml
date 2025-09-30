@@ -1,0 +1,13 @@
+services:
+  app:
+    image: indu-doc-transformer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 8080:8080
+
+    # Remove volume mount to avoid .venv conflicts
+    # volumes:
+    #   - ./:/app/

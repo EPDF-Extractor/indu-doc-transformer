@@ -1,5 +1,5 @@
 from nicegui import ui, run
-from .ui_components import create_main_content
+from gui.ui_components import create_main_content
 from gui.global_state import manager, aspects, config_dialog_handler, uploaded_pdfs
 from indu_doc.configs import AspectsConfig
 from gui.tree_page import create_tree_page
