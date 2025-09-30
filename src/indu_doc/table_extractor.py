@@ -3,7 +3,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-import pymupdf
+import pymupdf  # type: ignore
 import logging
 from .common_page_utils import PageType
 
@@ -60,7 +60,8 @@ def detect_overlaps(text_blocks):
             # check for intersection
             if not (x1_i <= x0_j or x1_j <= x0_i or y1_i <= y0_j or y1_j <= y0_i):
                 overlaps.append(
-                    (text_i, text_j, (x0_i, y0_i, x1_i, y1_i), (x0_j, y0_j, x1_j, y1_j))
+                    (text_i, text_j, (x0_i, y0_i, x1_i, y1_i),
+                     (x0_j, y0_j, x1_j, y1_j))
                 )
 
     return overlaps  # (text1, text2, cell_rect1, cell_rect2)
@@ -109,22 +110,23 @@ class TableExtractor:
         # concat the rest
         tables = []
         for p in pages:
-            logger.debug(f"Extracting '{what}' from page #{p.number + 1}")
+            page_num = (p.number + 1) if p.number is not None else "unknown"
+            logger.debug(f"Extracting '{what}' from page #{page_num}")
             try:
                 t = f(cls, p)
                 if t is not None:
                     tables.append(t)
                 else:
                     logger.debug(
-                        f"Could not extract '{what}' from page #{p.number + 1}: got None"
+                        f"Could not extract '{what}' from page #{page_num}: got None"
                     )
             except ValueError as ve:
                 logger.debug(
-                    f"ValueError extracting '{what}' from page #{p.number + 1}: {ve}"
+                    f"ValueError extracting '{what}' from page #{page_num}: {ve}"
                 )
             except Exception as e:
                 logger.debug(
-                    f"Unexpected error extracting '{what}' from page #{p.number + 1}: {e}"
+                    f"Unexpected error extracting '{what}' from page #{page_num}: {e}"
                 )
         #
         if len(tables) == 0:
@@ -132,7 +134,8 @@ class TableExtractor:
         table_df = pd.concat(tables, ignore_index=True)
         assert table_df.shape[1] == tables[0].shape[1], f"Table headers do not match"
         # fill all inconsistent empty stuff with empty line
-        table_df = table_df.fillna('').map(lambda x: str(x).strip() if x is not None else '')
+        table_df = table_df.fillna('').map(
+            lambda x: str(x).strip() if x is not None else '')
         # clean empty rows (some extractors do it also to prevent general data expansion)
         # required as sometimes detects "fake" rows
         table_df = table_df[(table_df != '').any(axis=1)]
@@ -181,9 +184,11 @@ class TableExtractor:
             )
 
         # TODO cliprect check
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 33, 132, 1170, 780)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 33, 132, 1170, 780)))
         if not tables:
-            raise ValueError("No tables found in the specified clip area on the page")
+            raise ValueError(
+                "No tables found in the specified clip area on the page")
         return tables[0].to_pandas()
 
     @staticmethod
@@ -208,7 +213,8 @@ class TableExtractor:
                 f"Album orientation expected, found: width={w}, height={h}."
             )
 
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 33, 33, 1170, 780)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 33, 33, 1170, 780)))
         if not tables:
             raise ValueError("No tables found on the page")
         df = tables[0].to_pandas()
@@ -217,7 +223,8 @@ class TableExtractor:
         df = pd.DataFrame(df.values[1:], columns=df.values[0])
 
         # drop empty/None cols
-        df = df.drop(columns=[col for col in df.columns if col is None or col == ""])
+        df = df.drop(
+            columns=[col for col in df.columns if col is None or col == ""])
 
         # disjoin "from to" column
         col_to_drop = df.columns[1]
@@ -231,7 +238,8 @@ class TableExtractor:
         # clean empty rows
         # TODO findot what chars to ignore: s.str.rstrip('.!? \n\t')
         # TODO unit test this
-        df = df[df.apply(lambda row: row.astype(str).str.strip().ne('').any(), axis=1)]
+        df = df[df.apply(lambda row: row.astype(
+            str).str.strip().ne('').any(), axis=1)]
         return df
 
     @staticmethod
@@ -245,7 +253,8 @@ class TableExtractor:
         #
         # Will not work for German!
         # extract connections
-        tables_left = list(page.find_tables(clip=get_clip_rect(w, h, 10, 98, 400, 780)))
+        tables_left = list(page.find_tables(
+            clip=get_clip_rect(w, h, 10, 98, 400, 780)))
         if not tables_left:
             raise ValueError("No required tables found on the page")
         df_left = tables_left[0].to_pandas()
@@ -259,7 +268,8 @@ class TableExtractor:
         #
         # extract current device
         # 80 for English; 136 German!
-        text = page.get_text("text", clip=get_clip_rect(w, h, 114, 29, 400, 47))
+        text = page.get_text(
+            "text", clip=get_clip_rect(w, h, 114, 29, 400, 47))
         df["Cabel"] = text
         if len(text) == 0:
             raise ValueError("Failed to detect Cabel Tag")
@@ -277,7 +287,8 @@ class TableExtractor:
                 tables_typ[0].header.names
             )  # Preserve header - to_pandas breaks it
             typ = tables_typ[0].to_pandas()
-            typ.columns = typ_header  # restore original names (.to_pandas breaks it)
+            # restore original names (.to_pandas breaks it)
+            typ.columns = typ_header
             typ = demote_header(typ, ["Source conductor", "Target conductor"])
             typ = typ.iloc[::2].reset_index(drop=True)  # remove empty rows
         else:
@@ -285,11 +296,13 @@ class TableExtractor:
             text_typ = page.get_text(
                 "text", clip=get_clip_rect(w, h, 441, 120, 750, 780)
             )
-            rows = [line for line in text_typ.split("\n") if line.strip()]  # flat list
+            rows = [line for line in text_typ.split(
+                "\n") if line.strip()]  # flat list
             rows = [
-                rows[i : i + 2] for i in range(0, len(rows), 2)
+                rows[i: i + 2] for i in range(0, len(rows), 2)
             ]  # Group every 2 items into a row
-            typ = pd.DataFrame(rows, columns=["Source conductor", "Target conductor"])
+            typ = pd.DataFrame(
+                rows, columns=["Source conductor", "Target conductor"])
         df = pd.concat([df, typ], axis=1)
 
         # TODO do forward fill?
@@ -304,7 +317,8 @@ class TableExtractor:
                 f"Album orientation expected, found: width={w}, height={h}."
             )
 
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 33, 75, 1170, 780)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 33, 75, 1170, 780)))
         # logger.debug_table_overview(tables)
         if not tables:
             raise ValueError("No required tables found on the page")
@@ -320,7 +334,8 @@ class TableExtractor:
                 f"Album orientation expected, found: width={w}, height={h}."
             )
 
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 33, 70, 1170, 780)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 33, 70, 1170, 780)))
         # logger.debug_table_overview(tables)
         if not tables:
             raise ValueError("No required tables found on the page")
@@ -339,7 +354,8 @@ class TableExtractor:
                 f"Album orientation expected, found: width={w}, height={h}."
             )
         #
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 33, 70, 1170, 780)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 33, 70, 1170, 780)))
         if not tables:
             raise ValueError("No required tables found on the page")
         # No way I can separate tables by coods - need to detect here
@@ -349,7 +365,8 @@ class TableExtractor:
         while i < len(df):
             # Detect start of a block: two rows with col2 & col3 missing
             if df.iloc[i, 1:3].isna().all() and df.iloc[i + 1, 1:3].isna().all():
-                cable_name = df.iloc[i, 0].split(" ")[-1]  # Here cable name is located
+                cable_name = df.iloc[i, 0].split(
+                    " ")[-1]  # Here cable name is located
                 i += 2
                 # Ignore all info as duplicated and hard to extract
 
@@ -383,22 +400,29 @@ class TableExtractor:
                 f"Album orientation expected, found: width={w}, height={h}."
             )
         # Left side Cables
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 20, 33, 410, 237)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 20, 33, 410, 237)))
         if not tables:
-            raise ValueError("No required tables found on the page: left cable info")
-        header = list(tables[0].header.names)  # preserve header as to_pandas breaks it
+            raise ValueError(
+                "No required tables found on the page: left cable info")
+        # preserve header as to_pandas breaks it
+        header = list(tables[0].header.names)
         df = tables[0].to_pandas()
         df.columns = header  # restore original names (.to_pandas breaks it)
         df_l_cables = demote_header(df)
         # Left side Cable Connections
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 20, 237, 410, 780)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 20, 237, 410, 780)))
         if not tables:
-            raise ValueError("No required tables found on the page: left color info")
+            raise ValueError(
+                "No required tables found on the page: left color info")
         df_l_conn = tables[0].to_pandas()
         # Connections
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 410, 33, 780, 780)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 410, 33, 780, 780)))
         if not tables:
-            raise ValueError("No required tables found on the page: connection info")
+            raise ValueError(
+                "No required tables found on the page: connection info")
         overlaps = detect_overlaps(
             page.get_text("words", clip=get_clip_rect(w, h, 410, 33, 780, 780))
         )
@@ -407,17 +431,22 @@ class TableExtractor:
             overlapping_rows = detect_row_overlaps(tables[0], overlaps)
         df_center = tables[0].to_pandas()
         # Right side Cables
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 780, 33, 1170, 237)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 780, 33, 1170, 237)))
         if not tables:
-            raise ValueError("No required tables found on the page: right cable info")
-        header = list(tables[0].header.names)  # preserve header as to_pandas breaks it
+            raise ValueError(
+                "No required tables found on the page: right cable info")
+        # preserve header as to_pandas breaks it
+        header = list(tables[0].header.names)
         df = tables[0].to_pandas()
         df.columns = header  # restore original names (.to_pandas breaks it)
         df_r_cables = demote_header(df)
         # Right side Cable Connections
-        tables = list(page.find_tables(clip=get_clip_rect(w, h, 780, 237, 1170, 780)))
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 780, 237, 1170, 780)))
         if not tables:
-            raise ValueError("No required tables found on the page: left color info")
+            raise ValueError(
+                "No required tables found on the page: left color info")
         df_r_conn = tables[0].to_pandas()
 
         # here I have to do preprocessing to make a single df
@@ -434,14 +463,17 @@ class TableExtractor:
             # -2 as promote_header & index counts from 1 in detect_row_overlaps
             adjusted_rows = [i - 2 for i in overlapping_rows]
             df = df.drop(index=adjusted_rows).reset_index(drop=True)
-            df_l_conn = df_l_conn.drop(index=adjusted_rows).reset_index(drop=True)
-            df_r_conn = df_r_conn.drop(index=adjusted_rows).reset_index(drop=True)
+            df_l_conn = df_l_conn.drop(
+                index=adjusted_rows).reset_index(drop=True)
+            df_r_conn = df_r_conn.drop(
+                index=adjusted_rows).reset_index(drop=True)
 
         #
         def transform_dataframe(df_cables, df_conn):
             rows = []
             number_cols = [col for col in df_conn.columns if col.isdigit()]
-            non_number_cols = [col for col in df_conn.columns if col not in number_cols]
+            non_number_cols = [
+                col for col in df_conn.columns if col not in number_cols]
             columns = ["Cable", "Color"] + non_number_cols
             # for each connection
             for _, row in df_conn.iterrows():
@@ -454,7 +486,8 @@ class TableExtractor:
                         # assume it is convertible to int as we did isdigit
                         cable_index = int(col) - 1
                         # TODO might be wrong as cable tag might have spaces (?)
-                        cable_info = df_cables.iloc[cable_index, 1].split(" ")[0]
+                        cable_info = df_cables.iloc[cable_index, 1].split(" ")[
+                            0]
                         # Extract a TAG from cable_info
                         cable_info_list.append(cable_info)
                         color_list.append(color)
@@ -487,7 +520,8 @@ class TableExtractor:
         )
 
         # clean empty rows
-        df = df[df.apply(lambda row: row.astype(str).str.strip().ne('').any(), axis=1)]
+        df = df[df.apply(lambda row: row.astype(
+            str).str.strip().ne('').any(), axis=1)]
         # insert strip name as 1st column
         df.insert(0, "Strip", strip_name)
 
@@ -500,4 +534,3 @@ if __name__ == "__main__":
     df = TableExtractor.extract(doc[72:76], PageType.CABLE_DIAGRAM)
     logger.debug(df.iloc[0])
     logger.debug(df)
-

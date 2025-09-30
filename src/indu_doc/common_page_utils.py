@@ -1,9 +1,12 @@
+from dataclasses import dataclass
 from enum import Enum
 import os
 from typing import Optional
 import logging
 
-from pymupdf import pymupdf
+from pymupdf import pymupdf  # type: ignore
+
+from indu_doc.footers import PageFooter
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +77,7 @@ def detect_page_type(page: pymupdf.Page) -> Optional[PageType]:
     Returns:
         Optional[PageType]: The detected page type, or None if not identified.
     """
-    blocks = page.get_text("dict")["blocks"]
+    blocks = page.get_text("dict")["blocks"] # type: ignore
     for b in blocks:
         if "lines" in b:  # this block contains text
             for line in b["lines"]:  # iterate through the text lines
@@ -83,9 +86,19 @@ def detect_page_type(page: pymupdf.Page) -> Optional[PageType]:
                         for pt in PageType:
                             if pt.value.strip().lower() == s["text"].strip().lower():
                                 logger.debug(
-                                    f"Page {page.number + 1} is of type {pt.name}"
+                                    f"Page {page.number + 1} is of type {pt.name}" # type: ignore
                                 )
                                 return pt
 
-    logger.debug(f"Page {page.number + 1} type is unknown")
+    logger.debug(f"Page {page.number + 1} type is unknown") # type: ignore
     return None
+
+
+@dataclass
+class PageInfo:
+    page: pymupdf.Page
+    page_footer: PageFooter
+    page_type: PageType
+
+    def __hash__(self) -> int:
+        return hash((self.page, self.page_footer, self.page_type))

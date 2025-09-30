@@ -2,14 +2,14 @@ from typing import Any
 import threading
 from enum import Enum
 
-from pymupdf import pymupdf
+from pymupdf import pymupdf  # type: ignore
 from tqdm import tqdm
 import logging
 
 from indu_doc.common_page_utils import detect_page_type
 from indu_doc.configs import AspectsConfig
-from indu_doc.god import God
-from indu_doc.page_processor import PageProcessor
+from indu_doc.god import God, PageMapperEntry
+from indu_doc.page_processor import PageProcessor, PageInfo
 from indu_doc.tag import Tag
 from indu_doc.xtarget import XTarget
 
@@ -30,7 +30,7 @@ class Manager:
         self.page_processor: PageProcessor = PageProcessor(self.god)
 
         # Threading and state management
-        self._processing_thread = None
+        self._processing_thread: threading.Thread | None = None
         self._processing_state = ProcessingState.IDLE
         self._stop_event = threading.Event()
         self._state_lock = threading.Lock()
@@ -95,12 +95,10 @@ class Manager:
     def _process_pdfs_worker(self, pdf_paths: str | list[str]) -> None:
         """Worker method that runs in a separate thread."""
         try:
-            if isinstance(pdf_paths, list):
-                docs = [pymupdf.open(p) for p in pdf_paths]
-                file_paths = pdf_paths
-            else:
-                docs = [pymupdf.open(pdf_paths)]
-                file_paths = [pdf_paths]
+            if not isinstance(pdf_paths, list):
+                pdf_paths = [pdf_paths]
+
+            docs = [pymupdf.open(p) for p in pdf_paths]
 
             # Calculate total pages
             total_pages = sum(len(doc) for doc in docs)
@@ -108,7 +106,7 @@ class Manager:
 
             current_page = 0
 
-            for doc, file_path in zip(docs, file_paths):
+            for doc, file_path in zip(docs, pdf_paths):
                 if self._stop_event.is_set():
                     break
 
@@ -122,12 +120,14 @@ class Manager:
                     current_page += 1
                     self._progress_info["current_page"] = current_page
 
+                    # type: ignore
                     logger.info(f"Processing page {page.number + 1}")
                     page_type = detect_page_type(page)
                     if page_type:
                         self.page_processor.run(page, page_type)
                     else:
                         logger.info(
+                            # type: ignore
                             f"Could not detect page type for page #{page.number + 1}")
 
                 doc.close()
@@ -174,18 +174,20 @@ class Manager:
                     self._processing_state == ProcessingState.STOPPING):
                 self._processing_state = ProcessingState.IDLE
                 logger.info("PDF processing stopped")
-
+            progress_percentage = (
+                # type: ignore
+                (self._progress_info["current_page"] /
+                 self._progress_info["total_pages"])
+                # type: ignore
+                if self._progress_info["total_pages"] > 0 else 0.0
+            )
             return {
                 "state": self._processing_state.value,
                 "progress": {
                     "current_page": self._progress_info["current_page"],
                     "total_pages": self._progress_info["total_pages"],
                     "current_file": self._progress_info["current_file"],
-                    "percentage": (
-                        (self._progress_info["current_page"] /
-                         self._progress_info["total_pages"])
-                        if self._progress_info["total_pages"] > 0 else 0
-                    )
+                    "percentage": progress_percentage
                 },
                 "error_message": self._progress_info["error_message"]
             }
@@ -240,12 +242,22 @@ class Manager:
         # convert raw_tree to the desired format for the GUI
         def get_gui_description(target: XTarget) -> str:
             lines = []
-            lines.append(f"{target.target_type.value.upper()}")
-            lines.append(f"{target.tag.tag_str}")
-            lines.append(f"{target.get_guid()}")
-            for attr in target.attributes:
-                lines.append(f" - {attr}")
-            return "\n".join(lines).strip()
+            lines.append(f"<div class='tree-description'>")
+            lines.append(
+                f"<div class='target-type'><strong>Type:</strong> <span class='badge'>{target.target_type.value.upper()}</span></div>")
+            lines.append(
+                f"<div class='target-tag'><strong>Tag:</strong> {target.tag.tag_str}</div>")
+            lines.append(
+                f"<div class='target-guid'><strong>GUID:</strong> <code>{target.get_guid()}</code></div>")
+            if target.attributes:
+                lines.append(
+                    f"<div class='target-attributes'><strong>Attributes:</strong>")
+                lines.append("<ul>")
+                for attr in target.attributes:
+                    lines.append(f"<li>{attr}</li>")
+                lines.append("</ul></div>")
+            lines.append("</div>")
+            return "".join(lines)
 
         def convert_to_gui_format(node):
             if not isinstance(node, dict):
@@ -317,6 +329,59 @@ class Manager:
 
     def get_pins(self) -> list:
         return list(self.god.pins.values())
+
+    def get_target_pages_by_guid(self, guid: str):
+        if not guid:
+            return None
+
+        if guid not in self.god.xtargets:
+            return None
+
+        target = self.god.xtargets[guid]
+        pages = self.god.get_pages_of_object(target)
+
+        return {
+            "target": target,
+            "pages": pages
+        }
+
+    def get_target_pages_by_tag(self, tag_str: str):
+        if not tag_str:
+            return None
+
+        # Find target by tag_str
+        target = next(
+            (t for t in self.god.xtargets.values() if t.tag.tag_str == tag_str), None)
+        if not target:
+            return None
+
+        pages = self.god.get_pages_of_object(target)
+
+        return {
+            "target": target,
+            "pages": pages
+        }
+
+    def get_connection_details(self, guid: str):
+        """Get detailed information about a connection by its GUID."""
+        if not guid or guid not in self.god.connections:
+            return None
+
+        connection = self.god.connections[guid]
+        pages = self.god.get_pages_of_object(connection)
+
+        return {
+            "connection": connection,
+            "pages": pages
+        }
+
+    def get_pages_of_object(self, id: str) -> set[PageMapperEntry]:
+        return self.god.get_pages_of_object(id)
+
+    def get_objects_on_page(self, page_num: int, file_path: str) -> list:
+        """Get all objects that appear on a specific page."""
+        objects = self.god.get_objects_on_page(page_num, file_path)
+        return list(objects)
 
     @property
     def has_data(self) -> bool:

@@ -3,6 +3,8 @@ import json
 from abc import ABC, abstractmethod
 from enum import Enum
 import hashlib
+from types import UnionType
+from typing import Any, Union
 import uuid
 
 
@@ -101,7 +103,7 @@ class SimpleAttribute(Attribute):
         return self.name == other.name and self.value == other.value
 
     def __repr__(self) -> str:
-        return f"SimpleAttribute(name={self.name}, value={self.value})"
+        return f"{self.name} : {self.value}"
 
     def get_guid(self) -> str:
         return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{self.value}".encode()).digest()))
@@ -112,9 +114,12 @@ class RoutingTracksAttribute(Attribute):
     This attribute holds a list of routing tracks associated with an object.
     """
 
-    def __init__(self, name: str, tracks: list[str]) -> None:
+    def __init__(self, name: str, tracks: list[str] | str, sep=";") -> None:
         super().__init__(name)
+        if isinstance(tracks, str):
+            tracks = tracks.split(sep)
         self.tracks: list[str] = tracks
+        self.sep = sep
 
     def get_db_representation(self) -> str:
         return json.dumps({"name": self.name, "tracks": self.tracks})
@@ -128,8 +133,8 @@ class RoutingTracksAttribute(Attribute):
         return self.tracks
 
     @classmethod
-    def get_value_type(cls) -> type:
-        return list[str]
+    def get_value_type(cls) -> Any:
+        return Union[list[str], str]
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.tracks)))
@@ -140,10 +145,10 @@ class RoutingTracksAttribute(Attribute):
         return self.name == other.name and self.tracks == other.tracks
 
     def __repr__(self) -> str:
-        return f"RoutingTracksAttribute(name={self.name}, tracks={self.tracks})"
+        return f"Route: {self.tracks}"
 
     def get_guid(self) -> str:
-        tracks_str = ",".join(sorted(self.tracks))
+        tracks_str = self.sep.join(sorted(self.tracks))
         return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{tracks_str}".encode()).digest()))
 
 # IMP: please register new attributes here

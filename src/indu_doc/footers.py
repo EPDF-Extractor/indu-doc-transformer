@@ -1,6 +1,6 @@
 from typing import Optional
 
-import pymupdf
+import pymupdf  # type: ignore
 from enum import Enum
 from dataclasses import dataclass
 
@@ -60,7 +60,8 @@ def get_paper_size(page: pymupdf.Page) -> PaperSize:
 
     for paper_type, (width, height) in paper_dimensions.items():
         if (compare_with_eps(page_w, width) and compare_with_eps(page_h, height)) or (
-            compare_with_eps(page_w, height) and compare_with_eps(page_h, width)
+            compare_with_eps(page_w, height) and compare_with_eps(
+                page_h, width)
         ):
             return paper_type
     return PaperSize.A3_HORIZONTAL  # Default to A3 horizontal if no match found
