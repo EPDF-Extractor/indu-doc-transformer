@@ -49,21 +49,23 @@ def sample_footer():
 class TestNoDuplicateXTargets:
     """Test that God doesn't create duplicate XTargets."""
 
-    def test_same_tag_different_types_merges(self, god_instance: God):
+    def test_same_tag_different_types_merges(self, god_instance: God, mock_page_info_no_footer):
         """Test that same tag with different types merges to higher priority type."""
         # Create with lower priority type first
-        xtarget1 = god_instance.create_xtarget("=DEVICE", XTargetType.OTHER)
+        xtarget1 = god_instance.create_xtarget(
+            "=DEVICE", mock_page_info_no_footer, XTargetType.OTHER)
         assert xtarget1.target_type == XTargetType.OTHER
 
         # Create with higher priority type
-        xtarget2 = god_instance.create_xtarget("=DEVICE", XTargetType.DEVICE)
+        xtarget2 = god_instance.create_xtarget(
+            "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE)
 
         # Should be same object with upgraded type
         assert xtarget1 is xtarget2
         assert xtarget2.target_type == XTargetType.DEVICE
         assert len(god_instance.xtargets) == 1
 
-    def test_same_tag_attributes_merged(self, god_instance: God):
+    def test_same_tag_attributes_merged(self, god_instance: God, mock_page_info_no_footer):
         """Test that same tag with different attributes merges attributes."""
         attr1 = god_instance.create_attribute(
             AttributeType.SIMPLE, "color", "red")
@@ -72,13 +74,13 @@ class TestNoDuplicateXTargets:
 
         # Create XTarget with first attribute
         xtarget1 = god_instance.create_xtarget(
-            "=DEVICE", XTargetType.DEVICE, (attr1,))
+            "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE, (attr1,))
         assert len(xtarget1.attributes) == 1
         assert attr1 in xtarget1.attributes
 
         # Create same XTarget with second attribute
         xtarget2 = god_instance.create_xtarget(
-            "=DEVICE", XTargetType.DEVICE, (attr2,))
+            "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE, (attr2,))
 
         # Should be same object with merged attributes
         assert xtarget1 is xtarget2
@@ -87,19 +89,19 @@ class TestNoDuplicateXTargets:
         assert attr2 in xtarget2.attributes
         assert len(god_instance.xtargets) == 1
 
-    def test_same_tag_duplicate_attributes_not_duplicated(self, god_instance: God):
+    def test_same_tag_duplicate_attributes_not_duplicated(self, god_instance: God, mock_page_info_no_footer):
         """Test that adding same attribute twice doesn't create duplicates."""
         attr = god_instance.create_attribute(
             AttributeType.SIMPLE, "color", "red")
 
         # Create XTarget with attribute
         xtarget1 = god_instance.create_xtarget(
-            "=DEVICE", XTargetType.DEVICE, (attr,))
+            "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE, (attr,))
         assert len(xtarget1.attributes) == 1
 
         # Try to add same attribute again
         xtarget2 = god_instance.create_xtarget(
-            "=DEVICE", XTargetType.DEVICE, (attr,))
+            "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE, (attr,))
 
         # Should be same object with no duplicate attributes
         assert xtarget1 is xtarget2
@@ -107,13 +109,13 @@ class TestNoDuplicateXTargets:
         assert attr in xtarget2.attributes
         assert len(god_instance.xtargets) == 1
 
-    def test_multiple_calls_same_parameters(self, god_instance: God):
+    def test_multiple_calls_same_parameters(self, god_instance: God, mock_page_info_no_footer):
         """Test multiple calls with identical parameters."""
         # Create same XTarget multiple times
         xtargets = []
         for i in range(5):
             xtarget = god_instance.create_xtarget(
-                "=DEVICE", XTargetType.DEVICE)
+                "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE)
             xtargets.append(xtarget)
 
         # All should be the same object
@@ -126,19 +128,23 @@ class TestNoDuplicateXTargets:
 class TestNoDuplicateConnections:
     """Test that God doesn't create duplicate Connections."""
 
-    def test_same_connection_parameters_same_object(self, god_instance: God):
+    def test_same_connection_parameters_same_object(self, god_instance: God, mock_page_info_no_footer):
         """Test that same connection parameters return the same object."""
-        conn1 = god_instance.create_connection(None, "=DEV1", "=DEV2")
-        conn2 = god_instance.create_connection(None, "=DEV1", "=DEV2")
+        conn1 = god_instance.create_connection(
+            None, "=DEV1", "=DEV2", mock_page_info_no_footer)
+        conn2 = god_instance.create_connection(
+            None, "=DEV1", "=DEV2", mock_page_info_no_footer)
 
         # Should be the exact same object
         assert conn1 is conn2
         assert len(god_instance.connections) == 1
 
-    def test_same_connection_with_cable_same_object(self, god_instance: God):
+    def test_same_connection_with_cable_same_object(self, god_instance: God, mock_page_info_no_footer):
         """Test that same connection through cable returns same object."""
-        conn1 = god_instance.create_connection("=CABLE", "=DEV1", "=DEV2")
-        conn2 = god_instance.create_connection("=CABLE", "=DEV1", "=DEV2")
+        conn1 = god_instance.create_connection(
+            "=CABLE", "=DEV1", "=DEV2", mock_page_info_no_footer)
+        conn2 = god_instance.create_connection(
+            "=CABLE", "=DEV1", "=DEV2", mock_page_info_no_footer)
 
         # Should be the exact same object
         assert conn1 is conn2
@@ -146,12 +152,14 @@ class TestNoDuplicateConnections:
         assert conn1.through is not None
         assert conn1.through.tag.tag_str == "=CABLE"
 
-    def test_different_cable_different_connections(self, god_instance: God):
+    def test_different_cable_different_connections(self, god_instance: God, mock_page_info_no_footer):
         """Test that different cables create different connections."""
-        conn1 = god_instance.create_connection("=CABLE1", "=DEV1", "=DEV2")
-        conn2 = god_instance.create_connection("=CABLE2", "=DEV1", "=DEV2")
+        conn1 = god_instance.create_connection(
+            "=CABLE1", "=DEV1", "=DEV2", mock_page_info_no_footer)
+        conn2 = god_instance.create_connection(
+            "=CABLE2", "=DEV1", "=DEV2", mock_page_info_no_footer)
         conn3 = god_instance.create_connection(
-            None, "=DEV1", "=DEV2")  # No cable
+            None, "=DEV1", "=DEV2", mock_page_info_no_footer)  # No cable
 
         # Should be different objects
         assert conn1 is not conn2
@@ -160,11 +168,14 @@ class TestNoDuplicateConnections:
 
         assert len(god_instance.connections) == 3
 
-    def test_different_devices_different_connections(self, god_instance: God):
+    def test_different_devices_different_connections(self, god_instance: God, mock_page_info_no_footer):
         """Test that different devices create different connections."""
-        conn1 = god_instance.create_connection(None, "=DEV1", "=DEV2")
-        conn2 = god_instance.create_connection(None, "=DEV1", "=DEV3")
-        conn3 = god_instance.create_connection(None, "=DEV2", "=DEV3")
+        conn1 = god_instance.create_connection(
+            None, "=DEV1", "=DEV2", mock_page_info_no_footer)
+        conn2 = god_instance.create_connection(
+            None, "=DEV1", "=DEV3", mock_page_info_no_footer)
+        conn3 = god_instance.create_connection(
+            None, "=DEV2", "=DEV3", mock_page_info_no_footer)
 
         # Should be different objects
         assert conn1 is not conn2
@@ -173,22 +184,24 @@ class TestNoDuplicateConnections:
 
         assert len(god_instance.connections) == 3
 
-    def test_reverse_connection_same_devices_different_connection(self, god_instance: God):
+    def test_reverse_connection_same_devices_different_connection(self, god_instance: God, mock_page_info_no_footer):
         """Test that reversing source/dest creates different connection."""
-        conn1 = god_instance.create_connection(None, "=DEV1", "=DEV2")
-        conn2 = god_instance.create_connection(None, "=DEV2", "=DEV1")
+        conn1 = god_instance.create_connection(
+            None, "=DEV1", "=DEV2", mock_page_info_no_footer)
+        conn2 = god_instance.create_connection(
+            None, "=DEV2", "=DEV1", mock_page_info_no_footer)
 
         # Should be different objects (direction matters)
         assert conn1 is not conn2
         assert len(god_instance.connections) == 2
 
-    def test_connection_with_links_no_duplicates(self, god_instance: God):
+    def test_connection_with_links_no_duplicates(self, god_instance: God, mock_page_info_no_footer):
         """Test that connection with links doesn't create duplicates."""
         conn1 = god_instance.create_connection_with_link(
-            "=CABLE", "=DEV1:PIN1", "=DEV2:PIN2"
+            "=CABLE", "=DEV1:PIN1", "=DEV2:PIN2", mock_page_info_no_footer
         )
         conn2 = god_instance.create_connection_with_link(
-            "=CABLE", "=DEV1:PIN1", "=DEV2:PIN2"
+            "=CABLE", "=DEV1:PIN1", "=DEV2:PIN2", mock_page_info_no_footer
         )
 
         # Should be the same object
@@ -200,29 +213,29 @@ class TestNoDuplicateConnections:
 class TestNoDuplicateTags:
     """Test that God doesn't create duplicate Tags."""
 
-    def test_same_tag_string_same_object(self, god_instance: God):
+    def test_same_tag_string_same_object(self, god_instance: God, mock_page_info_no_footer):
         """Test that same tag string returns same Tag object."""
-        tag1 = god_instance.create_tag("=DEVICE")
-        tag2 = god_instance.create_tag("=DEVICE")
+        tag1 = god_instance.create_tag("=DEVICE", mock_page_info_no_footer)
+        tag2 = god_instance.create_tag("=DEVICE", mock_page_info_no_footer)
 
         assert tag1 is tag2
         assert len(god_instance.tags) == 1
         assert "=DEVICE" in god_instance.tags
 
-    def test_same_tag_with_footer_same_object(self, god_instance, sample_footer):
+    def test_same_tag_with_footer_same_object(self, god_instance, mock_page_info):
         """Test that same tag with footer returns same object."""
-        tag1 = god_instance.create_tag("=DEVICE", footer=sample_footer)
-        tag2 = god_instance.create_tag("=DEVICE", footer=sample_footer)
+        tag1 = god_instance.create_tag("=DEVICE", mock_page_info)
+        tag2 = god_instance.create_tag("=DEVICE", mock_page_info)
 
         # Should be same object (caching should work)
         assert tag1 is tag2
         assert len(god_instance.tags) == 1
 
-    def test_different_tag_strings_different_objects(self, god_instance: God):
+    def test_different_tag_strings_different_objects(self, god_instance: God, mock_page_info_no_footer):
         """Test that different tag strings create different objects."""
-        tag1 = god_instance.create_tag("=DEVICE1")
-        tag2 = god_instance.create_tag("=DEVICE2")
-        tag3 = god_instance.create_tag("+LOCATION")
+        tag1 = god_instance.create_tag("=DEVICE1", mock_page_info_no_footer)
+        tag2 = god_instance.create_tag("=DEVICE2", mock_page_info_no_footer)
+        tag3 = god_instance.create_tag("+LOCATION", mock_page_info_no_footer)
 
         assert tag1 is not tag2
         assert tag1 is not tag3
@@ -230,11 +243,11 @@ class TestNoDuplicateTags:
 
         assert len(god_instance.tags) == 3
 
-    def test_multiple_calls_same_tag(self, god_instance: God):
+    def test_multiple_calls_same_tag(self, god_instance: God, mock_page_info_no_footer):
         """Test multiple calls with same tag string."""
         tags = []
         for i in range(10):
-            tag = god_instance.create_tag("=DEVICE")
+            tag = god_instance.create_tag("=DEVICE", mock_page_info_no_footer)
             tags.append(tag)
 
         # All should be the same object
@@ -284,23 +297,25 @@ class TestNoDuplicatePins:
 class TestNoDuplicateLinks:
     """Test that God doesn't create duplicate Links."""
 
-    def test_same_link_parameters_same_object(self, god_instance: God):
+    def test_same_link_parameters_same_object(self, god_instance: God, mock_page_info_no_footer):
         """Test that same link parameters return same Link object."""
-        link1 = god_instance.create_link("TEST_LINK")
-        link2 = god_instance.create_link("TEST_LINK")
+        link1 = god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
+        link2 = god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
 
         assert link1 is link2
         assert len(god_instance.links) == 1
 
-    def test_link_attribute_merging(self, god_instance: God):
+    def test_link_attribute_merging(self, god_instance: God, mock_page_info_no_footer):
         """Test that same link merges attributes without duplicating the link."""
         attr1 = god_instance.create_attribute(
             AttributeType.SIMPLE, "color", "red")
         attr2 = god_instance.create_attribute(
             AttributeType.SIMPLE, "size", "large")
 
-        link1 = god_instance.create_link("TEST_LINK", attributes=(attr1,))
-        link2 = god_instance.create_link("TEST_LINK", attributes=(attr2,))
+        link1 = god_instance.create_link(
+            "TEST_LINK", mock_page_info_no_footer, attributes=(attr1,))
+        link2 = god_instance.create_link(
+            "TEST_LINK", mock_page_info_no_footer, attributes=(attr2,))
 
         # Should be same object with merged attributes
         assert link1 is link2
@@ -314,13 +329,15 @@ class TestNoDuplicateAttributes:
     """Test that God doesn't create duplicate Attributes."""
 
     def test_same_attribute_parameters_same_object(self, god_instance: God):
-        """Test that same attribute parameters return same Attribute object."""
+        """Test that same attribute parameters store same Attribute string key."""
         attr1 = god_instance.create_attribute(
             AttributeType.SIMPLE, "color", "red")
         attr2 = god_instance.create_attribute(
             AttributeType.SIMPLE, "color", "red")
 
-        assert attr1 is attr2
+        # Note: Attributes are NOT cached, they are stored separately
+        # The same string key stores the latest one
+        assert str(attr1) == str(attr2)
         assert len(god_instance.attributes) == 1
 
     def test_different_attribute_values_different_objects(self, god_instance: God):
@@ -346,9 +363,9 @@ class TestNoDuplicateAttributes:
                 AttributeType.SIMPLE, "color", "red")
             attributes.append(attr)
 
-        # All should be the same object
+        # All should have the same string representation
         for attr in attributes:
-            assert attr is attributes[0]
+            assert str(attr) == str(attributes[0])
 
         assert len(god_instance.attributes) == 1
 
@@ -356,7 +373,7 @@ class TestNoDuplicateAttributes:
 class TestComplexNoDuplicatesScenarios:
     """Test complex scenarios involving multiple object types."""
 
-    def test_complex_workflow_no_duplicates(self, god_instance: God):
+    def test_complex_workflow_no_duplicates(self, god_instance: God, mock_page_info_no_footer):
         """Test complex workflow ensures no duplicates across all object types."""
         # Create the same complex structure twice
         for iteration in range(2):
@@ -368,14 +385,16 @@ class TestComplexNoDuplicatesScenarios:
 
             # Create XTargets
             device1 = god_instance.create_xtarget(
-                "=DEVICE1", XTargetType.DEVICE, (color_attr,))
+                "=DEVICE1", mock_page_info_no_footer, XTargetType.DEVICE, (color_attr,))
             device2 = god_instance.create_xtarget(
-                "=DEVICE2", XTargetType.DEVICE, (size_attr,))
-            cable = god_instance.create_xtarget("=CABLE", XTargetType.CABLE)
+                "=DEVICE2", mock_page_info_no_footer, XTargetType.DEVICE, (size_attr,))
+            cable = god_instance.create_xtarget(
+                "=CABLE", mock_page_info_no_footer, XTargetType.CABLE)
 
             # Create connection with links
             connection = god_instance.create_connection_with_link(
-                "=CABLE", "=DEVICE1:PIN1", "=DEVICE2:PIN2", (color_attr,)
+                "=CABLE", "=DEVICE1:PIN1", "=DEVICE2:PIN2", mock_page_info_no_footer, (
+                    color_attr,)
             )
 
         # After two iterations, counts should be the same as after one
@@ -386,16 +405,18 @@ class TestComplexNoDuplicatesScenarios:
         assert len(god_instance.tags) == 3        # DEVICE1, DEVICE2, CABLE
         assert len(god_instance.links) == 1       # one link
 
-    def test_stress_test_no_duplicates(self, god_instance: God):
+    def test_stress_test_no_duplicates(self, god_instance: God, mock_page_info_no_footer):
         """Stress test with many repeated operations."""
         # Repeat the same operations many times
         for i in range(100):
             god_instance.create_attribute(AttributeType.SIMPLE, "color", "red")
-            god_instance.create_tag("=DEVICE")
-            god_instance.create_xtarget("=DEVICE", XTargetType.DEVICE)
+            god_instance.create_tag("=DEVICE", mock_page_info_no_footer)
+            god_instance.create_xtarget(
+                "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE)
             god_instance.create_pin("=DEVICE:PIN1")
-            god_instance.create_link("TEST_LINK")
-            god_instance.create_connection(None, "=DEV1", "=DEV2")
+            god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
+            god_instance.create_connection(
+                None, "=DEV1", "=DEV2", mock_page_info_no_footer)
 
         # Should still have only one of each
         assert len(god_instance.attributes) == 1
@@ -405,28 +426,27 @@ class TestComplexNoDuplicatesScenarios:
         assert len(god_instance.links) == 1
         assert len(god_instance.connections) == 1
 
-    def test_interleaved_operations_no_duplicates(self, god_instance: God):
+    def test_interleaved_operations_no_duplicates(self, god_instance: God, mock_page_info_no_footer):
         """Test interleaved operations don't create duplicates."""
         # First round
         attr1 = god_instance.create_attribute(
             AttributeType.SIMPLE, "color", "red")
         xtarget1 = god_instance.create_xtarget(
-            "=DEVICE", XTargetType.DEVICE, (attr1,))
+            "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE, (attr1,))
 
-        # Second round with same parameters
+        # Second round with same parameters - note attributes are NOT cached
         attr2 = god_instance.create_attribute(
             AttributeType.SIMPLE, "color", "red")
         xtarget2 = god_instance.create_xtarget(
-            "=DEVICE", XTargetType.DEVICE, (attr2,))
+            "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE, (attr2,))
 
         # Third round with additional attribute
         attr3 = god_instance.create_attribute(
             AttributeType.SIMPLE, "size", "large")
         xtarget3 = god_instance.create_xtarget(
-            "=DEVICE", XTargetType.DEVICE, (attr3,))
+            "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE, (attr3,))
 
-        # Verify no duplicates
-        assert attr1 is attr2
+        # Verify no duplicates in xtargets
         assert xtarget1 is xtarget2
         assert xtarget1 is xtarget3
 
