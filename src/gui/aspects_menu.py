@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Load aspects from config.json if present, otherwise use defaults
 
 
-def load_aspects() -> List[LevelConfig]:
+def load_default_aspects() -> List[LevelConfig]:
     # Build aspects list from default_configs (AspectsConfig) provided by configs.py
     try:
         logger.debug(f"Trying to load default aspects: {default_configs}")
@@ -64,6 +64,15 @@ def remove_aspect(index: int, mutable_aspects: List[LevelConfig], rebuild_callba
             rebuild_callback()
         except Exception:
             pass
+
+
+def add_aspect_inplace(mutable_aspects: List[LevelConfig], rebuild_callback):
+    """Add a new empty aspect and rebuild the dialog rows."""
+    mutable_aspects.append(LevelConfig(Separator='', Aspect=''))
+    try:
+        rebuild_callback()
+    except Exception:
+        pass
 
 
 def open_configuration_dialog(aspects: List[LevelConfig]):
