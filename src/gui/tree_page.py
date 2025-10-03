@@ -1,8 +1,7 @@
 from nicegui import ui
 from typing import List, Dict, Any
+from gui.global_state import ClientState
 from indu_doc.god import PageMapperEntry
-from indu_doc.manager import Manager
-from gui.global_state import manager
 from indu_doc.xtarget import XTarget
 from gui.detail_panel_components import (
     create_type_badge, create_info_card, create_attributes_section,
@@ -66,7 +65,7 @@ def filter_tree_by_description(tree_data: List[Dict[str, Any]], filter_str: str)
     return filtered
 
 
-def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback):
+def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback, state: ClientState):
     """Create the tree outline section for the dedicated tree page with custom description filter."""
     ui.label('Tree Outline').classes(
         'text-center w-full text-xl font-semibold mb-2 text-white')
@@ -143,7 +142,7 @@ def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback):
                 ":")+1:].strip() if ":" in node_id else node_id
 
             # Get target details and update side panel
-            target_info = manager.get_target_pages_by_tag(tag_str)
+            target_info = state.manager.get_target_pages_by_tag(tag_str)
             if target_info:
                 details_callback(target_info)
 
@@ -178,7 +177,7 @@ def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback):
         update_tree()
 
 
-def create_tree_page():
+def create_tree_page(state: ClientState):
     """Create a dedicated page for displaying the tree structure."""
     with ui.card().classes('w-full h-screen no-shadow border-2 border-gray-700 bg-gray-900 flex flex-col max-w-full'):
         # Header
@@ -236,14 +235,15 @@ def create_tree_page():
 
                 def refresh_tree():
                     """Refresh the tree data from the manager."""
-                    tree_data = manager.get_tree()
+                    tree_data = state.manager.get_tree()
                     # Ensure tree_data is not None
                     if tree_data is None:
                         tree_data = []
                     print(f"Refreshing tree with {len(tree_data)} nodes")
                     tree_container.clear()
                     with tree_container:
-                        create_tree_outline(tree_data, update_side_panel)
+                        create_tree_outline(
+                            tree_data, update_side_panel, state)
 
                 # Initial load
                 refresh_tree()

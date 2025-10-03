@@ -1,14 +1,14 @@
 from nicegui import ui
 from typing import List, Dict, Any
+from gui.global_state import ClientState
 from indu_doc.connection import Connection, Link
-from gui.global_state import manager
 from gui.detail_panel_components import (
     create_section_header, create_info_card, create_occurrences_section,
     create_empty_state
 )
 
 
-def create_connection_list(connections: List[Connection], details_callback):
+def create_connection_list(connections: List[Connection], details_callback, state: ClientState):
     """Create a filterable list of all connections."""
 
     ui.label('Connections').classes(
@@ -66,7 +66,8 @@ def create_connection_list(connections: List[Connection], details_callback):
 
         def handle_click(conn: Connection):
             """Handle connection click."""
-            conn_info = manager.get_connection_details(conn.get_guid())
+            conn_info = state.manager.get_connection_details(
+                conn.get_guid())
             if conn_info:
                 details_callback(conn_info)
 
@@ -76,9 +77,8 @@ def create_connection_list(connections: List[Connection], details_callback):
         render_connections()
 
 
-def create_connections_page():
+def create_connections_page(state: ClientState):
     """Create a dedicated page for exploring connections."""
-
     with ui.card().classes('w-full h-screen no-shadow border-2 border-gray-700 bg-gray-900 flex flex-col max-w-full'):
         # Header
         with ui.card_section().classes('flex-shrink-0 bg-gray-800'):
@@ -201,11 +201,11 @@ def create_connections_page():
 
                 def refresh_connections():
                     """Refresh the connections list."""
-                    connections = manager.get_connections()
+                    connections = state.manager.get_connections()
                     list_container.clear()
                     with list_container:
                         create_connection_list(
-                            connections, update_detail_panel)
+                            connections, update_detail_panel, state)
 
                 # Initial load
                 refresh_connections()

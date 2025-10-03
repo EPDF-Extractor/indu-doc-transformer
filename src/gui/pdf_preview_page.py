@@ -1,14 +1,13 @@
 from nicegui import ui, app
 from typing import Dict, Any
-from gui.global_state import manager, uploaded_pdfs
+from gui.global_state import ClientState
 from gui.detail_panel_components import create_section_header, create_empty_state, create_info_card
 import os
 import hashlib
 
 
-def create_pdf_preview_page(file_path: str = '', page_number: int = 1):
+def create_pdf_preview_page(state: ClientState, file_path: str = '', page_number: int = 1):
     """Create a PDF preview page with navigation and object details."""
-
     # If no file specified, show file selection UI
     if file_path is None or file_path.strip() == '':
         with ui.card().classes('w-full h-screen flex items-center justify-center bg-gray-900 border-2 border-gray-700'):
@@ -16,21 +15,22 @@ def create_pdf_preview_page(file_path: str = '', page_number: int = 1):
                 ui.label('PDF Preview').classes(
                     'text-3xl font-bold mb-4 text-white')
 
-                if not uploaded_pdfs:
+                if not state.uploaded_pdfs:
                     ui.label('No PDFs uploaded yet').classes(
                         'text-gray-400 text-lg')
                 else:
                     ui.label('Select a PDF to preview:').classes(
                         'text-lg mb-2 text-gray-200')
                     ui.select(
-                        options={p: p.split('\\')[-1] for p in uploaded_pdfs},
+                        options={p: p.split('\\')[-1]
+                                 for p in state.uploaded_pdfs},
                         on_change=lambda e: ui.navigate.to(
                             f'/pdf-preview?file={e.value}&page=1')
                     ).classes('w-96').props('dark outlined')
         return
 
     # Validate file exists in uploaded PDFs
-    if file_path not in uploaded_pdfs:
+    if file_path not in state.uploaded_pdfs:
         with ui.card().classes('w-full h-screen flex items-center justify-center bg-gray-900 border-2 border-gray-700'):
             ui.label('File not found or not uploaded').classes(
                 'text-red-400 text-xl font-semibold')
@@ -62,7 +62,8 @@ def create_pdf_preview_page(file_path: str = '', page_number: int = 1):
                     'text-2xl font-bold flex-grow text-center text-white')
 
                 ui.select(
-                    options={p: p.split('\\')[-1] for p in uploaded_pdfs},
+                    options={p: p.split('\\')[-1]
+                             for p in state.uploaded_pdfs},
                     value=file_path,
                     on_change=lambda e: ui.navigate.to(
                         f'/pdf-preview?file={e.value}&page={page_number}')
@@ -88,7 +89,7 @@ def create_pdf_preview_page(file_path: str = '', page_number: int = 1):
 
                     # Get current page
                     file_name = file_path.split('\\')[-1]
-                    objects = manager.get_objects_on_page(
+                    objects = state.manager.get_objects_on_page(
                         page_number, file_path)
 
                     with object_panel:
