@@ -2,7 +2,7 @@ from typing import Callable
 from nicegui import ui
 from gui.aspects_menu import make_config_opener
 from gui.global_state import ClientState
-from indu_doc.plugin_base import AMLBuilder
+from indu_doc.aml_builder import AMLBuilder
 from indu_doc.configs import AspectsConfig
 import logging
 
