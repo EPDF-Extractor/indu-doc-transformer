@@ -253,8 +253,9 @@ class InternalXTarget(InternalElementBase):
         # get distinct aspects
         tag_parts = self.xtarget.tag.get_tag_parts()
         self.aspects: dict[str, str] = defaultdict(str)
-        for sep, name in tag_parts.items():
-            self.aspects[levels[sep].Aspect.lower()] += sep+name
+        for sep, names in tag_parts.items():
+            self.aspects[levels[sep].Aspect.lower()] += "".join(sep +
+                                                                n for n in names)
 
     def set_base(self, base: InternalAspectBase):
         self.base = base
@@ -330,18 +331,18 @@ class InstanceHierarchy(ISerializeable):
             current = root
             for sep in self.levels:
                 if sep in parts:
-                    key = sep + parts[sep]
-                    #
-                    if key not in current.children:
-                        current.children[key] = TreeNode(
-                            InternalAspect(
-                                self.name,
-                                parts[sep],
-                                sep,
-                                current.item
+                    for p in parts[sep]:
+                        key = sep + p
+                        if key not in current.children:
+                            current.children[key] = TreeNode(
+                                InternalAspect(
+                                    self.name,
+                                    p,
+                                    sep,
+                                    current.item
+                                )
                             )
-                        )
-                    current = current.children[key]
+                        current = current.children[key]
 
             # at the leaf, promote aspect to target (only for ECAD)
             if self.name == "ECAD" and current.item:

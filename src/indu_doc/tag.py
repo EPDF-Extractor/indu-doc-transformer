@@ -1,10 +1,10 @@
 from __future__ import annotations
 from typing import OrderedDict
-from .configs import AspectsConfig, LevelConfig
+from indu_doc.configs import AspectsConfig, LevelConfig
 import re
 import logging
 
-from .footers import PageFooter
+from indu_doc.footers import PageFooter
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +50,16 @@ class Tag:
             if not parsed:
                 continue
 
-            for sep, val in parsed:
+            for sep, val in parsed.items():
                 # TODO: Ignore the & separator for now, we might want to handle it differently in the future
-                if sep != "&" and val != "":
-                    footer_tag_parts[sep] = val
+                # we also ignore empty aspects
+                if sep != "&" and val and val != ("",):
+                    # footers only have one value per separator, Hopefully!
+                    footer_tag_parts[sep] = val[0]
+
         prepended_part = ""
         for sep in config.separators:
-            if sep in temp_tag_parts:
+            if sep in temp_tag_parts and temp_tag_parts[sep]:
                 break
             if sep in footer_tag_parts:
                 prepended_part += f"{sep}{footer_tag_parts[sep]}"
@@ -67,15 +70,15 @@ class Tag:
             )
         return cls(prepended_part + tag_str, config)
 
-    def get_tag_parts(self) -> dict[str, str]:
+    def get_tag_parts(self) -> dict[str, tuple[str, ...]]:
         """
         Returns the tag parts but based on a different, provided configuration.
         Returns:
-            dict[str, str]: A dictionary of tag parts, where keys are separators and values are the corresponding parts of the tag.
+            dict[str, tuple[str, ...]]: A dictionary mapping separators to their corresponding values, ordered by their appearance in the tag string.
         """
         new_tag_parts = try_parse_tag(self.tag_str, self.config)
         if new_tag_parts is not None:
-            return {separator: value for separator, value in new_tag_parts}
+            return {sep: (new_tag_parts[sep] if sep in new_tag_parts else ()) for sep in self.config.separator_ge(new_tag_parts.keys())}
         else:
             logger.warning(f"Failed to parse tag string: {self.tag_str} ")
             return {}
@@ -114,37 +117,36 @@ class Tag:
         return hash(self.tag_str)
 
 
-def try_parse_tag(tag_str: str, configs: AspectsConfig) -> list[tuple] | None:
+def try_parse_tag(tag_str: str, configs: AspectsConfig) -> dict[str, tuple[str, ...]] | None:
     """
     Attempts to parse a tag string into a Tag object based on the provided configurations.
     Args:
         tag_str (str): The tag string to parse.
         configs (AspectsConfig): The configurations to use for parsing.
     Returns:
-        Tag: A Tag object if parsing is successful, otherwise None.
     """
-
     tag_str = tag_str.strip()
 
     if not tag_str:
         logger.debug(f"Empty tag string provided.")
-        return []
+        return {}
 
     # We might have the case where we have separators like = and == which can cause overlapping, regex always matches the longest first, which is what we want.
     separators_index = []
-    pattern = "|".join(re.escape(separator) for separator in configs.separators)
+    pattern = "|".join(re.escape(separator)
+                       for separator in configs.separators)
     matches = re.finditer(pattern, tag_str)
-
-    if not matches:
-        logger.warning(f"No valid separators found in tag string: {tag_str}")
-        return None
 
     for match in matches:
         separator = match.group(0)
         start_index = match.start()
         separators_index.append((start_index, separator))
 
-    tags = []
+    if not separators_index:
+        logger.warning(f"No valid separators found in tag string: {tag_str}")
+        return None
+
+    tags_coll: dict[str, list[str]] = {}
     for i, (start_index, separator) in enumerate(separators_index):
         st_idx = start_index + len(separator)
         end_index = (
@@ -152,15 +154,11 @@ def try_parse_tag(tag_str: str, configs: AspectsConfig) -> list[tuple] | None:
             if i + 1 < len(separators_index)
             else len(tag_str)
         )
-        tags.append((separator, tag_str[st_idx:end_index]))
+        l: list[str] = tags_coll.get(separator, [])
+        l.append(tag_str[st_idx:end_index].strip())
+        tags_coll[separator] = l
 
-    if not separators_index:
-        logger.warning(f"No valid separators found in tag string: {tag_str}")
-        return None
-
-    separators_index.sort()  # Sort by index
-
-    return tags
+    return {sep: tuple(vals) for sep, vals in tags_coll.items()}
 
 
 if __name__ == "__main__":
@@ -177,7 +175,7 @@ if __name__ == "__main__":
             }
         )
     )
-    tag_str = "++A"
+    tag_str = "++A=M1=M2"
     tag = try_parse_tag(tag_str, configs)
     if tag:
         logger.debug("Parsed tags: %s", tag)
@@ -194,4 +192,6 @@ if __name__ == "__main__":
     assert tag1.tag_str == "===Func==Loc=Prod", (
         f"Expected '===Func==Loc=Prod', got '{tag1.tag_str}'"
     )
-    assert tag1.get_tag_parts() == {"=": "Prod", "==": "Loc", "===": "Func"}
+    assert tag1.get_tag_parts() == {"=": ("Prod",), "==": ("Loc",), "===": ("Func",)}, (
+        f"Expected parts {{'=': ('Prod',), '==': ('Loc',), '===': ('Func',)}}, got {tag1.get_tag_parts()}"
+    )
