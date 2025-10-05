@@ -18,6 +18,9 @@ import uuid
 import json
 from datetime import datetime
 
+import logging
+logger = logging.getLogger(__name__)
+
 ###################
 
 GUID: TypeAlias = str
@@ -47,7 +50,6 @@ class InternalAttribute(ISerializeable):
                 raise ValueError(f"Unsupported attribute type")
         return item
 
-
 class InternalLink(ISerializeable):
     name: str
     refA: GUID
@@ -66,7 +68,6 @@ class InternalLink(ISerializeable):
         root.set("Name", self.name)
         return root
 
-
 class InternalElementBase(ISerializeable):
     name: str
     id: GUID
@@ -82,7 +83,7 @@ class InternalElementBase(ISerializeable):
     def _set_guid(self, guid: GUID):
         self.id = guid
         if self.id in InternalElementBase.guids:
-            print(f"Non-unique ID detected: {self.__class__} {self.id}")
+            logger.warning(f"Non-unique ID detected: '{self.__class__}' '{self.id}'")
         InternalElementBase.guids.add(self.id)
 
 
@@ -131,10 +132,9 @@ class InternalPin(InternalElementBase):
         root.append(self.external.serialize())
         return root
 
-# do not mix with InternalLink!
-
 
 class InternalConnection(InternalElementBase):
+    # do not mix with InternalLink!
     external_a: ExternalInterface
     external_b: ExternalInterface
 
@@ -161,7 +161,6 @@ class InternalConnection(InternalElementBase):
 
         return root
 
-
 class InternalAspectBase(InternalElementBase):
     prefix: str  # = separator
     bmk: str     # accumulated separators and levels
@@ -175,11 +174,12 @@ class InternalAspectBase(InternalElementBase):
         # accumulate bmk
         self.bmk = (base.bmk if base else "") + prefix + name
         # accumulate guid
-        self._set_guid(self._create_guid({
+        # Not using self._set_guid as this id is non-unique across trees. Non-uniqueness inside tree will be detected by InternalAspect GUID
+        self.id = self._create_guid({
             "prefix": self.prefix,
             "name": self.name,
             "base": self.base.id if self.base else ""
-        }))
+        })
 
     def serialize(self) -> et._Element:
         if self.__class__ == type(InternalAspectBase):
@@ -298,7 +298,6 @@ class TreeNode():
     leaf: InternalXTarget | None = None
     children: dict[str, "TreeNode"] = field(default_factory=dict)
 
-
 class InstanceHierarchy(ISerializeable):
     version: str
     name: str
@@ -318,6 +317,16 @@ class InstanceHierarchy(ISerializeable):
         #
         root = TreeNode()
         for t, parts in tags_parts:
+            # Fill in empty aspects if missing
+            existing = list(parts.keys())
+            missing = {}
+            for l in levels:
+                if l in existing:
+                    break
+                missing[l] = ""
+
+            parts = dict(missing, **parts)
+            #
             current = root
             for sep in self.levels:
                 if sep in parts:
@@ -366,7 +375,6 @@ class InstanceHierarchy(ISerializeable):
 
         return root
 
-
 class CAEXFile(ISerializeable):
     hierarchies: list[InstanceHierarchy]
     name: str
@@ -412,8 +420,9 @@ class AMLBuilder():
     def __init__(self, god: God, configs: AspectsConfig) -> None:
         self.god = god
         self.configs = configs
+        self.tree = None
 
-    def process(self) -> str:
+    def process(self):
         file = CAEXFile("test.xml")
         # TODO may be move to CAEXfile
 
@@ -467,26 +476,35 @@ class AMLBuilder():
                 aspect.capitalize(), "0.0.1", levels, targets))
 
         # Save to file with 2-space indentation
-        tree = et.ElementTree(file.serialize())
-        # tree.write(
-        #     file_name,
-        #     pretty_print=True,
-        #     xml_declaration=True,
-        #     encoding="utf-8"
-        # )
+        self.tree = et.ElementTree(file.serialize())
         # Do some error handling
         for t in targets:
             if not t.serialized:
-                print(f"target not serialized! {t.xtarget}")
+                logger.warning(f"Target not serialized! '{t.xtarget}'")
 
+    def output_str(self) -> str:
+        # 
+        if self.tree is None:
+            raise ValueError("Nothing to output. Process first")
         # Serialize to string
         xml_string = et.tostring(
-            tree,
+            self.tree,
             pretty_print=True,
             xml_declaration=True,
             encoding="utf-8"
         )
         return xml_string.decode("utf-8")
+    
+
+    def output_file(self, file_name):
+        if self.tree is None:
+            raise ValueError("Nothing to output. Process first")
+        self.tree.write(
+            file_name,
+            pretty_print=True,
+            xml_declaration=True,
+            encoding="utf-8"
+        )
 
 
 if __name__ == "__main__":
@@ -610,3 +628,4 @@ if __name__ == "__main__":
 
         builder = AMLBuilder(manager.god, manager.configs)
         builder.process()
+        builder.output_file("text.aml")
