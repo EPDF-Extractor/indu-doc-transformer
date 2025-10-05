@@ -44,7 +44,8 @@ def export_aml_callback(state: ClientState):
     print(state.manager.god.links["cc308c2f-c0f5-5dfa-d344-375f1cd8fb3e"])
     print("()" * 100)
 
-    aml = builder.process()
+    builder.process()
+    aml = builder.output_str()
     ui.download.content(aml, 'exported_data.aml')
 
 
