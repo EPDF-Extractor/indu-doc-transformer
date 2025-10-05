@@ -51,7 +51,7 @@ def create_occurrences_section(pages: Set[PageMapperEntry]):
 
             def navigate_to_page(file_path: str, page_num: int):
                 ui.navigate.to(
-                    f'/pdf-preview?file={file_path}&page={page_num - 1}', new_tab=True)
+                    f'/pdf-preview?file={file_path}&page={page_num}', new_tab=True)
 
             with ui.card().classes('w-full bg-gray-700 border border-gray-600 p-3 hover:bg-gray-600 hover:border-blue-500 cursor-pointer transition-all').on(
                 'click', lambda p=page: navigate_to_page(

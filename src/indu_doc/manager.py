@@ -229,10 +229,11 @@ class Manager:
             current_level = raw_tree
             for sep in self.configs.separators:
                 if sep in parts:
-                    TreeKey = sep + parts[sep]
-                    if TreeKey not in current_level:
-                        current_level[TreeKey] = {}
-                    current_level = current_level[TreeKey]
+                    for p in parts[sep]:
+                        TreeKey = sep + p
+                        if TreeKey not in current_level:
+                            current_level[TreeKey] = {}
+                        current_level = current_level[TreeKey]
 
             # at the leaf, we can store the full tag string or other info
             if "_targets" not in current_level:

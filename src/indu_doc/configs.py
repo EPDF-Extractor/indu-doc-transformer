@@ -18,7 +18,7 @@ class AspectsConfig:
         levels (OrderedDict[str, LevelConfig]): A mapping of aspect separators to their configuration, sorted by their order of priority as listed in the config.
     """
 
-    def __init__(self, config: OrderedDict[str, LevelConfig]):
+    def __init__(self, config: dict[str, LevelConfig]):
         self.levels = config
 
     def __getitem__(self, item: str) -> LevelConfig:
@@ -44,7 +44,7 @@ class AspectsConfig:
             i += 1
             entries_with_order[order] = LevelConfig(**item)
 
-        ret = OrderedDict()
+        ret = dict()
         for _, level_config in entries_with_order.items():
             ret[level_config.Separator] = level_config
         return AspectsConfig(ret)
@@ -61,10 +61,18 @@ class AspectsConfig:
             entries_with_order[order] = LevelConfig(**item)
             order += 1
 
-        ret = OrderedDict()
+        ret = dict()
         for _, level_config in entries_with_order.items():
             ret[level_config.Separator] = level_config
         return AspectsConfig(ret)
+
+    def separator_ge(self, others) -> list[str]:
+        ours = list(self.separators)
+        # return all separators so that we only cover the seps > the lowest sep in others
+        if not others:
+            return ours
+        lowest_pri_other = max(others, key=lambda sep: ours.index(sep))
+        return [sep for sep in ours if ours.index(sep) <= ours.index(lowest_pri_other)]
 
     def to_list(self) -> List[LevelConfig]:
         """

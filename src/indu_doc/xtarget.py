@@ -53,8 +53,11 @@ class XTarget(AttributedBase):
             return ""
         ordered_seps = self.configs.separators
         ordered_seps = [sep for sep in ordered_seps if sep in tag_parts]
+
+        def unjoin_seps(sep, vals):
+            return "".join(sep + v for v in vals)
         new_tag_str = "".join(
-            [f"{sep}{tag_parts[sep]}" for sep in ordered_seps])
+            [unjoin_seps(sep, tag_parts[sep]) for sep in ordered_seps])
         return new_tag_str
 
     @cache
