@@ -271,7 +271,7 @@ class God:
         attributes: Optional[tuple[Attribute, ...]] = None
     ):
         logger.debug(
-            f"create_connection_with_link at {tag}: {pin_tag_from} -> {pin_tag_to} {attributes}"
+            f"create_connection_with_link at {tag}: '{pin_tag_from}' -> '{pin_tag_to}' {attributes}"
         )
         # Split pin_tag into tag & pin
         tag_from, pin_from = _split_pin_tag(pin_tag_from)
@@ -280,6 +280,10 @@ class God:
         if not (pin_from and pin_to):
             logger.warning(
                 f"Linked connection where one/no pins specified: {pin_from} {pin_to}")
+            return None
+        if not (tag_from and tag_to):
+            logger.warning(
+                f"Linked connection where one/no targets specified: {tag_from} {tag_to}")
             return None
         # tag is cable tag. if none -> connection is in virtual cable
         connection = self.create_connection(
