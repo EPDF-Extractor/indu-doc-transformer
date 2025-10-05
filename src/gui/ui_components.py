@@ -55,7 +55,7 @@ def create_secondary_action_buttons(state):
             ('View Tree', 'account_tree', tree_page_callback),
             ('View Connections', 'cable', connections_page_callback),
             ('View Uploaded Files', 'feed', preview_page_callback),
-            ('Export to AML', 'ios_share', lambda: export_aml_callback(state)),
+            ('Export to AML', 'ios_share', lambda: export_aml_callback(state))
         ]
         for label, icon, handler in actions:
             with ui.button(on_click=handler, color='primary').props('flat').classes(
