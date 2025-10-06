@@ -342,13 +342,21 @@ class PageProcessor:
                     )
 
             # build (TODO HOW TO TREAT PINS SEPARATELY)
-            self.god.create_connection_with_link(
-                tag,
-                tag_src + ":" + pin_src,
-                tag_dst + ":" + pin_dst,
-                page_info,
-                tuple(attributes)
-            )
+            # build connections for all combinations of src and dst tags
+            from itertools import product
+
+            # Split and zip source/destination pairs
+            src_pairs = list(zip(tag_src.split(";"), pin_src.split(";")))
+            dst_pairs = list(zip(tag_dst.split(";"), pin_dst.split(";")))
+
+            for (tag_s, pin_s), (tag_d, pin_d) in product(src_pairs, dst_pairs):
+                self.god.create_connection_with_link(
+                    tag,
+                    tag_s + ":" + pin_s,
+                    tag_d + ":" + pin_d,
+                    page_info,
+                    tuple(attributes)
+                )
 
     def process_terminal_diagram(self, table: pd.DataFrame, page_info: PageInfo):
         # this table has to be treated as 2 tables
@@ -364,7 +372,7 @@ if __name__ == "__main__":
     god = God(configs=default_configs)
     processor = PageProcessor(god)
 
-    page = doc.load_page(140)  # Load the first page
+    page = doc.load_page(82)  # Load the first page
     page_type = detect_page_type(page)
     if page_type is not None:
         processor.run(page, page_type)
@@ -373,3 +381,5 @@ if __name__ == "__main__":
             # type: ignore
             f"Could not detect page type for page #{page.number + 1}")
     print(god)
+    for id, tgt in god.xtargets.items():
+        print(tgt)
