@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import logging
 from functools import cache
 from typing import Any, Optional, Union
-
+from enum import Enum
 
 from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
 from indu_doc.common_page_utils import PageInfo, PageType
@@ -40,7 +40,19 @@ class PageMapperEntry:
         return hash((self.page_number, self.file_path))
 
 
-SupportedMapObjects = Union[XTarget, Connection, Link]
+class ErrorType(Enum):
+    WARNING = "WARNING"
+    FAULT = "FAULT"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+
+
+@dataclass
+class PageError:
+    message: str
+    error_type: ErrorType = ErrorType.UNKNOWN_ERROR
+
+
+SupportedMapObjects = Union[XTarget, Connection, Link, PageError]
 
 
 class PagesObjectsMapper:
@@ -343,6 +355,10 @@ class God:
                 return set()
 
         return self.pages_mapper.get_pages_of_object(obj)
+
+    def create_error(self, page_info: PageInfo, message: str, error_type: ErrorType = ErrorType.UNKNOWN_ERROR):
+        new_error = PageError(message=message, error_type=error_type)
+        self.pages_mapper.add_mapping(page_info, new_error)
 
     def __repr__(self):
         return f"God(configs={self.configs},\n xtargets={len(self.xtargets)},\n connections={len(self.connections)},\n attributes={len(self.attributes)},\n links={len(self.links)},\n pins={len(self.pins)})"
