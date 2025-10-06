@@ -50,19 +50,51 @@ def forward_fill(df, column, replacement="="):
     return df
 
 
+def extract_spans(page, clip=None, tolerance = 0.1):
+    spans = []
+    raw = page.get_text("rawdict", sort=True, clip=clip)
+    for block in raw.get('blocks', []):
+        for line in block.get('lines', []):
+            for span in line.get('spans', []):
+                text = None
+                sx0, sy0, sx1, sy1 = span['bbox']
+                if 'text' in span:
+                    text = span.get('text')
+                if 'chars' in span:
+                    text = ''
+                    prev = -1
+                    for c in span['chars']:
+                        # try to find overlaps
+                        x0, _, x1, _ = c['bbox']
+                        char = c.get('c', '')
+                        # print(f"'{char}' {x0:.1f} {x1:.1f}", end="|")
+                        # y = y0
+                        if (x0 + (x1 - x0) * tolerance)  < prev:
+                            # overlap detected - dump span
+                            spans.append((sx0, sy0, prev, sy1, text))
+                            text = ''
+                            sx0 = x0
+                            # print("@|", end="")
+                            # print(f"overlap {char} {x0:.1f} {y0:.1f}")
+                        text += char
+                        prev = x1
+                    # print(f" - {y0:.1f}")
+                # print(text)
+                spans.append((sx0, sy0, sx1, sy1, text))
+    return spans
+
+
 def detect_overlaps(text_blocks):
     overlaps = []
 
-    for i, (x0_i, y0_i, x1_i, y1_i, text_i, _, _, _) in enumerate(text_blocks):
-        for j, (x0_j, y0_j, x1_j, y1_j, text_j, _, _, _) in enumerate(text_blocks):
-            if i >= j:
-                continue  # avoid double-checking same pair
-            # check for intersection
-            if not (x1_i <= x0_j or x1_j <= x0_i or y1_i <= y0_j or y1_j <= y0_i):
-                overlaps.append(
-                    (text_i, text_j, (x0_i, y0_i, x1_i, y1_i),
-                     (x0_j, y0_j, x1_j, y1_j))
-                )
+    rects = [(pymupdf.Rect(x0, y0, x1, y1), text)
+             for (x0, y0, x1, y1, text, *_)
+             in text_blocks]
+
+    for i, (rect_i, text_i) in enumerate(rects):
+        for j, (rect_j, text_j) in enumerate(rects[i+1:], start=i+1):
+            if rect_i.intersects(rect_j):
+                overlaps.append((text_i, text_j, rect_i, rect_j))
 
     return overlaps  # (text1, text2, cell_rect1, cell_rect2)
 
@@ -235,6 +267,13 @@ class TableExtractor:
             )
         df[["from", "to"]] = split_cols
         df = df.drop(columns=[col_to_drop])
+        # forward fill rows where designation is null, but src & dest are filled in
+        # rows where designation is null but "from" and "to" are not
+        mask = (df.columns[0] == '') & df["from"].ne('') & df["to"].ne('')
+
+        # Forward fill only for those rows
+        df.loc[mask] = df.loc[mask].combine_first(df.ffill())
+
         # clean empty rows
         # TODO findot what chars to ignore: s.str.rstrip('.!? \n\t')
         # TODO unit test this
@@ -423,9 +462,8 @@ class TableExtractor:
         if not tables:
             raise ValueError(
                 "No required tables found on the page: connection info")
-        overlaps = detect_overlaps(
-            page.get_text("words", clip=get_clip_rect(w, h, 410, 33, 780, 780))
-        )
+        spans = extract_spans(page, clip=get_clip_rect(w, h, 410, 260, 780, 780))
+        overlaps = detect_overlaps(spans)
         overlapping_rows = []
         if overlaps:
             overlapping_rows = detect_row_overlaps(tables[0], overlaps)
@@ -457,11 +495,11 @@ class TableExtractor:
 
         # For now I will just delete overlapping rows
         if overlapping_rows:
-            logger.debug(
-                "OVERLAP DETECTED! ERROR HANDLING IS NOT DONE YET! FOR NOW JUST IGNORED!"
-            )
             # -2 as promote_header & index counts from 1 in detect_row_overlaps
             adjusted_rows = [i - 2 for i in overlapping_rows]
+            logger.warning(
+                f"OVERLAP DETECTED IN ROWS {adjusted_rows}! ERROR HANDLING IS NOT DONE YET! FOR NOW JUST IGNORED!"
+            )
             df = df.drop(index=adjusted_rows).reset_index(drop=True)
             df_l_conn = df_l_conn.drop(
                 index=adjusted_rows).reset_index(drop=True)
@@ -485,12 +523,19 @@ class TableExtractor:
                     if pd.notna(color) and color.strip() != "":
                         # assume it is convertible to int as we did isdigit
                         cable_index = int(col) - 1
+                        # As in the same row cable tag & info are located -> select only tag
                         # TODO might be wrong as cable tag might have spaces (?)
                         cable_info = df_cables.iloc[cable_index, 1].split(" ")[
                             0]
                         # Extract a TAG from cable_info
                         cable_info_list.append(cable_info)
                         color_list.append(color)
+                #
+                if len(cable_info_list) > 1:
+                    logger.warning(
+                        "Terminal diagram has multiple cable connections in a single row"
+                    )
+                # 
                 rows.append(
                     ["; ".join(cable_info_list), "; ".join(color_list)]
                     + non_number_values
