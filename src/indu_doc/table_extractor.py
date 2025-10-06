@@ -114,6 +114,32 @@ def detect_row_overlaps(table, overlaps):
     return affected_rows
 
 
+def fix_row_overlaps(table, overlaps, method="center"):
+    affected_rows = []
+
+    for t1, t2, rect1, rect2 in overlaps:
+        rect1_center = pymupdf.Point((rect1[0]+rect1[2])/2, (rect1[1]+rect1[3])/2)
+        rect2_center = pymupdf.Point((rect2[0]+rect2[2])/2, (rect2[1]+rect2[3])/2)
+        for r, row in enumerate(table.rows):
+            rect = pymupdf.Rect(row.bbox)
+            if rect.intersects(pymupdf.Rect(rect1)) or rect.intersects(
+                pymupdf.Rect(rect2)
+            ):
+                repl_1 = None
+                repl_2 = None
+                # fix overlaps by centrer method
+                for idx, c in enumerate(row.cells):
+                    cell = pymupdf.Rect(c)
+                    if cell.contains(rect1_center):
+                        repl_1 = (idx, t1)
+                    if cell.contains(rect2_center):
+                        repl_2 = (idx, t2)
+                affected_rows.append((r, row.bbox, repl_1, repl_2))
+
+    return affected_rows
+                
+
+
 class TableExtractor:
     _type_handlers = {
         PageType.CONNECTION_LIST: lambda cls, page: cls.extract_connection_list(page),
@@ -465,8 +491,12 @@ class TableExtractor:
         spans = extract_spans(page, clip=get_clip_rect(w, h, 410, 260, 780, 780))
         overlaps = detect_overlaps(spans)
         overlapping_rows = []
-        if overlaps:
-            overlapping_rows = detect_row_overlaps(tables[0], overlaps)
+        try:
+            if overlaps:
+                overlapping_rows = fix_row_overlaps(tables[0], overlaps)
+        except:
+            import traceback
+            traceback.print_exc()
         df_center = tables[0].to_pandas()
         # Right side Cables
         tables = list(page.find_tables(
@@ -493,18 +523,21 @@ class TableExtractor:
 
         df = promote_header(df_center)
 
-        # For now I will just delete overlapping rows
+        # Apply overlaps fix 
         if overlapping_rows:
-            # -2 as promote_header & index counts from 1 in detect_row_overlaps
-            adjusted_rows = [i - 2 for i in overlapping_rows]
-            logger.warning(
-                f"OVERLAP DETECTED IN ROWS {adjusted_rows}! ERROR HANDLING IS NOT DONE YET! FOR NOW JUST IGNORED!"
-            )
-            df = df.drop(index=adjusted_rows).reset_index(drop=True)
-            df_l_conn = df_l_conn.drop(
-                index=adjusted_rows).reset_index(drop=True)
-            df_r_conn = df_r_conn.drop(
-                index=adjusted_rows).reset_index(drop=True)
+            for row, _, repl1, repl2  in overlapping_rows:
+                # -2 as promote_header & index counts from 1 in detect_row_overlaps
+                row -= 2
+                # apply replacements
+                if repl1:
+                    logger.warning(f"overlapping row #{row} detected: replaced col #{repl1[0]}: {df.iloc[row, repl1[0]]} -> {repl1[1]}")
+                    df.iloc[row, repl1[0]] = repl1[1]
+                if repl2:
+                    logger.warning(f"overlapping row #{row} detected: replaced col #{repl2[0]}: {df.iloc[row, repl2[0]]} -> {repl2[1]}")
+                    df.iloc[row, repl2[0]] = repl2[1]
+                # log
+                if not (repl1 and repl2):
+                    logger.warning(f"overlapping row #{row} detected: could not repair (fully)")
 
         #
         def transform_dataframe(df_cables, df_conn):
@@ -576,6 +609,4 @@ class TableExtractor:
 if __name__ == "__main__":
     doc = pymupdf.open("pdfs/sample.pdf")
 
-    df = TableExtractor.extract(doc[72:76], PageType.CABLE_DIAGRAM)
-    logger.debug(df.iloc[0])
-    logger.debug(df)
+    df = TableExtractor.extract(doc[82:83], PageType.CABLE_DIAGRAM)
