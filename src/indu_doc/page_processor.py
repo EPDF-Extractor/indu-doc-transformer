@@ -9,7 +9,7 @@ from indu_doc.attributes import AttributeType, Attribute
 from indu_doc.common_page_utils import PageType, header_map_en, detect_page_type, PageInfo
 from indu_doc.configs import default_configs
 from indu_doc.footers import extract_footer
-from indu_doc.god import God
+from indu_doc.god import ErrorType, God
 from indu_doc.table_extractor import TableExtractor
 from indu_doc.xtarget import XTargetType
 import traceback
@@ -79,6 +79,7 @@ class PageProcessor:
         try:
             f(table, page_info)
         except ValueError as ve:
+            self.god.create_error(page_info, f"ValueError processing table '{page_info.page_type}': {ve}", error_type=ErrorType.WARNING)
             logger.warning(ve.__context__)
             logger.warning(
                 f"ValueError processing table '{page_info.page_type}': {ve}")
