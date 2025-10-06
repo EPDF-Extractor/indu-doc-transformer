@@ -38,11 +38,6 @@ def export_aml_callback(state: ClientState):
         ui.notify("No data to export", color='negative')
         return
     builder = AMLBuilder(state.manager.god, state.manager.configs)
-    print("()" * 100)
-    p = state.manager.god.links["cc308c2f-c0f5-5dfa-d344-375f1cd8fb3e"].get_guid()
-    print(p)
-    print(state.manager.god.links["cc308c2f-c0f5-5dfa-d344-375f1cd8fb3e"])
-    print("()" * 100)
 
     builder.process()
     aml = builder.output_str()
