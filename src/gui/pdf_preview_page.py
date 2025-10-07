@@ -4,6 +4,7 @@ from gui.global_state import ClientState
 from gui.detail_panel_components import create_section_header, create_empty_state, create_info_card, create_collapsible_section
 import os
 import hashlib
+from indu_doc.god import PageError
 
 
 def create_pdf_preview_page(state: ClientState, file_path: str = '', page_number: int = 1):
@@ -132,35 +133,55 @@ def create_pdf_preview_page(state: ClientState, file_path: str = '', page_number
                         if not objects:
                             create_empty_state('No objects found on this page')
                         else:
-                            ui.label(f'Found {len(objects)} object(s)').classes(
-                                'text-sm text-gray-300 my-4')
+                            # Separate errors from other objects
+                            errors = [
+                                obj for obj in objects if isinstance(obj, PageError)]
+                            other_objects = [
+                                obj for obj in objects if not isinstance(obj, PageError)]
 
-                            # Group objects by type
-                            from collections import defaultdict
-                            grouped = defaultdict(list)
-
-                            for obj in objects:
-                                obj_type = type(obj).__name__
-                                grouped[obj_type].append(obj)
-
-                            # Display grouped objects in collapsible sections
-                            for obj_type, obj_list in grouped.items():
-                                with create_collapsible_section('category', f'{obj_type} ({len(obj_list)})', default_open=True):
+                            # Display errors section if any
+                            if errors:
+                                with create_collapsible_section('error', f'Errors ({len(errors)})', default_open=True):
                                     with ui.column().classes('gap-2 p-3'):
-                                        for obj in obj_list:
-                                            with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-2 hover:bg-gray-500 cursor-pointer transition-colors'):
-                                                # Display object info based on type
-                                                if hasattr(obj, 'tag'):
-                                                    ui.label(f'Tag: {obj.tag.tag_str}').classes(
-                                                        'text-sm font-mono break-all text-gray-200')
-                                                if hasattr(obj, 'src') and hasattr(obj, 'dest'):
-                                                    src_tag = obj.src.tag.tag_str if obj.src else 'N/A'
-                                                    dest_tag = obj.dest.tag.tag_str if obj.dest else 'N/A'
-                                                    ui.label(f'{src_tag} → {dest_tag}').classes(
-                                                        'text-sm break-all text-gray-200')
-                                                if hasattr(obj, 'get_guid'):
-                                                    ui.label(f'GUID: {obj.get_guid()}...').classes(
-                                                        'text-xs text-gray-400')
+                                        for error in errors:
+                                            with ui.card().classes('w-full bg-red-700 border border-red-500 p-2'):
+                                                ui.label(f'{error.error_type.value}: {error.message}').classes(
+                                                    'text-sm text-white')
+
+                            if not other_objects:
+                                if not errors:
+                                    create_empty_state(
+                                        'No objects found on this page')
+                            else:
+                                ui.label(f'Found {len(other_objects)} object(s)').classes(
+                                    'text-sm text-gray-300 my-4')
+
+                                # Group objects by type
+                                from collections import defaultdict
+                                grouped = defaultdict(list)
+
+                                for obj in other_objects:
+                                    obj_type = type(obj).__name__
+                                    grouped[obj_type].append(obj)
+
+                                # Display grouped objects in collapsible sections
+                                for obj_type, obj_list in grouped.items():
+                                    with create_collapsible_section('category', f'{obj_type} ({len(obj_list)})', default_open=True):
+                                        with ui.column().classes('gap-2 p-3'):
+                                            for obj in obj_list:
+                                                with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-2 hover:bg-gray-500 cursor-pointer transition-colors'):
+                                                    # Display object info based on type
+                                                    if hasattr(obj, 'tag'):
+                                                        ui.label(f'Tag: {obj.tag.tag_str}').classes(
+                                                            'text-sm font-mono break-all text-gray-200')
+                                                    if hasattr(obj, 'src') and hasattr(obj, 'dest'):
+                                                        src_tag = obj.src.tag.tag_str if obj.src else 'N/A'
+                                                        dest_tag = obj.dest.tag.tag_str if obj.dest else 'N/A'
+                                                        ui.label(f'{src_tag} → {dest_tag}').classes(
+                                                            'text-sm break-all text-gray-200')
+                                                    if hasattr(obj, 'get_guid'):
+                                                        ui.label(f'GUID: {obj.get_guid()}...').classes(
+                                                            'text-xs text-gray-400')
 
                 # Initial load of object panel
                 update_object_panel()
