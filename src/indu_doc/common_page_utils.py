@@ -23,6 +23,9 @@ class PageError:
     message: str
     error_type: ErrorType = ErrorType.UNKNOWN_ERROR
 
+    def __hash__(self):
+        return hash((self.message, self.error_type))
+
 
 class PageType(Enum):
     CONNECTION_LIST = "connection list"

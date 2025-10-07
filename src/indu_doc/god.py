@@ -139,7 +139,9 @@ class God:
 
         tag = self.create_tag(tag_str, page_info)
         if not tag:
-            logger.warning(f"Failed to create xtarget with tag: {tag_str}")
+            msg = f"Failed to create xtarget with tag: {tag_str}"
+            self.create_error(page_info, msg, error_type=ErrorType.WARNING)
+            logger.warning(msg)
             return None
 
             # create new xtarget
@@ -284,12 +286,14 @@ class God:
         tag_to, pin_to = _split_pin_tag(pin_tag_to)
         #
         if not (pin_from and pin_to):
-            logger.warning(
-                f"Linked connection where one/no pins specified: {pin_from} {pin_to}")
+            msg = f"Linked connection where one/no pins specified: `{pin_from}` `{pin_to}`"
+            self.create_error(page_info, msg, error_type=ErrorType.WARNING)
+            logger.warning(msg)
             return None
         if not (tag_from and tag_to):
-            logger.warning(
-                f"Linked connection where one/no targets specified: {tag_from} {tag_to}")
+            msg = f"Linked connection where one/no targets specified: `{tag_from}` `{tag_to}`"
+            self.create_error(page_info, msg, error_type=ErrorType.WARNING)
+            logger.warning(msg)
             return None
         # tag is cable tag. if none -> connection is in virtual cable
         connection = self.create_connection(
