@@ -60,7 +60,6 @@ class XTarget(AttributedBase):
             [unjoin_seps(sep, tag_parts[sep]) for sep in ordered_seps])
         return new_tag_str
 
-    @cache
     def get_guid(self) -> str:
         # Everytime we process the pdf -> generate the same ID for the same tag
         # The tag string should always be the same for the same object -> It's how we see them in the PDF

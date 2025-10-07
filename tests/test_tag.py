@@ -18,8 +18,7 @@ class TestTryParseTag:
         result = try_parse_tag(tag_str, simple_config)
 
         assert result is not None
-        assert len(result) == 1
-        assert result[0] == ("=", "ProductA")
+        assert result == {"=": ("ProductA",)}
 
     def test_parse_complex_tag(self, sample_config):
         """Test parsing a complex tag with multiple separators."""
@@ -27,9 +26,7 @@ class TestTryParseTag:
         result = try_parse_tag(tag_str, sample_config)
 
         assert result is not None
-        assert len(result) == 3
-        expected = [("===", "Func"), ("==", "Loc"), ("=", "Prod")]
-        assert result == expected
+        assert result == {"===": ("Func",), "==": ("Loc",), "=": ("Prod",)}
 
     def test_parse_tag_with_plus_separator(self, sample_config):
         """Test parsing a tag with plus separator."""
@@ -37,23 +34,21 @@ class TestTryParseTag:
         result = try_parse_tag(tag_str, sample_config)
 
         assert result is not None
-        assert len(result) == 2
-        assert result[0] == ("+", "")
-        assert result[1] == ("+", "A")
+        assert result == {"+": ("", "A")}
 
     def test_parse_empty_tag(self, sample_config):
         """Test parsing an empty tag string."""
         tag_str = ""
         result = try_parse_tag(tag_str, sample_config)
 
-        assert result == []
+        assert result == {}
 
     def test_parse_whitespace_tag(self, sample_config):
         """Test parsing a tag string with only whitespace."""
         tag_str = "   "
         result = try_parse_tag(tag_str, sample_config)
 
-        assert result == []
+        assert result == {}
 
     def test_parse_tag_no_separators(self, sample_config):
         """Test parsing a tag string with no valid separators."""
@@ -68,10 +63,8 @@ class TestTryParseTag:
         result = try_parse_tag(tag_str, sample_config)
 
         assert result is not None
-        assert len(result) == 2
         # Should match the longest separator first (===)
-        assert result[0] == ("===", "Function")
-        assert result[1] == ("==", "Location")
+        assert result == {"===": ("Function",), "==": ("Location",)}
 
 
 class TestTag:
@@ -106,7 +99,7 @@ class TestTag:
         tag = Tag(tag_str, sample_config)
 
         parts = tag.get_tag_parts()
-        expected = {"===": "Func", "==": "Loc", "=": "Prod"}
+        expected = {"===": ("Func",), "==": ("Loc",), "=": ("Prod",)}
         assert parts == expected
 
     def test_get_tag_parts_invalid_tag(self, sample_config):
@@ -159,7 +152,7 @@ class TestTagWithFooter:
         tag = Tag.get_tag_with_footer("=Prod", sample_footer, sample_config)
 
         assert tag.tag_str == "===Func==Loc=Prod"
-        expected_parts = {"=": "Prod", "==": "Loc", "===": "Func"}
+        expected_parts = {"=": ("Prod",), "==": ("Loc",), "===": ("Func",)}
         assert tag.get_tag_parts() == expected_parts
 
     def test_get_tag_with_footer_partial_merge(self, sample_config):
@@ -173,7 +166,7 @@ class TestTagWithFooter:
         tag = Tag.get_tag_with_footer("=Product", footer, sample_config)
 
         assert tag.tag_str == "==Location=Product"
-        expected_parts = {"=": "Product", "==": "Location"}
+        expected_parts = {"===": (), "==": ("Location",), "=": ("Product",)}
         assert tag.get_tag_parts() == expected_parts
 
     def test_get_tag_with_footer_no_merge_needed(self, sample_config, empty_footer):
@@ -221,7 +214,7 @@ class TestTagIntegration:
 
         # Get tag parts
         parts = tag.get_tag_parts()
-        assert parts == {"=": "SimpleProduct"}
+        assert parts == {"===": (), "==": (), "=": ("SimpleProduct",)}
 
         # Merge with footer
         merged_tag = Tag.get_tag_with_footer(
@@ -230,7 +223,7 @@ class TestTagIntegration:
 
         # Verify merged tag parts
         merged_parts = merged_tag.get_tag_parts()
-        expected = {"===": "Func", "==": "Loc", "=": "SimpleProduct"}
+        expected = {"===": ("Func",), "==": ("Loc",), "=": ("SimpleProduct",)}
         assert merged_parts == expected
 
     def test_tag_sorting(self, simple_config):
@@ -305,9 +298,7 @@ class TestTagEdgeCases:
 
         assert result is not None
         # Should match === first, then = for the remaining =Value
-        assert len(result) == 2
-        assert result[0] == ("===", "")
-        assert result[1] == ("=", "Value")
+        assert result == {"===": ("",), "=": ("Value",)}
 
     def test_try_parse_tag_separator_at_end(self, sample_config):
         """Test parsing tag with separator at the end."""
@@ -315,9 +306,7 @@ class TestTagEdgeCases:
         result = try_parse_tag(tag_str, sample_config)
 
         assert result is not None
-        assert len(result) == 2
-        assert result[0] == ("=", "Product")
-        assert result[1] == ("=", "")  # Empty value at end
+        assert result == {"=": ("Product", "")}  # Empty value at end
 
     def test_tag_get_tag_parts_with_empty_values(self, sample_config):
         """Test get_tag_parts with empty values."""
@@ -329,7 +318,7 @@ class TestTagEdgeCases:
         assert "===" in parts
         # Since it's a dict, only the last value for === is kept
         # Empty string from the second === at the end
-        assert parts["==="] == ""
+        assert parts["==="] == ("Func", "")
 
     def test_tag_with_special_characters_in_value(self, sample_config):
         """Test tag with special characters in values."""
@@ -356,4 +345,4 @@ class TestTagEdgeCases:
 
         assert tag.tag_str == "=ProductName"
         parts = tag.get_tag_parts()
-        assert parts["="] == "ProductName"
+        assert parts["="] == ("ProductName",)

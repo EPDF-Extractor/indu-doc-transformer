@@ -187,8 +187,8 @@ class TestXTarget:
         guid1 = sample_xtarget.get_guid()
         guid2 = sample_xtarget.get_guid()
 
-        # Should return same object (cached)
-        assert guid1 is guid2
+        # Should return same value
+        assert guid1 == guid2
 
     def test_str_representation(self, sample_xtarget):
         """Test string representation."""
@@ -217,24 +217,30 @@ class TestPin:
 
     def test_create_pin(self):
         """Test creating a pin."""
-        pin = Pin("A1")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = Pin("A1", "src", link)
 
         assert pin.name == "A1"
         assert pin.child is None
 
     def test_create_pin_with_child(self):
         """Test creating pin with child."""
-        child = Pin("1")
-        pin = Pin("A1", child=child)
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        child = Pin("1", "src", link)
+        pin = Pin("A1", "src", link, child=child)
 
         assert pin.name == "A1"
         assert pin.child == child
 
     def test_create_pin_chain(self):
         """Test creating a pin chain."""
-        pin3 = Pin("3")
-        pin2 = Pin("2", child=pin3)
-        pin1 = Pin("1", child=pin2)
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin3 = Pin("3", "src", link)
+        pin2 = Pin("2", "src", link, child=pin3)
+        pin1 = Pin("1", "src", link, child=pin2)
 
         assert pin1.name == "1"
         assert pin1.child.name == "2"
@@ -242,14 +248,18 @@ class TestPin:
 
     def test_pin_with_attributes(self):
         """Test pin with attributes."""
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
         attr = SimpleAttribute("color", "red")
-        pin = Pin("A1", attributes=[attr])
+        pin = Pin("A1", "src", link, attributes=[attr])
 
         assert attr in pin.attributes
 
     def test_repr(self):
         """Test pin repr."""
-        pin = Pin("A1")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = Pin("A1", "src", link)
         repr_str = repr(pin)
 
         assert "Pin" in repr_str
@@ -257,46 +267,56 @@ class TestPin:
 
     def test_str(self):
         """Test pin str."""
-        pin = Pin("A1")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = Pin("A1", "src", link)
         str_repr = str(pin)
 
         # Should return the ID
         assert isinstance(str_repr, str)
 
-    def test_get_id(self):
-        """Test getting pin ID."""
-        pin = Pin("A1")
-        pin_id = pin.get_id()
+    def test_get_guid(self):
+        """Test getting pin GUID."""
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = Pin("A1", "src", link)
+        pin_guid = pin.get_guid()
 
         # Should be valid UUID
         import uuid
-        uuid_obj = uuid.UUID(pin_id)
-        assert str(uuid_obj) == pin_id
+        uuid_obj = uuid.UUID(pin_guid)
+        assert str(uuid_obj) == pin_guid
 
-    def test_get_id_with_child(self):
-        """Test getting ID with child."""
-        child = Pin("1")
-        pin = Pin("A1", child=child)
+    def test_get_guid_with_child(self):
+        """Test getting GUID with child."""
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        child = Pin("1", "src", link)
+        pin = Pin("A1", "src", link, child=child)
 
-        pin_id = pin.get_id()
+        pin_guid = pin.get_guid()
 
         # Should be different from pin without child
-        pin_no_child_id = Pin("A1").get_id()
-        assert pin_id != pin_no_child_id
+        pin_no_child_guid = Pin("A1", "src", link).get_guid()
+        assert pin_guid != pin_no_child_guid
 
-    def test_get_id_consistency(self):
-        """Test ID consistency."""
-        pin1 = Pin("A1", child=Pin("1"))
-        pin2 = Pin("A1", child=Pin("1"))
+    def test_get_guid_consistency(self):
+        """Test GUID consistency."""
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin1 = Pin("A1", "src", link, child=Pin("1", "src", link))
+        pin2 = Pin("A1", "src", link, child=Pin("1", "src", link))
 
-        assert pin1.get_id() == pin2.get_id()
+        assert pin1.get_guid() == pin2.get_guid()
 
     def test_get_guid_raises_error(self):
-        """Test that get_guid raises NotImplementedError."""
-        pin = Pin("A1")
+        """Test that get_guid returns a string."""
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = Pin("A1", "src", link)
 
-        with pytest.raises(NotImplementedError):
-            pin.get_guid()
+        guid = pin.get_guid()
+        assert isinstance(guid, str)
 
 
 class TestLink:
@@ -304,19 +324,23 @@ class TestLink:
 
     def test_create_link(self):
         """Test creating a link."""
-        link = Link("CABLE1")
+        conn = Connection()
+        link = Link("CABLE1", conn, "src", "dest")
 
         assert link.name == "CABLE1"
-        assert link.parent is None
+        assert link.parent == conn
         assert link.src_pin is None
         assert link.dest_pin is None
 
     def test_create_link_with_pins(self):
         """Test creating link with pins."""
-        src_pin = Pin("A1")
-        dest_pin = Pin("B1")
+        conn = Connection()
+        link = Link("CABLE1", conn, "A1", "B1")
+        src_pin = Pin("A1", "src", link)
+        dest_pin = Pin("B1", "dest", link)
 
-        link = Link("CABLE1", src_pin=src_pin, dest_pin=dest_pin)
+        link.set_src_pin(src_pin)
+        link.set_dest_pin(dest_pin)
 
         assert link.src_pin == src_pin
         assert link.dest_pin == dest_pin
@@ -324,20 +348,22 @@ class TestLink:
     def test_create_link_with_parent(self, sample_xtarget):
         """Test creating link with parent connection."""
         conn = Connection(src=sample_xtarget, dest=sample_xtarget)
-        link = Link("CABLE1", parent=conn)
+        link = Link("CABLE1", conn, "src", "dest")
 
         assert link.parent == conn
 
     def test_link_with_attributes(self):
         """Test link with attributes."""
+        conn = Connection()
         attr = SimpleAttribute("color", "red")
-        link = Link("CABLE1", attributes=[attr])
+        link = Link("CABLE1", conn, "src", "dest", attributes=[attr])
 
         assert attr in link.attributes
 
     def test_repr(self):
         """Test link repr."""
-        link = Link("CABLE1")
+        conn = Connection()
+        link = Link("CABLE1", conn, "src", "dest")
         repr_str = repr(link)
 
         assert "Link" in repr_str
@@ -345,7 +371,8 @@ class TestLink:
 
     def test_get_guid(self):
         """Test getting link GUID."""
-        link = Link("CABLE1")
+        conn = Connection()
+        link = Link("CABLE1", conn, "src", "dest")
         guid = link.get_guid()
 
         # Should be valid UUID
@@ -355,23 +382,32 @@ class TestLink:
 
     def test_get_guid_with_pins(self):
         """Test GUID with pins."""
-        src_pin = Pin("A1")
-        dest_pin = Pin("B1")
-        link = Link("CABLE1", src_pin=src_pin, dest_pin=dest_pin)
+        conn = Connection()
+        link = Link("CABLE1", conn, "A1", "B1")
+        src_pin = Pin("A1", "src", link)
+        dest_pin = Pin("B1", "dest", link)
+        link.set_src_pin(src_pin)
+        link.set_dest_pin(dest_pin)
 
         guid = link.get_guid()
 
         # Should be different from link without pins
-        link_no_pins = Link("CABLE1")
+        link_no_pins = Link("CABLE1", conn, "src", "dest")
         assert guid != link_no_pins.get_guid()
 
     def test_get_guid_consistency(self):
         """Test GUID consistency."""
-        src_pin = Pin("A1")
-        dest_pin = Pin("B1")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        src_pin = Pin("A1", "src", link)
+        dest_pin = Pin("B1", "dest", link)
 
-        link1 = Link("CABLE1", src_pin=src_pin, dest_pin=dest_pin)
-        link2 = Link("CABLE1", src_pin=Pin("A1"), dest_pin=Pin("B1"))
+        link1 = Link("CABLE1", conn, "A1", "B1")
+        link1.set_src_pin(src_pin)
+        link1.set_dest_pin(dest_pin)
+        link2 = Link("CABLE1", conn, "A1", "B1")
+        link2.set_src_pin(Pin("A1", "src", link))
+        link2.set_dest_pin(Pin("B1", "dest", link))
 
         # Should have same GUID (same structure)
         assert link1.get_guid() == link2.get_guid()
@@ -405,7 +441,7 @@ class TestConnection:
     def test_add_link(self):
         """Test adding link to connection."""
         conn = Connection()
-        link = Link("CABLE1")
+        link = Link("CABLE1", conn, "src", "dest")
 
         conn.add_link(link)
 
@@ -414,7 +450,7 @@ class TestConnection:
     def test_add_link_no_duplicates(self):
         """Test that adding same link twice doesn't create duplicate."""
         conn = Connection()
-        link = Link("CABLE1")
+        link = Link("CABLE1", conn, "src", "dest")
 
         conn.add_link(link)
         conn.add_link(link)
@@ -424,8 +460,8 @@ class TestConnection:
     def test_remove_link(self):
         """Test removing link from connection."""
         conn = Connection()
-        link1 = Link("CABLE1")
-        link2 = Link("CABLE2")
+        link1 = Link("CABLE1", conn, "src1", "dest1")
+        link2 = Link("CABLE2", conn, "src2", "dest2")
 
         conn.add_link(link1)
         conn.add_link(link2)
@@ -491,8 +527,9 @@ class TestConnection:
 
     def test_create_with_links(self):
         """Test creating connection with links."""
-        link1 = Link("CABLE1")
-        link2 = Link("CABLE2")
+        conn = Connection()
+        link1 = Link("CABLE1", conn, "src1", "dest1")
+        link2 = Link("CABLE2", conn, "src2", "dest2")
 
         conn = Connection(links=[link1, link2])
 

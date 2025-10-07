@@ -13,6 +13,7 @@ from indu_doc.configs import AspectsConfig, LevelConfig
 from indu_doc.attributes import AttributeType, SimpleAttribute, RoutingTracksAttribute
 from indu_doc.xtarget import XTargetType
 from indu_doc.footers import PageFooter
+from indu_doc.connection import Connection, Link
 
 
 @pytest.fixture
@@ -262,16 +263,20 @@ class TestNoDuplicatePins:
 
     def test_same_pin_string_same_object(self, god_instance: God):
         """Test that same pin string returns same Pin object."""
-        pin1 = god_instance.create_pin("=DEV:PIN1")
-        pin2 = god_instance.create_pin("=DEV:PIN1")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin1 = god_instance.create_pin("=DEV:PIN1", "src", link)
+        pin2 = god_instance.create_pin("=DEV:PIN1", "src", link)
 
         assert pin1 is pin2
         assert len(god_instance.pins) == 1
 
     def test_same_pin_chain_same_object(self, god_instance: God):
         """Test that same pin chain returns same object."""
-        pin1 = god_instance.create_pin("=DEV:PIN1:PIN2:PIN3")
-        pin2 = god_instance.create_pin("=DEV:PIN1:PIN2:PIN3")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin1 = god_instance.create_pin("=DEV:PIN1:PIN2:PIN3", "src", link)
+        pin2 = god_instance.create_pin("=DEV:PIN1:PIN2:PIN3", "src", link)
 
         assert pin1 is pin2
         assert len(god_instance.pins) == 1
@@ -283,9 +288,11 @@ class TestNoDuplicatePins:
 
     def test_different_pin_strings_different_objects(self, god_instance: God):
         """Test that different pin strings create different objects."""
-        pin1 = god_instance.create_pin("=DEV:PIN1")
-        pin2 = god_instance.create_pin("=DEV:PIN2")
-        pin3 = god_instance.create_pin("=DEV:PIN1:PIN2")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin1 = god_instance.create_pin("=DEV:PIN1", "src", link)
+        pin2 = god_instance.create_pin("=DEV:PIN2", "src", link)
+        pin3 = god_instance.create_pin("=DEV:PIN1:PIN2", "src", link)
 
         assert pin1 is not pin2
         assert pin1 is not pin3
@@ -299,8 +306,11 @@ class TestNoDuplicateLinks:
 
     def test_same_link_parameters_same_object(self, god_instance: God, mock_page_info_no_footer):
         """Test that same link parameters return same Link object."""
-        link1 = god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
-        link2 = god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
+        conn = Connection()
+        link1 = god_instance.create_link(
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1")
+        link2 = god_instance.create_link(
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1")
 
         assert link1 is link2
         assert len(god_instance.links) == 1
@@ -312,10 +322,11 @@ class TestNoDuplicateLinks:
         attr2 = god_instance.create_attribute(
             AttributeType.SIMPLE, "size", "large")
 
+        conn = Connection()
         link1 = god_instance.create_link(
-            "TEST_LINK", mock_page_info_no_footer, attributes=(attr1,))
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1", attributes=(attr1,))
         link2 = god_instance.create_link(
-            "TEST_LINK", mock_page_info_no_footer, attributes=(attr2,))
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1", attributes=(attr2,))
 
         # Should be same object with merged attributes
         assert link1 is link2
@@ -407,14 +418,17 @@ class TestComplexNoDuplicatesScenarios:
 
     def test_stress_test_no_duplicates(self, god_instance: God, mock_page_info_no_footer):
         """Stress test with many repeated operations."""
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
         # Repeat the same operations many times
         for i in range(100):
             god_instance.create_attribute(AttributeType.SIMPLE, "color", "red")
             god_instance.create_tag("=DEVICE", mock_page_info_no_footer)
             god_instance.create_xtarget(
                 "=DEVICE", mock_page_info_no_footer, XTargetType.DEVICE)
-            god_instance.create_pin("=DEVICE:PIN1")
-            god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
+            god_instance.create_pin("=DEVICE:PIN1", "src", link)
+            god_instance.create_link(
+                "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1")
             god_instance.create_connection(
                 None, "=DEV1", "=DEV2", mock_page_info_no_footer)
 

@@ -13,7 +13,7 @@ from indu_doc.god import God, PagesObjectsMapper, PageMapperEntry
 from indu_doc.configs import AspectsConfig, LevelConfig
 from indu_doc.attributes import AttributeType
 from indu_doc.xtarget import XTargetType
-from indu_doc.connection import Connection
+from indu_doc.connection import Connection, Link
 
 
 @pytest.fixture
@@ -166,7 +166,9 @@ class TestPagesObjectsMapper:
 
     def test_get_pages_of_object_by_string_link(self, god_instance, mock_page_info_no_footer):
         """Test getting pages by link GUID string."""
-        link = god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
+        conn = Connection()
+        link = god_instance.create_link(
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1")
         guid = link.get_guid()
 
         # Get pages using the GUID string
@@ -217,7 +219,9 @@ class TestPinCreationFailure:
         """Test creating pin with empty pin name in the chain."""
         # This would test the TODO: what if pin name is empty?
         # A tag like "=DEVICE::" would have empty pin names
-        pin = god_instance.create_pin("=DEVICE::")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = god_instance.create_pin("=DEVICE::", "src", link)
 
         # Current implementation will create a pin with empty name
         # This tests the edge case mentioned in the TODO
@@ -231,7 +235,9 @@ class TestPinCreationFailure:
 
         # The only way current_pin could be None is if pins_names is empty,
         # but that's caught earlier. This is a defensive check.
-        pin = god_instance.create_pin("=DEVICE")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = god_instance.create_pin("=DEVICE", "src", link)
         assert pin is None  # No pins in the tag
 
 
@@ -359,11 +365,7 @@ class TestGodEdgeCasesAdditional:
         link = god_instance.create_link(
             "STANDALONE_LINK", mock_page_info_no_footer)
 
-        assert link is not None
-        assert link.name == "STANDALONE_LINK"
-        assert link.src_pin is None
-        assert link.dest_pin is None
-        assert link.parent is None
+        assert link is None
 
     def test_create_multiple_different_xtargets(self, god_instance, mock_page_info_no_footer):
         """Test creating multiple different xtargets of different types."""
@@ -382,7 +384,9 @@ class TestGodEdgeCasesAdditional:
 
     def test_pin_chain_with_multiple_levels(self, god_instance):
         """Test creating a deep pin chain."""
-        pin = god_instance.create_pin("=DEVICE:L1:L2:L3:L4:L5")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = god_instance.create_pin("=DEVICE:L1:L2:L3:L4:L5", "src", link)
 
         assert pin.name == "L1"
         assert pin.child.name == "L2"

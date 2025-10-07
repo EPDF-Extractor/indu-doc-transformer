@@ -113,7 +113,7 @@ class InternalPin(InternalElementBase):
                 raise ValueError("Intalid pin type")
         self._set_guid(self._create_guid({
             "lnk": link.get_guid(),
-            "pin": self.pin.get_id(),
+            "pin": self.pin.get_guid(),
             "type": pin_type
         }))
         self.external = ExternalInterface(self.id, "ConnectionPoint")

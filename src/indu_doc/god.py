@@ -170,7 +170,7 @@ class God:
         self.pages_mapper.add_mapping(page_info, new_xtarget)
         return new_xtarget
 
-    def create_pin(self, tag_pin: str) -> Optional[Pin]:
+    def create_pin(self, tag_pin: str, role: str, parentLink: Link) -> Optional[Pin]:
         # for example a tag like =B+A1:PIN1:PIN2 creates a chain of pins PIN1 -> PIN2
         pins_names = tag_pin.split(":")[1:]
         if not pins_names:
@@ -180,7 +180,8 @@ class God:
         # TODO: what if pin name is empty?
         current_pin = None
         for pin in reversed(pins_names):
-            current_pin = Pin(name=pin, child=current_pin)
+            current_pin = Pin(name=pin, child=current_pin,
+                              role=role, parentLink=parentLink)
 
         if not current_pin:
             logger.warning(f"Failed to create pin from tag: {tag_pin}")
@@ -188,7 +189,7 @@ class God:
 
         return (
             # this is the first pin in the chain, get all children from it
-            self.pins.setdefault(current_pin.get_id(), current_pin)
+            self.pins.setdefault(current_pin.get_guid(), current_pin)
         )
 
     def create_link(
@@ -196,19 +197,25 @@ class God:
         name: str,
         page_info: PageInfo,
         parent: Any = None,
-        src_pin: Optional[Pin] = None,
-        dest_pin: Optional[Pin] = None,
+        src_pin_name: Optional[str] = None,
+        dest_pin_name: Optional[str] = None,
         attributes: Optional[tuple[Attribute, ...]] = None,
     ):
         logger.debug(
-            f"create_link {name} {src_pin} {dest_pin}"
+            f"create_link {name} {src_pin_name} {dest_pin_name} {attributes}"
         )
+
+        if not (parent and src_pin_name and dest_pin_name):
+            logger.warning(
+                f"Cannot create link without parent connection and both pins: {name} {src_pin_name} {dest_pin_name}"
+            )
+            return None
 
         link = Link(
             name=name,
-            src_pin=src_pin,
+            src_pin_name=src_pin_name,
             parent=parent,
-            dest_pin=dest_pin,
+            dest_pin_name=dest_pin_name,
             attributes=list(attributes or []),
         )
 
@@ -226,7 +233,6 @@ class God:
 
         elink = self.links.setdefault(link_key, link)
         self.pages_mapper.add_mapping(page_info, elink)
-
         return elink
 
     def create_connection(
@@ -290,16 +296,26 @@ class God:
             tag, tag_from, tag_to, page_info=page_info
         )
         # if it has no pins -> has no links
-        pin_obj_from = self.create_pin(pin_from)
-        pin_obj_to = self.create_pin(pin_to)
         link = self.create_link(
             tag or "virtual_link",
             page_info,
             parent=connection,
-            src_pin=pin_obj_from,
-            dest_pin=pin_obj_to,
+            src_pin_name=pin_from,
+            dest_pin_name=pin_to,
             attributes=attributes,
         )
+        if not link:
+            logger.warning(
+                f"Failed to create link for connection with pins: {pin_from} {pin_to}")
+            return None
+        
+        pin_obj_from = self.create_pin(pin_from, "src", link)
+        pin_obj_to = self.create_pin(pin_to, "dest", link)
+        if pin_obj_from:
+            link.set_src_pin(pin_obj_from)
+        if pin_obj_to:
+            link.set_dest_pin(pin_obj_to)
+        
         connection.add_link(link)
 
         # already in dict from create_connection
