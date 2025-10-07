@@ -4,7 +4,7 @@ from gui.global_state import ClientState
 from gui.detail_panel_components import create_section_header, create_empty_state, create_info_card, create_collapsible_section
 import os
 import hashlib
-from indu_doc.god import PageError
+from indu_doc.common_page_utils import PageError
 
 
 def create_pdf_preview_page(state: ClientState, file_path: str = '', page_number: int = 1):
