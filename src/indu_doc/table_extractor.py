@@ -477,7 +477,8 @@ class TableExtractor:
         if not tables:
             raise ValueError(
                 "No required tables found on the page: connection info")
-        spans = extract_spans(page, clip=get_clip_rect(w, h, 410, 260, 780, 780))
+        # expand region of search beyond table in case of huge overlaps
+        spans = extract_spans(page, clip=get_clip_rect(w, h, 20, 260, 1170, 780))
         overlaps = detect_overlaps(spans)
         overlapping_rows = []
         try:
