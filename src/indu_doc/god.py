@@ -51,6 +51,9 @@ class PageError:
     message: str
     error_type: ErrorType = ErrorType.UNKNOWN_ERROR
 
+    def __hash__(self) -> int:
+        return hash((self.message, self.error_type))
+
 
 SupportedMapObjects = Union[XTarget, Connection, Link, PageError]
 
