@@ -11,6 +11,19 @@ from indu_doc.footers import PageFooter
 logger = logging.getLogger(__name__)
 
 
+class ErrorType(Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    FAULT = "FAULT"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+
+
+@dataclass
+class PageError:
+    message: str
+    error_type: ErrorType = ErrorType.UNKNOWN_ERROR
+
+
 class PageType(Enum):
     CONNECTION_LIST = "connection list"
     DEVICE_TAG_LIST = "device tag list"
