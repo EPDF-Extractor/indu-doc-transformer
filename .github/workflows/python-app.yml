@@ -5,9 +5,9 @@ name: Python application
 
 on:
   push:
-    branches: ["main"]
+    branches: ["master"]
   pull_request:
-    branches: ["main"]
+    branches: ["master"]
 
 permissions:
   contents: read
@@ -55,4 +55,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: indu_doc-executable
-          path: dist/indu_doc.exe
+          path: dist/indu_doc_cli.exe

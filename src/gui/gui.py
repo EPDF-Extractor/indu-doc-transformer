@@ -1,3 +1,4 @@
+import uuid
 from nicegui import app, ui, Client
 
 from gui.connections_page import create_connections_page
@@ -53,5 +54,5 @@ def main_page(client: Client):
 if __name__ in {"__main__", "__mp_main__"}:
     """Entry point for running the GUI application."""
     app.add_static_files(url_path='../../static', local_directory='static')
-    ui.run(storage_secret="FUCKYOU<DONTHACKME",
+    ui.run(storage_secret=str(uuid.uuid4()),
            title="InduDoc Transformer",  dark=True, favicon='static/logo.jpeg')
