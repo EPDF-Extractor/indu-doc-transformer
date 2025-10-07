@@ -6,10 +6,10 @@ import pandas as pd
 from pymupdf import pymupdf  # type: ignore
 
 from indu_doc.attributes import AttributeType, Attribute
-from indu_doc.common_page_utils import PageType, header_map_en, detect_page_type, PageInfo
+from indu_doc.common_page_utils import PageType, header_map_en, detect_page_type, PageInfo, PageError, ErrorType
 from indu_doc.configs import default_configs
 from indu_doc.footers import extract_footer
-from indu_doc.god import ErrorType, God
+from indu_doc.god import God
 from indu_doc.table_extractor import TableExtractor
 from indu_doc.xtarget import XTargetType
 import traceback
@@ -21,35 +21,48 @@ class PageProcessor:
         self.god = god_
 
     def run(self, page_: pymupdf.Page, page_type_: PageType):
+        errors: list[PageError] = []
 
-        df = TableExtractor.extract(page_, page_type_)
-        if df is None or df.shape[0] == 0:
-            logger.warning(f"No table found on page for type '{page_type_}'")
-            return
-        self.internationalize(df, page_type_, header_map_en)
-
+        # --- fetch footer ---
         footer = extract_footer(page_)
         if footer is None:
-            logger.warning(
-                # type: ignore
-                f"No footer found on page {page_.number + 1} for type '{page_type_}'"
-            )
+            logger.warning(f"No footer found on page {page_.number + 1} for type '{page_type_}'")
+            errors.append(PageError("No footer found", error_type=ErrorType.FAULT))
+            # self.god.add_errors(PageInfo(page_, None, page_type_), errors)
             return
+        #
+        page_info = PageInfo(page_, footer, page_type_)
 
-        # 4. process tables (using tables & footers TODO)
-        self.process(df, PageInfo(page_, footer, page_type_))
+        # --- fetch tables ---
+        df, msgs = TableExtractor.extract(page_, page_type_)
+        errors.extend(msgs)
+        if df is None or df.shape[0] == 0:
+            logger.warning(f"No table found on page for type '{page_type_}'")
+            errors.append(PageError("No tables found", error_type=ErrorType.FAULT))
+            self.god.add_errors(page_info, errors)
+            return
+        # 
+        err = self.internationalize(df, page_type_, header_map_en)
+        if err:
+            errors.append(err)
+        #
+        self.god.add_errors(page_info, errors)
+
+        # --- process tables ---
+        self.process(df, page_info)
 
     @staticmethod
-    def internationalize(table, page_type_: PageType, internationalization_table):
+    def internationalize(table, page_type_: PageType, internationalization_table) -> PageError | None:
         # translate table header (for now just to english)
         if page_type_ in internationalization_table:
             new_columns = internationalization_table[page_type_]
             if len(new_columns) == table.shape[1]:
                 table.columns = new_columns
             else:
-                print(
-                    f"Internationalization error: {page_type_} table shape mismatch: {len(new_columns)} vs {table.shape[1]}"
-                )
+                msg = f"Internationalization error: {page_type_} table shape mismatch: {len(new_columns)} vs {table.shape[1]}"
+                logger.warning(msg)
+                return PageError(msg, error_type=ErrorType.WARNING)
+        return None
 
     # todo this stuff is very inefficient now, later will be grouped
 
@@ -79,11 +92,12 @@ class PageProcessor:
         try:
             f(table, page_info)
         except ValueError as ve:
-            self.god.create_error(page_info, f"ValueError processing table '{page_info.page_type}': {ve}", error_type=ErrorType.WARNING)
+            self.god.create_error(page_info, f"{ve}", error_type=ErrorType.WARNING)
             logger.warning(ve.__context__)
             logger.warning(
-                f"ValueError processing table '{page_info.page_type}': {ve}")
+                f"Value error processing table '{page_info.page_type}': {ve}")
         except Exception as e:
+            self.god.create_error(page_info, f"{e}", error_type=ErrorType.UNKNOWN_ERROR)
             logger.warning(e.__cause__)
             logger.warning(traceback.format_exc())
             logger.warning(
@@ -95,14 +109,14 @@ class PageProcessor:
         target_2 = table.columns[2]
         other = [col for col in table.columns if col not in (
             target_1, target_2)]
-        for _, row in table.iterrows():
+        for idx, row in table.iterrows():
             # get primary stuff
             tag_from = str(row[target_1]).strip()
             tag_to = str(row[target_2]).strip()
             if tag_from == "" or tag_to == "":
-                logger.warning(
-                    f"one of the connection targets are empty (is that intended?): {tag_from} {tag_to}"
-                )
+                msg =  f"row #{idx} skipped: one/both of the connection targets are empty (is that intended?): `{tag_from}` `{tag_to}`"
+                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+                logger.warning(msg)
                 continue
             # get secondary stuff
             attributes = []
@@ -121,10 +135,12 @@ class PageProcessor:
     def process_device_tag_list(self, table: pd.DataFrame, page_info: PageInfo):
         target = table.columns[0]
         other = [col for col in table.columns if col != target]
-        for _, row in table.iterrows():
+        for idx, row in table.iterrows():
             tag = str(row[target]).strip()
             if tag == "":
-                logger.warning(f"empty device tag (is that intended?): {tag}")
+                msg =  f"row #{idx} skipped: empty device tag (is that intended?): `{tag}`"
+                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+                logger.warning(msg)
                 continue
             # get secondary stuff
             attributes: list[Attribute] = []
@@ -150,15 +166,15 @@ class PageProcessor:
         other = [
             col for col in table.columns if col not in (target, target_from, target_to)
         ]
-        for _, row in table.iterrows():
+        for idx, row in table.iterrows():
             # get primary stuff
             tag = str(row[target]).strip()
             tag_from = str(row[target_from]).strip()
             tag_to = str(row[target_to]).strip()
             if tag == "" or (tag_from == "" and tag_to == ""):
-                logger.warning(
-                    f"empty cable tag (is that intended?): {tag} {tag_from} {tag_to}"
-                )
+                msg = f"row #{idx} skipped: empty cable tag (is that intended?): `{tag}` from=`{tag_from}` to=`{tag_to}`"
+                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+                logger.warning(msg)
                 continue
             # get secondary stuff
             attributes: list[Attribute] = []
@@ -183,15 +199,15 @@ class PageProcessor:
         other = [
             col for col in table.columns if col not in (target, target_src, target_dst)
         ]
-        for _, row in table.iterrows():
+        for idx, row in table.iterrows():
             # get primary stuff
             tag = str(row[target]).strip()
             tag_src = str(row[target_src]).strip()
             tag_dst = str(row[target_dst]).strip()
             if tag == "" or tag_src == "" or tag_dst == "":
-                logger.warning(
-                    f"empty cable connection info (is that intended?): {tag} {tag_src} {tag_dst}"
-                )
+                msg = f"row #{idx} skipped: empty cable connection info (is that intended?): `{tag}` from=`{tag_src}` to=`{tag_dst}`"
+                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+                logger.warning(msg)
                 continue
             # get secondary stuff
             attributes: list[Attribute] = []
@@ -218,7 +234,7 @@ class PageProcessor:
             if col not in (target, target_src, target_dst, target_route)
         ]
 
-        for _, row in table.iterrows():
+        for idx, row in table.iterrows():
             # get primary stuff
             tag = str(row[target]).strip()
             tags_src = str(row[target_src]).strip()
@@ -226,9 +242,9 @@ class PageProcessor:
             tags_route = str(row[target_route]).strip()
 
             if tag == "" or tags_src == "" or tags_dst == "" or tags_route == "":
-                logger.warning(
-                    f"empty topology tag (is that intended?): {tag} {tags_src} {tags_dst} {tags_route}"
-                )
+                msg = f"row #{idx} skipped: empty topology tag (is that intended?): `{tag}` from=`{tags_src}` to=`{tags_dst}` route=`{tags_route}`"
+                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+                logger.warning(msg)
                 continue
 
             # get secondary stuff
@@ -265,16 +281,16 @@ class PageProcessor:
             if col not in (target_src, target_dst, target_route)
         ]
 
-        for _, row in table.iterrows():
+        for idx, row in table.iterrows():
             # get primary stuff
             tag_src = str(row[target_src]).strip()
             tag_dst = str(row[target_dst]).strip()
             tags_route = str(row[target_route]).strip()
 
             if tag_src == "" or tag_dst == "":
-                logger.warning(
-                    f"empty wire connection info (is that intended?): {tag_src} {tag_dst}"
-                )
+                msg = f"row #{idx} skipped: empty wire connection info (is that intended?): from=`{tag_src}` to=`{tag_dst}`"
+                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+                logger.warning(msg)
                 continue
 
             # get secondary stuff
@@ -313,7 +329,7 @@ class PageProcessor:
             not in (target, target_src, target_dst, target_src_pin, target_dst_pin)
         ]
 
-        for _, row in table.iterrows():
+        for idx, row in table.iterrows():
             # get primary stuff
             tag = str(row[target]).strip()
             tag_src = str(row[target_src]).strip()
@@ -327,9 +343,9 @@ class PageProcessor:
                 and pin_src == ""
                 and pin_dst == ""
             ):
-                logger.warning(
-                    f"empty cable diagram info (is that intended?): {tag} {tag_src} {tag_dst} {pin_src} {pin_dst}"
-                )
+                msg = f"row #{idx} skipped: empty cable diagram info (is that intended?): `{tag}` from=`{tag_src}``{pin_src}` to=`{tag_dst}``{pin_dst}` "
+                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+                logger.warning(msg)
                 continue
 
             # get secondary stuff
