@@ -10,6 +10,5 @@ class AttributedBase(ABC):
         self.attributes: set[Attribute] = set(attributes or [])
 
     @abstractmethod
-    @cache
     def get_guid(self) -> str:
         raise NotImplementedError("GET GUID NOT IMPLEMENTED")

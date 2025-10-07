@@ -21,6 +21,7 @@ from indu_doc.configs import AspectsConfig, LevelConfig
 from indu_doc.attributes import AttributeType, SimpleAttribute, RoutingTracksAttribute
 from indu_doc.xtarget import XTargetType
 from indu_doc.footers import PageFooter
+from indu_doc.connection import Connection, Link
 
 
 @pytest.fixture
@@ -122,7 +123,6 @@ class TestCreateAttribute:
             # Using a string that's not in AttributeType enum
             god_instance.create_attribute("INVALID_TYPE", "name", "value")
 
-
     def test_create_routing_tracks_wrong_value_type(self, god_instance):
         """Test creating RoutingTracksAttribute with wrong value type raises ValueError."""
         # Skip this test since the type checking doesn't work properly with parameterized generics
@@ -197,7 +197,7 @@ class TestCreateTag:
 
         assert tag is not None
         assert tag.tag_str == ""
-        assert tag.get_tag_parts() == {}
+        assert tag.get_tag_parts() == {'=': (), '+': (), '-': (), ':': ()}
 
 
 class TestCreateXTarget:
@@ -297,17 +297,20 @@ class TestCreatePin:
 
     def test_create_pin_single(self, god_instance):
         """Test creating a single pin."""
-        pin = god_instance.create_pin("=DEVICE:PIN1")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = god_instance.create_pin("=DEVICE:PIN1", "src", link)
 
         assert pin is not None
         assert pin.name == "PIN1"
         assert pin.child is None
-        assert str(pin) in god_instance.pins
-        assert god_instance.pins[str(pin)] == pin
+        assert pin in god_instance.pins.values()
 
     def test_create_pin_chain(self, god_instance):
         """Test creating a chain of pins."""
-        pin = god_instance.create_pin("=DEVICE:PIN1:PIN2:PIN3")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = god_instance.create_pin("=DEVICE:PIN1:PIN2:PIN3", "src", link)
 
         assert pin is not None
         assert pin.name == "PIN1"  # First pin in chain
@@ -319,22 +322,28 @@ class TestCreatePin:
 
     def test_create_pin_no_pins_returns_none(self, god_instance):
         """Test creating pin with no pin names returns None."""
-        pin = god_instance.create_pin("=DEVICE")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = god_instance.create_pin("=DEVICE", "src", link)
 
         assert pin is None
         assert len(god_instance.pins) == 0
 
     def test_create_pin_empty_tag_returns_none(self, god_instance):
         """Test creating pin with empty tag returns None."""
-        pin = god_instance.create_pin("")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin = god_instance.create_pin("", "src", link)
 
         assert pin is None
         assert len(god_instance.pins) == 0
 
     def test_create_pin_caching(self, god_instance):
         """Test that create_pin caches results properly."""
-        pin1 = god_instance.create_pin("=DEVICE:PIN1")
-        pin2 = god_instance.create_pin("=DEVICE:PIN1")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin1 = god_instance.create_pin("=DEVICE:PIN1", "src", link)
+        pin2 = god_instance.create_pin("=DEVICE:PIN1", "src", link)
 
         # Should be the same object due to caching
         assert pin1 is pin2
@@ -375,8 +384,9 @@ class TestCreateLink:
             AttributeType.SIMPLE, "type", "cable")
         attributes = (attr1, attr2)
 
+        conn = Connection()
         link = god_instance.create_link(
-            "TEST_LINK", mock_page_info_no_footer, attributes=attributes)
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1", attributes=attributes)
 
         assert link is not None
         assert link.name == "TEST_LINK"
@@ -391,13 +401,14 @@ class TestCreateLink:
         attr2 = god_instance.create_attribute(
             AttributeType.SIMPLE, "type", "cable")
 
+        conn = Connection()
         # Create first link
         link1 = god_instance.create_link(
-            "TEST_LINK", mock_page_info_no_footer, attributes=(attr1,))
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1", attributes=(attr1,))
 
         # Create second link with same name and additional attribute
         link2 = god_instance.create_link(
-            "TEST_LINK", mock_page_info_no_footer, attributes=(attr2,))
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1", attributes=(attr2,))
 
         # Should be the same object
         assert link1 is link2
@@ -408,8 +419,11 @@ class TestCreateLink:
 
     def test_create_link_caching(self, god_instance, mock_page_info_no_footer):
         """Test that create_link caches results properly."""
-        link1 = god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
-        link2 = god_instance.create_link("TEST_LINK", mock_page_info_no_footer)
+        conn = Connection()
+        link1 = god_instance.create_link(
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1")
+        link2 = god_instance.create_link(
+            "TEST_LINK", mock_page_info_no_footer, parent=conn, src_pin_name="A1", dest_pin_name="B1")
 
         # Should be the same object due to caching
         assert link1 is link2
@@ -620,8 +634,10 @@ class TestGodEdgeCases:
 
     def test_create_multiple_pins_same_chain(self, god_instance):
         """Test creating the same pin chain multiple times returns cached result."""
-        pin1 = god_instance.create_pin("=DEV:PIN1:PIN2")
-        pin2 = god_instance.create_pin("=DEV:PIN1:PIN2")
+        conn = Connection()
+        link = Link("dummy", conn, "src", "dest")
+        pin1 = god_instance.create_pin("=DEV:PIN1:PIN2", "src", link)
+        pin2 = god_instance.create_pin("=DEV:PIN1:PIN2", "src", link)
 
         assert pin1 is pin2
         assert pin1.name == "PIN1"
