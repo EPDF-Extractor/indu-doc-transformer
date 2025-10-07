@@ -4,7 +4,7 @@ from gui.global_state import ClientState
 from gui.detail_panel_components import create_section_header, create_empty_state, create_info_card, create_collapsible_section
 import os
 import hashlib
-from indu_doc.common_page_utils import PageError
+from indu_doc.common_page_utils import PageError, ErrorType
 
 
 def create_pdf_preview_page(state: ClientState, file_path: str = '', page_number: int = 1):
@@ -144,7 +144,15 @@ def create_pdf_preview_page(state: ClientState, file_path: str = '', page_number
                                 with create_collapsible_section('error', f'Errors ({len(errors)})', default_open=True):
                                     with ui.column().classes('gap-2 p-3'):
                                         for error in errors:
-                                            with ui.card().classes('w-full bg-red-700 border border-red-500 p-2'):
+                                            styles = "bg-red-700 border-red-500"
+                                            match error.error_type:
+                                                case ErrorType.INFO:
+                                                    styles = "bg-blue-700 border-blue-500"
+                                                case ErrorType.WARNING:
+                                                    styles = "bg-orange-700 border-orange-500"
+                                                case _:
+                                                    styles = "bg-red-700 border-red-500"
+                                            with ui.card().classes(f'w-full {styles} border p-2'):
                                                 ui.label(f'{error.error_type.value}: {error.message}').classes(
                                                     'text-sm text-white')
 
