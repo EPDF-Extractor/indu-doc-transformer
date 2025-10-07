@@ -67,3 +67,11 @@ def create_occurrences_section(pages: Set[PageMapperEntry]):
 def create_empty_state(message: str = 'Select an item to view details'):
     """Create an empty state message."""
     ui.label(message).classes('text-gray-400 text-center text-lg')
+
+
+def create_collapsible_section(icon: str, title: str, default_open: bool = True):
+    """Create a collapsible section with icon and title."""
+    expansion = ui.expansion(title, icon=icon, value=default_open).classes(
+        'w-full bg-gray-700 border border-gray-600 text-white mb-3'
+    )
+    return expansion

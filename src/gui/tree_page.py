@@ -5,7 +5,7 @@ from indu_doc.god import PageMapperEntry
 from indu_doc.xtarget import XTarget
 from gui.detail_panel_components import (
     create_type_badge, create_info_card, create_attributes_section,
-    create_occurrences_section, create_empty_state
+    create_occurrences_section, create_empty_state, create_collapsible_section
 )
 
 
@@ -185,8 +185,6 @@ def create_tree_page(state: ClientState):
             with ui.row().classes('w-full items-center'):
                 ui.label('Tree View').classes(
                     'text-2xl font-bold flex-grow text-center text-white')
-                ui.button('Refresh', on_click=lambda: refresh_tree()
-                          ).classes('ml-4').props('outline color=blue-5')
 
         ui.separator().classes('bg-gray-700')
 
@@ -222,16 +220,45 @@ def create_tree_page(state: ClientState):
                         create_type_badge(target.target_type.value)
 
                         # Tag and GUID
-                        create_info_card(
-                            'Tag', target.tag.tag_str, 'font-mono text-sm')
-                        create_info_card(
-                            'GUID', target.get_guid(), 'font-mono text-xs')
+                        with create_collapsible_section('label', 'Identification', default_open=True):
+                            with ui.column().classes('p-3'):
+                                create_info_card(
+                                    'Tag', target.tag.tag_str, 'font-mono text-sm')
+                                create_info_card(
+                                    'GUID', target.get_guid(), 'font-mono text-xs')
 
                         # Attributes
-                        create_attributes_section(target.attributes)
+                        if target.attributes:
+                            with create_collapsible_section('settings', f'Attributes ({len(target.attributes)})', default_open=True):
+                                with ui.column().classes('gap-2 p-3'):
+                                    for attr in target.attributes:
+                                        with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-3'):
+                                            ui.label(f'{attr}').classes(
+                                                'text-sm text-gray-200')
 
                         # Occurrences
-                        create_occurrences_section(pages)
+                        if pages:
+                            with create_collapsible_section('description', f'Occurrences ({len(pages)})', default_open=False):
+                                with ui.column().classes('gap-2 p-3'):
+                                    for page in sorted(pages, key=lambda p: (p.file_path, p.page_number)):
+                                        file_name = page.file_path.split(
+                                            '\\')[-1]
+
+                                        def navigate_to_page(file_path: str, page_num: int):
+                                            ui.navigate.to(
+                                                f'/pdf-preview?file={file_path}&page={page_num}', new_tab=True)
+
+                                        with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-3 hover:bg-gray-500 hover:border-blue-500 cursor-pointer transition-all').on(
+                                            'click', lambda p=page: navigate_to_page(
+                                                p.file_path, p.page_number)
+                                        ):
+                                            with ui.row().classes('items-center gap-2'):
+                                                ui.icon('insert_drive_file').classes(
+                                                    'text-blue-400')
+                                                ui.label(f'Page {page.page_number}').classes(
+                                                    'text-sm font-semibold text-white')
+                                            ui.label(file_name).classes(
+                                                'text-xs text-gray-400 ml-6')
 
                 def refresh_tree():
                     """Refresh the tree data from the manager."""

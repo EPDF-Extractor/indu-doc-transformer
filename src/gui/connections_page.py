@@ -4,7 +4,7 @@ from gui.global_state import ClientState
 from indu_doc.connection import Connection, Link
 from gui.detail_panel_components import (
     create_section_header, create_info_card, create_occurrences_section,
-    create_empty_state
+    create_empty_state, create_collapsible_section
 )
 
 
@@ -85,8 +85,6 @@ def create_connections_page(state: ClientState):
             with ui.row().classes('w-full items-center'):
                 ui.label('Connections View').classes(
                     'text-2xl font-bold flex-grow text-center text-white')
-                ui.button('Refresh', on_click=lambda: refresh_connections()).classes(
-                    'ml-4').props('outline color=blue-5')
 
         ui.separator().classes('bg-gray-700')
 
@@ -115,89 +113,107 @@ def create_connections_page(state: ClientState):
                             'text-xl font-bold mb-4 text-white')
 
                         # Source
-                        ui.separator().classes('my-2 bg-gray-600')
-                        create_section_header('input', 'Source')
-                        if conn.src:
-                            with ui.column().classes('ml-6 gap-2'):
-                                create_info_card(
-                                    'Tag', conn.src.tag.tag_str, 'font-mono text-sm')
-                                ui.label(f'Type: {conn.src.target_type.value}').classes(
-                                    'text-sm text-gray-300')
-                        else:
-                            ui.label(
-                                'N/A').classes('text-sm text-gray-400 ml-6')
+                        with create_collapsible_section('input', 'Source', default_open=True):
+                            if conn.src:
+                                with ui.column().classes('gap-2 p-3'):
+                                    create_info_card(
+                                        'Tag', conn.src.tag.tag_str, 'font-mono text-sm')
+                                    ui.label(f'Type: {conn.src.target_type.value}').classes(
+                                        'text-sm text-gray-300')
+                            else:
+                                ui.label(
+                                    'N/A').classes('text-sm text-gray-400 p-3')
 
                         # Destination
-                        ui.separator().classes('my-4 bg-gray-600')
-                        create_section_header('output', 'Destination')
-                        if conn.dest:
-                            with ui.column().classes('ml-6 gap-2'):
-                                create_info_card(
-                                    'Tag', conn.dest.tag.tag_str, 'font-mono text-sm')
-                                ui.label(f'Type: {conn.dest.target_type.value}').classes(
-                                    'text-sm text-gray-300')
-                        else:
-                            ui.label(
-                                'N/A').classes('text-sm text-gray-400 ml-6')
+                        with create_collapsible_section('output', 'Destination', default_open=True):
+                            if conn.dest:
+                                with ui.column().classes('gap-2 p-3'):
+                                    create_info_card(
+                                        'Tag', conn.dest.tag.tag_str, 'font-mono text-sm')
+                                    ui.label(f'Type: {conn.dest.target_type.value}').classes(
+                                        'text-sm text-gray-300')
+                            else:
+                                ui.label(
+                                    'N/A').classes('text-sm text-gray-400 p-3')
 
                         # Through (cable/medium)
-                        ui.separator().classes('my-4 bg-gray-600')
-                        create_section_header('cable', 'Through')
-                        if conn.through:
-                            with ui.column().classes('ml-6 gap-2'):
-                                create_info_card(
-                                    'Tag', conn.through.tag.tag_str, 'font-mono text-sm')
-                                ui.label(f'Type: {conn.through.target_type.value}').classes(
-                                    'text-sm text-gray-300')
+                        with create_collapsible_section('cable', 'Through', default_open=True):
+                            if conn.through:
+                                with ui.column().classes('gap-2 p-3'):
+                                    create_info_card(
+                                        'Tag', conn.through.tag.tag_str, 'font-mono text-sm')
+                                    ui.label(f'Type: {conn.through.target_type.value}').classes(
+                                        'text-sm text-gray-300')
 
-                                # Through object attributes (using common component style)
-                                if conn.through.attributes:
-                                    ui.label('Attributes:').classes(
-                                        'text-sm font-semibold mt-2 text-gray-300')
-                                    with ui.column().classes('gap-1 mt-1'):
-                                        for attr in conn.through.attributes:
-                                            with ui.card().classes('w-full bg-gray-700 border border-gray-600 p-2'):
-                                                ui.label(f'{attr}').classes(
-                                                    'text-xs text-gray-200')
-                        else:
-                            ui.label('Direct connection').classes(
-                                'text-sm text-gray-400 ml-6')
+                                    # Through object attributes
+                                    if conn.through.attributes:
+                                        ui.label('Attributes:').classes(
+                                            'text-sm font-semibold mt-2 text-gray-300')
+                                        with ui.column().classes('gap-1 mt-1'):
+                                            for attr in conn.through.attributes:
+                                                with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-2'):
+                                                    ui.label(f'{attr}').classes(
+                                                        'text-xs text-gray-200')
+                            else:
+                                ui.label('Direct connection').classes(
+                                    'text-sm text-gray-400 p-3')
 
                         # Links
                         if conn.links:
-                            ui.separator().classes('my-4 bg-gray-600')
-                            create_section_header(
-                                'link', f'Links ({len(conn.links)})')
-                            with ui.column().classes('ml-6 gap-2'):
-                                for i, link in enumerate(conn.links, 1):
-                                    with ui.expansion(f'Link {i}: {link.name}', icon='link').classes('w-full bg-gray-700 border border-gray-600 text-white'):
-                                        with ui.column().classes('gap-2 p-2'):
-                                            if link.src_pin:
-                                                ui.label(f'Source Pin: {link.src_pin.name}').classes(
-                                                    'text-sm font-mono text-gray-200')
-                                            if link.dest_pin:
-                                                ui.label(f'Dest Pin: {link.dest_pin.name}').classes(
-                                                    'text-sm font-mono text-gray-200')
-                                            if link.get_guid():
-                                                ui.label(f'GUID: {link.get_guid()}').classes(
-                                                    'text-xs text-gray-400')
-                                            # Link attributes
-                                            if link.attributes:
-                                                ui.label('Attributes:').classes(
-                                                    'text-sm font-semibold mt-2 text-gray-300')
-                                                with ui.column().classes('gap-1 mt-1'):
-                                                    for attr in link.attributes:
-                                                        with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-2'):
-                                                            ui.label(f'{attr}').classes(
-                                                                'text-xs text-gray-200')
+                            with create_collapsible_section('link', f'Links ({len(conn.links)})', default_open=True):
+                                with ui.column().classes('gap-2 p-3'):
+                                    for i, link in enumerate(conn.links, 1):
+                                        with ui.expansion(f'Link {i}: {link.name}', icon='link').classes('w-full bg-gray-600 border border-gray-500 text-white'):
+                                            with ui.column().classes('gap-2 p-2'):
+                                                if link.src_pin:
+                                                    ui.label(f'Source Pin: {link.src_pin.name}').classes(
+                                                        'text-sm font-mono text-gray-200')
+                                                if link.dest_pin:
+                                                    ui.label(f'Dest Pin: {link.dest_pin.name}').classes(
+                                                        'text-sm font-mono text-gray-200')
+                                                if link.get_guid():
+                                                    ui.label(f'GUID: {link.get_guid()}').classes(
+                                                        'text-xs text-gray-400')
+                                                # Link attributes
+                                                if link.attributes:
+                                                    ui.label('Attributes:').classes(
+                                                        'text-sm font-semibold mt-2 text-gray-300')
+                                                    with ui.column().classes('gap-1 mt-1'):
+                                                        for attr in link.attributes:
+                                                            with ui.card().classes('w-full bg-gray-500 border border-gray-400 p-2'):
+                                                                ui.label(f'{attr}').classes(
+                                                                    'text-xs text-gray-200')
 
                         # GUID
-                        ui.separator().classes('my-4 bg-gray-600')
-                        create_info_card(
-                            'GUID', conn.get_guid(), 'font-mono text-xs')
+                        with create_collapsible_section('fingerprint', 'GUID', default_open=False):
+                            with ui.column().classes('p-3'):
+                                with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-3'):
+                                    ui.label(conn.get_guid()).classes(
+                                        'font-mono text-xs break-all text-gray-100')
 
                         # Occurrences
-                        create_occurrences_section(pages)
+                        if pages:
+                            with create_collapsible_section('description', f'Occurrences ({len(pages)})', default_open=False):
+                                with ui.column().classes('gap-2 p-3'):
+                                    for page in sorted(pages, key=lambda p: (p.file_path, p.page_number)):
+                                        file_name = page.file_path.split(
+                                            '\\')[-1]
+
+                                        def navigate_to_page(file_path: str, page_num: int):
+                                            ui.navigate.to(
+                                                f'/pdf-preview?file={file_path}&page={page_num}', new_tab=True)
+
+                                        with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-3 hover:bg-gray-500 hover:border-blue-500 cursor-pointer transition-all').on(
+                                            'click', lambda p=page: navigate_to_page(
+                                                p.file_path, p.page_number)
+                                        ):
+                                            with ui.row().classes('items-center gap-2'):
+                                                ui.icon('insert_drive_file').classes(
+                                                    'text-blue-400')
+                                                ui.label(f'Page {page.page_number}').classes(
+                                                    'text-sm font-semibold text-white')
+                                            ui.label(file_name).classes(
+                                                'text-xs text-gray-400 ml-6')
 
                 def refresh_connections():
                     """Refresh the connections list."""

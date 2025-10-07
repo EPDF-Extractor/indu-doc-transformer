@@ -1,7 +1,7 @@
 from nicegui import ui, app
 from typing import Dict, Any
 from gui.global_state import ClientState
-from gui.detail_panel_components import create_section_header, create_empty_state, create_info_card
+from gui.detail_panel_components import create_section_header, create_empty_state, create_info_card, create_collapsible_section
 import os
 import hashlib
 
@@ -96,43 +96,44 @@ def create_pdf_preview_page(state: ClientState, file_path: str = '', page_number
                         ui.label('Objects on this page').classes(
                             'text-xl font-bold mb-4 text-white')
 
-                        # Use create_info_card for file and page info
-                        create_info_card('File', file_name, 'text-xs')
+                        # File and page info in collapsible section
+                        with create_collapsible_section('info', 'Page Information', default_open=True):
+                            with ui.column().classes('p-3 gap-2'):
+                                ui.label(f'File: {file_name}').classes(
+                                    'text-sm text-gray-200')
 
-                        # Page input with go to button
-                        with ui.row().classes('w-full items-center gap-2 mb-2'):
-                            ui.label('Page:').classes('text-sm text-gray-300')
-                            page_input = ui.input(
-                                value=str(page_number),
-                                placeholder='Page number'
-                            ).classes('flex-grow').props('dark outlined dense type=number min=1')
-                            ui.button(
-                                'Go to',
-                                on_click=lambda: ui.navigate.to(
-                                    f'/pdf-preview?file={file_path}&page={max(1, int(page_input.value)) if page_input.value and page_input.value.isdigit() else page_number}')
-                            ).props('flat color=green-5 dense')
+                                # Page input with go to button
+                                with ui.row().classes('w-full items-center gap-2'):
+                                    ui.label('Page:').classes(
+                                        'text-sm text-gray-300')
+                                    page_input = ui.input(
+                                        value=str(page_number),
+                                        placeholder='Page number'
+                                    ).classes('flex-grow').props('dark outlined dense type=number min=1')
+                                    ui.button(
+                                        'Go to',
+                                        on_click=lambda: ui.navigate.to(
+                                            f'/pdf-preview?file={file_path}&page={max(1, int(page_input.value)) if page_input.value and page_input.value.isdigit() else page_number}')
+                                    ).props('flat color=green-5 dense')
 
-                        # Page navigation buttons
-                        ui.separator().classes('my-2 bg-gray-600')
-                        with ui.row().classes('w-full justify-center gap-2 mb-4'):
-                            ui.button(
-                                'Previous',
-                                on_click=lambda: ui.navigate.to(
-                                    f'/pdf-preview?file={file_path}&page={max(1, page_number - 1)}')
-                            ).props('flat color=blue-5')
-                            ui.button(
-                                'Next',
-                                on_click=lambda: ui.navigate.to(
-                                    f'/pdf-preview?file={file_path}&page={page_number + 1}')
-                            ).props('flat color=blue-5')
-
-                        ui.separator().classes('my-2 bg-gray-600')
+                                # Page navigation buttons
+                                with ui.row().classes('w-full justify-center gap-2 mt-2'):
+                                    ui.button(
+                                        'Previous',
+                                        on_click=lambda: ui.navigate.to(
+                                            f'/pdf-preview?file={file_path}&page={max(1, page_number - 1)}')
+                                    ).props('flat color=blue-5')
+                                    ui.button(
+                                        'Next',
+                                        on_click=lambda: ui.navigate.to(
+                                            f'/pdf-preview?file={file_path}&page={page_number + 1}')
+                                    ).props('flat color=blue-5')
 
                         if not objects:
                             create_empty_state('No objects found on this page')
                         else:
                             ui.label(f'Found {len(objects)} object(s)').classes(
-                                'text-sm text-gray-300 mb-4')
+                                'text-sm text-gray-300 my-4')
 
                             # Group objects by type
                             from collections import defaultdict
@@ -142,27 +143,24 @@ def create_pdf_preview_page(state: ClientState, file_path: str = '', page_number
                                 obj_type = type(obj).__name__
                                 grouped[obj_type].append(obj)
 
-                            # Display grouped objects
+                            # Display grouped objects in collapsible sections
                             for obj_type, obj_list in grouped.items():
-                                ui.separator().classes('my-4 bg-gray-600')
-                                create_section_header(
-                                    'category', f'{obj_type} ({len(obj_list)})')
-
-                                with ui.column().classes('gap-2 ml-6'):
-                                    for obj in obj_list:
-                                        with ui.card().classes('w-full bg-gray-700 border border-gray-600 p-2 hover:bg-gray-600 cursor-pointer transition-colors'):
-                                            # Display object info based on type
-                                            if hasattr(obj, 'tag'):
-                                                ui.label(f'Tag: {obj.tag.tag_str}').classes(
-                                                    'text-sm font-mono break-all text-gray-200')
-                                            if hasattr(obj, 'src') and hasattr(obj, 'dest'):
-                                                src_tag = obj.src.tag.tag_str if obj.src else 'N/A'
-                                                dest_tag = obj.dest.tag.tag_str if obj.dest else 'N/A'
-                                                ui.label(f'{src_tag} → {dest_tag}').classes(
-                                                    'text-sm break-all text-gray-200')
-                                            if hasattr(obj, 'get_guid'):
-                                                ui.label(f'GUID: {obj.get_guid()}...').classes(
-                                                    'text-xs text-gray-400')
+                                with create_collapsible_section('category', f'{obj_type} ({len(obj_list)})', default_open=True):
+                                    with ui.column().classes('gap-2 p-3'):
+                                        for obj in obj_list:
+                                            with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-2 hover:bg-gray-500 cursor-pointer transition-colors'):
+                                                # Display object info based on type
+                                                if hasattr(obj, 'tag'):
+                                                    ui.label(f'Tag: {obj.tag.tag_str}').classes(
+                                                        'text-sm font-mono break-all text-gray-200')
+                                                if hasattr(obj, 'src') and hasattr(obj, 'dest'):
+                                                    src_tag = obj.src.tag.tag_str if obj.src else 'N/A'
+                                                    dest_tag = obj.dest.tag.tag_str if obj.dest else 'N/A'
+                                                    ui.label(f'{src_tag} → {dest_tag}').classes(
+                                                        'text-sm break-all text-gray-200')
+                                                if hasattr(obj, 'get_guid'):
+                                                    ui.label(f'GUID: {obj.get_guid()}...').classes(
+                                                        'text-xs text-gray-400')
 
                 # Initial load of object panel
                 update_object_panel()
