@@ -3,10 +3,42 @@ from typing import OrderedDict
 from indu_doc.configs import AspectsConfig, LevelConfig
 import re
 import logging
+import uuid
+import hashlib
+
+from .attributed_base import AttributedBase
+from .attributes import Attribute
 
 from indu_doc.footers import PageFooter
 
 logger = logging.getLogger(__name__)
+
+
+class Aspect(AttributedBase):
+    def __init__(
+        self,
+        separator: str,
+        value: str,
+        attributes: list[Attribute] | None = None,
+    ) -> None:
+        super().__init__(attributes)
+        self.separator: str = separator
+        self.value: str = value
+
+    def get_guid(self) -> str:
+        # same logic as for xtargets
+        # Everytime we process the pdf -> generate the same ID for the same tag
+        # The tag string should always be the same for the same object -> It's how we see them in the PDF
+        return str(uuid.UUID(bytes=hashlib.md5(str(self).encode("utf-8")).digest()))
+    
+    def add_attribute(self, attribute: Attribute) -> None:
+        self.attributes.add(attribute)
+
+    def __str__(self) -> str:
+        return f"{self.separator}{self.value}"
+
+    def __repr__(self) -> str:
+        return f"Aspect({str(self)}, attributes={self.attributes})"
 
 
 class Tag:
@@ -20,6 +52,7 @@ class Tag:
     def __init__(self, tag_: str, config: AspectsConfig):
         self.config = config
         self.tag_str = self.get_tag_str(tag_)
+        self.aspects: dict[str, tuple[Aspect, ...]] | None = None
 
     def get_tag_str(self, tag_: str) -> str:
         # TODO: We want to consider the terminal separator from the config, change config to mark the terminal separator
@@ -69,6 +102,11 @@ class Tag:
                 f"Prepended {prepended_part} to {tag_str} from footer {footer.tags}"
             )
         return cls(prepended_part + tag_str, config)
+    
+
+    def set_aspects(self, aspects: dict[str, tuple[Aspect, ...]]):
+        self.aspects = aspects
+
 
     def get_tag_parts(self) -> dict[str, tuple[str, ...]]:
         """
@@ -76,12 +114,23 @@ class Tag:
         Returns:
             dict[str, tuple[str, ...]]: A dictionary mapping separators to their corresponding values, ordered by their appearance in the tag string.
         """
-        new_tag_parts = try_parse_tag(self.tag_str, self.config)
-        if new_tag_parts is not None:
-            return {sep: (new_tag_parts[sep] if sep in new_tag_parts else ()) for sep in self.config.separator_ge(new_tag_parts.keys())}
+        aspects = self.get_aspects()
+        if aspects:
+            return {sep: tuple([v.value for v in vals]) for sep, vals in aspects.items()}
         else:
-            logger.warning(f"Failed to parse tag string: {self.tag_str} ")
-            return {}
+            # only do parsing if aspects are not set
+            new_tag_parts = try_parse_tag(self.tag_str, self.config)
+            if new_tag_parts is not None:
+                return {sep: (new_tag_parts[sep] if sep in new_tag_parts else ()) for sep in self.config.separator_ge(new_tag_parts.keys())}
+            else:
+                logger.warning(f"Failed to parse tag string: {self.tag_str} ")
+                return {}
+        
+    def get_aspects(self):
+        if not self.aspects:
+            return None
+        configured_aspects = {sep.Separator: self.aspects[sep.Separator] for sep in self.config.to_list() if sep.Separator in self.aspects}
+        return configured_aspects
 
     @staticmethod
     def is_valid_tag(tag_str: str, config: AspectsConfig) -> bool:
