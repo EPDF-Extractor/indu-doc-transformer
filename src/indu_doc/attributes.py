@@ -151,12 +151,56 @@ class RoutingTracksAttribute(Attribute):
         tracks_str = self.sep.join(sorted(self.tracks))
         return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{tracks_str}".encode()).digest()))
 
+
+class PLCAddressAttribute(Attribute): 
+    """An attribute representing PLC diagram '%' addresses and their params.
+    """
+
+    def __init__(self, address: str, meta: dict[str, str]) -> None:
+        super().__init__(address)
+        self.meta = meta
+
+
+    def get_db_representation(self) -> str:
+        return json.dumps({"name": self.name, "meta": self.meta})
+
+    @classmethod
+    def from_db_representation(cls, db_str: str) -> "PLCAddressAttribute":
+        data = json.loads(db_str)
+        return cls(address=data["name"], meta=data["meta"])
+
+    def get_search_entries(self) -> list[str]:
+        return list(self.meta.values())
+
+    @classmethod
+    def get_value_type(cls) -> type:
+        return dict[str, str]
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.meta))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, RoutingTracksAttribute):
+            return False
+        return False # temporality assume theyre unique; self.name == other.name and self.meta == other.meta
+
+    def __repr__(self) -> str:
+        return f"PLC conn {self.name}: {self.meta}"
+
+    def get_guid(self) -> str:
+        meta_str = ';'.join(f"{k}={v}" for k, v in sorted(self.meta.items()))
+        return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{meta_str}".encode()).digest()))
+
+
 # IMP: please register new attributes here
+
+
 
 
 class AttributeType(Enum):
     SIMPLE = "SimpleAttribute"
     ROUTING_TRACKS = "RoutingTracksAttribute"
+    PLC_ADDRESS = "PLCAddress"
 
 
 AvailableAttributes: dict[AttributeType, type[Attribute]] = {
