@@ -82,6 +82,8 @@ class PageProcessor:
             PageType.WIRES_PART_LIST: self.process_wires_part_list,
             PageType.TERMINAL_DIAGRAM: self.process_terminal_diagram,
             PageType.CABLE_DIAGRAM: self.process_cable_diagram,
+            PageType.STRUCTURE_IDENTIFIER_OVERVIEW: self.process_structure_identifier_overview,
+            PageType.PLC_DIAGRAM: self.process_plc_diagram,
         }
 
         f = type_handlers.get(page_info.page_type, None)
@@ -102,6 +104,7 @@ class PageProcessor:
             logger.warning(traceback.format_exc())
             logger.warning(
                 f"Unexpected error processing table '{page_info.page_type}': {e}")
+
 
     def process_connection_list(self, table: pd.DataFrame, page_info: PageInfo):
         # TODO setting
@@ -363,17 +366,80 @@ class PageProcessor:
             from itertools import product
 
             # Split and zip source/destination pairs
-            src_pairs = list(zip(tag_src.split(";"), pin_src.split(";")))
+            src_pairs = list(zip(tag_src.split(";"), pin_src.split(";"), tag.split(";")))
             dst_pairs = list(zip(tag_dst.split(";"), pin_dst.split(";")))
 
-            for (tag_s, pin_s), (tag_d, pin_d) in product(src_pairs, dst_pairs):
+            for (tag_s, pin_s, tag_), (tag_d, pin_d) in product(src_pairs, dst_pairs):
                 self.god.create_connection_with_link(
-                    tag,
+                    tag_,
                     tag_s + ":" + pin_s,
                     tag_d + ":" + pin_d,
                     page_info,
                     tuple(attributes)
                 )
+
+
+    def process_plc_diagram(self, table: pd.DataFrame, page_info: PageInfo):
+        target = table.columns[0]
+        address = table.columns[1]
+        other = [
+            col
+            for col in table.columns
+            if col
+            not in (target, address)
+        ]
+
+        for idx, row in table.iterrows():
+            # get primary stuff
+            tag = str(row[target]).strip()
+            plc_addr = str(row[address]).strip()
+
+            if tag == "" or plc_addr == "":
+                msg = f"row #{idx} skipped: empty PLC diagram info (is that intended?): `{tag}` addr=`{plc_addr}`"
+                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+                logger.warning(msg)
+                continue
+
+            # get secondary stuff
+            meta: dict[str, str] = {}
+            for name in other:
+                value = str(row[name]).strip()
+                if name != "" and value != "":
+                    meta[name] = value
+
+            # create attribute
+            attr = self.god.create_attribute(
+                AttributeType.PLC_ADDRESS, plc_addr, meta)
+
+            # add attribute to xtarget with tag
+            self.god.create_xtarget(tag, page_info, XTargetType.DEVICE, (attr,))
+
+
+    def process_structure_identifier_overview(self, table: pd.DataFrame, page_info: PageInfo):
+        target = table.columns[0]
+        other = [
+            col
+            for col in table.columns
+            if col != target
+        ]
+
+        for idx, row in table.iterrows():
+            # get primary stuff
+            tag = str(row[target]).strip()
+
+            # get secondary stuff
+            attributes: list[Attribute] = []
+            for name in other:
+                value = str(row[name]).strip()
+                if name != "" and value != "":
+                    attributes.append(
+                        self.god.create_attribute(
+                            AttributeType.SIMPLE, name, value)
+                    )
+
+            # create aspect
+            self.god.create_aspect(tag, page_info, tuple(attributes))
+
 
     def process_terminal_diagram(self, table: pd.DataFrame, page_info: PageInfo):
         # this table has to be treated as 2 tables
@@ -400,3 +466,7 @@ if __name__ == "__main__":
     print(god)
     for id, tgt in god.xtargets.items():
         print(tgt)
+        print(tgt.tag.get_aspects())
+
+    for id, a in god.aspects.items():
+        print(a)
