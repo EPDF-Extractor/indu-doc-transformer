@@ -134,6 +134,8 @@ class TableExtractor:
         PageType.WIRES_PART_LIST: lambda cls, page: cls.extract_wires_part_list(page),
         PageType.TERMINAL_DIAGRAM: lambda cls, page: cls.extract_terminal_diagram(page),
         PageType.CABLE_DIAGRAM: lambda cls, page: cls.extract_cable_diagram(page),
+        PageType.STRUCTURE_IDENTIFIER_OVERVIEW: lambda cls, page: cls.extract_structure_identifier_overview(page),
+        PageType.PLC_DIAGRAM: lambda cls, page: cls.extract_plc_diagram(page),
     }
 
     @classmethod
@@ -566,7 +568,7 @@ class TableExtractor:
                     logger.warning(msg)
                 # 
                 rows.append(
-                    ["; ".join(cable_info_list), "; ".join(color_list)]
+                    [";".join(cable_info_list), ";".join(color_list)]
                     + non_number_values
                 )
             return pd.DataFrame(rows, columns=columns)
@@ -600,6 +602,53 @@ class TableExtractor:
         df.insert(0, "Strip", strip_name)
 
         return df, errors
+    
+
+    @staticmethod
+    def extract_structure_identifier_overview(page) -> tuple[pd.DataFrame, list[PageError]]:
+        w = page.rect.width
+        h = page.rect.height
+        if w <= h:
+            raise ValueError(
+                f"Album orientation expected, found: width={w}, height={h}."
+            )
+
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 32, 70, 1170, 780)))
+        # logger.debug_table_overview(tables)
+        if not tables:
+            raise ValueError("No required tables found on the page")
+        
+        return tables[0].to_pandas(), []
+
+
+    @staticmethod
+    def extract_plc_diargam(page) -> tuple[pd.DataFrame, list[PageError]]:
+        w = page.rect.width
+        h = page.rect.height
+        if w <= h:
+            raise ValueError(
+                f"Album orientation expected, found: width={w}, height={h}."
+            )
+
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 32, 70, 1170, 780)))
+        # logger.debug_table_overview(tables)
+        if not tables:
+            raise ValueError("No required tables found on the page")
+
+        # get rid of table top line
+        df = tables[0].to_pandas()
+        df = promote_header(df)
+
+        # get rid of empty rows
+        df = df[df.apply(lambda row: row.astype(
+            str).str.strip().ne('').any(), axis=1)]
+        
+        # forward fill Device Tag
+        df.iloc[:, 0] = df.iloc[:, 0].replace("", pd.NA).ffill()
+        
+        return df, []
 
 
 if __name__ == "__main__":
