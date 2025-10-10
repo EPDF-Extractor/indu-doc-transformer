@@ -5,10 +5,10 @@ from collections import defaultdict
 
 from .god import God
 from .xtarget import XTarget
-from .attributes import Attribute, SimpleAttribute, RoutingTracksAttribute
+from .attributes import Attribute, SimpleAttribute, RoutingTracksAttribute, PLCAddressAttribute
 from .configs import AspectsConfig, LevelConfig
 from .connection import Connection, Link, Pin
-from .tag import Tag
+from .tag import Tag, Aspect
 
 import lxml.objectify as ob
 import lxml.etree as et
@@ -46,6 +46,8 @@ class InternalAttribute(ISerializeable):
                 value.text = str(self.attr.value)
             case RoutingTracksAttribute():
                 value.text = str(self.attr.tracks)
+            case PLCAddressAttribute():
+                value.text = str(self.attr.meta)
             case _:
                 raise ValueError(f"Unsupported attribute type")
         return item
@@ -103,19 +105,9 @@ class InternalPin(InternalElementBase):
     pin: Pin
     external: ExternalInterface  # ExternalInterface requires unique ID also
 
-    def __init__(self, link: Link, pin_type: str):
-        match pin_type:
-            case 'src':
-                self.pin = link.src_pin
-            case 'dst':
-                self.pin = link.dest_pin
-            case _:
-                raise ValueError("Intalid pin type")
-        self._set_guid(self._create_guid({
-            "lnk": link.get_guid(),
-            "pin": self.pin.get_guid(),
-            "type": pin_type
-        }))
+    def __init__(self, pin: Pin):
+        self.pin = pin
+        self._set_guid(self.pin.get_guid())
         self.external = ExternalInterface(self.id, "ConnectionPoint")
 
     def serialize(self) -> et._Element:
@@ -161,33 +153,53 @@ class InternalConnection(InternalElementBase):
 
         return root
 
-class InternalAspectBase(InternalElementBase):
+# TODO might not need it if BMK for XTargets is allowed (currently as a bug theyre allowed)
+
+class InternalAspect(InternalElementBase):
+    # it is also an aspect but for the selected InstanceHierarchy.
+    # For ECAD it is "ECAD". This is also to make diamondID distinct from ID
+    # (for DiamondID it is empty and thus consistent over trees; other Internal elements do not appear in not ECAD InstanceHierarchies)
     prefix: str  # = separator
     bmk: str     # accumulated separators and levels
     name: str    # name of current level aspect
-    base: "InternalAspectBase | None" = None
+    base: "InternalAspect | None" = None
+    aspect: Aspect
+    
+    perspective: str
+    diamondID: GUID
 
-    def __init__(self, name: str, prefix: str, base: "InternalAspectBase | None" = None):
-        self.name = name
-        self.prefix = prefix
+    def __init__(self, perspective: str, aspect: Aspect, base: "InternalAspect | None" = None):
+        self.aspect = aspect
+        self.name = aspect.value
+        self.prefix = aspect.separator
         self.base = base
         # accumulate bmk
-        self.bmk = (base.bmk if base else "") + prefix + name
-        # accumulate guid
-        # Not using self._set_guid as this id is non-unique across trees. Non-uniqueness inside tree will be detected by InternalAspect GUID
+        self.bmk = (base.bmk if base else "") + str(aspect)
+        # accumulate guid (can not use aspect GUID as it is non unique)
         self.id = self._create_guid({
             "prefix": self.prefix,
             "name": self.name,
             "base": self.base.id if self.base else ""
         })
+        # set diamondId 
+        self.diamondID = aspect.get_guid()
+        # Update ID based on perspective (make unq across trees)
+        self.perspective = perspective
+        unq = {  # do not copy to reuse!
+            "base": self.id,
+            "salt": self.perspective
+        }
+        self._set_guid(self._create_guid(unq))  # will override self.id and check uniqueness
 
     def serialize(self) -> et._Element:
-        if self.__class__ == type(InternalAspectBase):
-            raise ValueError("Do not serialize InternalAspectBase directly")
-
         root = et.Element("InternalElement")
         root.set("Name", self.name)
         root.set("ID", self.id)
+
+        # Add diamondID (must go first)
+        item = et.SubElement(root, "SourceObjectInformation")
+        item.set("OriginID", "DiamondId")
+        item.set("SourceObjID", self.diamondID)
 
         # Add Prefix
         item = et.SubElement(root, "Attribute")
@@ -201,34 +213,10 @@ class InternalAspectBase(InternalElementBase):
         item.set("AttributeDataType", "xs:string")  # TODO: for now all strings
         et.SubElement(item, "Value").text = self.bmk
 
-        return root
-
-
-class InternalAspect(InternalAspectBase):
-    # it is also an aspect but for the selected InstanceHierarchy.
-    # For ECAD it is "ECAD". This is also to make diamondID distinct from ID
-    # (for DiamondID it is empty and thus consistent over trees; other Internal elements do not appear in not ECAD InstanceHierarchies)
-    perspective: str
-    diamondID: GUID
-
-    def __init__(self, perspective: str, name: str, prefix: str, base: "InternalAspectBase | None" = None):
-        super().__init__(name, prefix, base)
-        # set diamondId
-        self.diamondID = self.id
-        # Update ID based on perspective
-        self.perspective = perspective
-        unq = {  # do not copy to reuse!
-            "base": self.id,
-            "salt": self.perspective
-        }
-        self._set_guid(self._create_guid(unq))  # will override self.id
-
-    def serialize(self) -> et._Element:
-        root = super().serialize()
-        # Add diamondID
-        item = et.SubElement(root, "SourceObjectInformation")
-        item.set("OriginID", "DiamondId")
-        item.set("SourceObjID", self.diamondID)
+        # Add all atributes
+        for attr in self.aspect.attributes:
+            item = InternalAttribute(attr).serialize()
+            root.append(item)
         #
         return root
 
@@ -240,7 +228,7 @@ class InternalXTarget(InternalElementBase):
     # this one required to create ...OrientedReferenceDesignation stuff
     aspects: dict[str, str]
     #
-    base: InternalAspectBase | None
+    base: InternalAspect | None
 
     serialized: bool = False
 
@@ -257,7 +245,7 @@ class InternalXTarget(InternalElementBase):
             self.aspects[levels[sep].Aspect.lower()] += "".join(sep +
                                                                 n for n in names)
 
-    def set_base(self, base: InternalAspectBase):
+    def set_base(self, base: InternalAspect):
         self.base = base
 
     def serialize(self) -> et._Element:
@@ -314,31 +302,20 @@ class InstanceHierarchy(ISerializeable):
         self.levels = levels
         #
         # form tree of objects by aspects. Level of the tree is aspect priority
-        tags_parts = [(t, t.xtarget.tag.get_tag_parts()) for t in self.targets]
-        #
         root = TreeNode()
-        for t, parts in tags_parts:
-            # Fill in empty aspects if missing
-            existing = list(parts.keys())
-            missing = {}
-            for l in levels:
-                if l in existing:
-                    break
-                missing[l] = ""
-
-            parts = dict(missing, **parts)
-            #
+        for t in self.targets:
+            parts = t.xtarget.tag.get_aspects()
+            # build tree
             current = root
             for sep in self.levels:
                 if sep in parts:
-                    for p in parts[sep]:
-                        key = sep + p
+                    for aspect in parts[sep]: # composite tag (multiple instances of same sep)
+                        key = str(aspect)
                         if key not in current.children:
                             current.children[key] = TreeNode(
                                 InternalAspect(
                                     self.name,
-                                    p,
-                                    sep,
+                                    aspect,
                                     current.item
                                 )
                             )
@@ -384,7 +361,7 @@ class CAEXFile(ISerializeable):
         self.name = name
         self.hierarchies = []
 
-    def serialize(self):
+    def serialize(self) -> et._Element:
         root = self._create_root()
         for h in self.hierarchies:
             root.append(h.serialize())
@@ -423,7 +400,7 @@ class AMLBuilder():
         self.configs = configs
         self.tree = None
 
-    def process(self):
+    def process(self) -> None:
         file = CAEXFile("test.xml")
         # TODO may be move to CAEXfile
 
@@ -442,8 +419,8 @@ class AMLBuilder():
                 connection.through.get_guid()) if connection.through else None
             #
             for link in connection.links:
-                src_pin = InternalPin(link, 'src') if src else None
-                dst_pin = InternalPin(link, 'dst') if dst else None
+                src_pin = InternalPin(link.src_pin) if src else None
+                dst_pin = InternalPin(link.dest_pin) if dst else None
 
                 if dst_pin is not None:
                     dst.connPoints.append(dst_pin)
@@ -526,27 +503,28 @@ if __name__ == "__main__":
                     SimpleAttribute("b", "tgt_b a"), SimpleAttribute("b", "tgt_b b")])
     tgt_c = XTarget(Tag("=D", configs), configs, attributes=[
                     SimpleAttribute("b", "tgt_b a"), SimpleAttribute("b", "tgt_b b")])
-    pins_a = [
-        Pin("A1", [SimpleAttribute("a", "A1 test value"),
-            SimpleAttribute("b", "A1 test value")]),
-        Pin("A1", [SimpleAttribute("a", "A1 test value"),
-            SimpleAttribute("b", "A1 test value")])
-    ]
-    pins_b = [
-        Pin("B1", [SimpleAttribute("a", "B1 test value"),
-            SimpleAttribute("b", "B1 test value")]),
-        Pin("B1", [SimpleAttribute("a", "B1 test value"),
-            SimpleAttribute("b", "B1 test value")])
-    ]
     links_attrs: list[list[Attribute]] = [
         [cast(Attribute, SimpleAttribute("a", "lnk a test value"))],
         [cast(Attribute, SimpleAttribute("b", "lnk b test value"))],
     ]
     conn = Connection(tgt_a, tgt_b, tgt_c)
+    pin_names_a = ["A1", "A1"]
+    pin_names_b = ["B1","B1"]
     links = [
-        Link("lnk", conn, pa, pb, attrs) for pa, pb, attrs in zip(pins_a, pins_b, links_attrs)
+        Link("lnk", conn, pa, pb, attrs) for pa, pb, attrs in zip(pin_names_a, pin_names_b, links_attrs)
     ]
     conn.links = links
+    pins_a = [
+        Pin(name, "src", links[0], 
+            [SimpleAttribute(f"a{idx}", "A1 test value"), SimpleAttribute(f"b{idx}", "A1 test value")])
+            for idx, name in enumerate(pin_names_a)
+    ]
+    pins_b = [
+        Pin(name, "dst", links[0], 
+            [SimpleAttribute(f"a{idx}", "B1 test value"), SimpleAttribute(f"b{idx}", "B1 test value")])
+            for idx, name in enumerate(pin_names_b)
+    ]
+    
     # Tests
     item = InternalAttribute(SimpleAttribute("test", "test value")).serialize()
     print(et.tostring(item, pretty_print=True))
@@ -557,21 +535,20 @@ if __name__ == "__main__":
     ).serialize()
     print(et.tostring(item, pretty_print=True))
 
-    item = InternalPin(
-        links[0], 'src').serialize()
+    item = InternalPin(pins_a[0]).serialize()
     print(et.tostring(item, pretty_print=True))
 
     item = InternalConnection(links[0]).serialize()
     print(et.tostring(item, pretty_print=True))
 
     it = InternalXTarget(tgt_a, configs.levels)
-    it.set_base(InternalAspectBase(
-        "B", "+", InternalAspectBase("A", "=", None)))
+    it.set_base(InternalAspect("ECAD", Aspect("+", "B"), 
+        InternalAspect("ECAD", Aspect("=", "A"), None)))
     item = it.serialize()
     print(et.tostring(item, pretty_print=True))
 
-    item = InternalAspect("ECAD", "A1", "=", None).serialize()
-    item1 = InternalAspect("functional", "A1", "=", None).serialize()
+    item = InternalAspect("ECAD", Aspect("=", "A1"), None).serialize()
+    item1 = InternalAspect("functional", Aspect("=", "A1"), None).serialize()
     print(et.tostring(item, pretty_print=True))
     print(et.tostring(item1, pretty_print=True))
 

@@ -6,13 +6,13 @@ from dataclasses import dataclass
 import logging
 from functools import cache
 from typing import Any, Optional, Union
-from enum import Enum
+from collections import defaultdict
 
 from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
 from indu_doc.common_page_utils import PageInfo, PageError, ErrorType
 from indu_doc.configs import AspectsConfig
 from indu_doc.connection import Connection, Link, Pin
-from indu_doc.tag import Tag
+from indu_doc.tag import Tag, Aspect, try_parse_tag
 from indu_doc.xtarget import XTarget, XTargetType, XTargetTypePriority
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ class God:
         self.links: dict[str, Link] = dict[str, Link]()
         self.pins: dict[str, Pin] = dict[str, Pin]()
         self.tags: dict[str, Tag] = dict[str, Tag]()
+        self.aspects: dict[str, Aspect] = dict[str, Aspect]()
         self.pages_mapper = PagesObjectsMapper()
 
     def create_attribute(self, attribute_type: AttributeType, name: str, value: Any) -> Attribute:
@@ -118,8 +119,73 @@ class God:
             logger.warning(f"Failed to create tag from string: {tag_str}")
             return None
 
+        # check if tag not exists - create aspects for it
+        aspects: dict[str, tuple[Aspect, ...]] = {}
+        if t.tag_str not in self.tags:
+            for sep, values in t.get_tag_parts().items():
+                level_aspects: list[Aspect] = []
+                for v in values:
+                    aspect = self.create_aspect(f"{sep}{v}", page_info)
+                    if not aspect:
+                        logger.warning(f"Weird tag which can not be broken into aspects: {str(aspect)} in {tag_str}")
+                        continue
+                    level_aspects.append(aspect)
+
+                if len(values) == 0:
+                    # empty aspect
+                    aspect = self.create_aspect(sep, page_info)
+                    if not aspect:
+                        logger.warning(f"Unexpected error creating aspect: {str(aspect)} in {tag_str}")
+                        continue
+                    level_aspects.append(aspect)
+                
+                aspects[sep] = tuple(level_aspects)
+
+        # assign created aspects to a tag
+        t.set_aspects(aspects)
+
         # cache tags by their string representation
         return self.tags.setdefault(t.tag_str, t)
+
+
+    def create_aspect(
+        self,
+        tag_str: str,
+        page_info: PageInfo,
+        attributes: Optional[tuple[Attribute, ...]] = None,
+    ) -> Optional[Aspect]:
+        #
+        logger.info(
+            f"create_aspect {tag_str}"
+        )
+        # Must use raw try_parse_tag as it will not create any empty stuff
+        parts = try_parse_tag(tag_str, self.configs)
+        if not parts:
+            msg = f"Failed to create aspect with tag: '{tag_str}'"
+            self.create_error(page_info, msg, error_type=ErrorType.WARNING)
+            logger.warning(msg)
+            return None
+        
+        sep, vals = next(iter(parts.items()))
+        # now assert that has one sep and one value
+        if len(parts) != 1 or len(vals) != 1:
+            msg = f"Failed to create aspect with tag: '{tag_str}' - has composite structure"
+            self.create_error(page_info, msg, error_type=ErrorType.WARNING)
+            logger.warning(msg)
+            return None
+        
+        aspect = Aspect(sep, vals[0], list(attributes or []))
+
+        key = aspect.get_guid()
+        if key in self.aspects and attributes:
+            existing_aspect = self.aspects[key]
+            # merge attributes & return
+            for attr in attributes:
+                existing_aspect.add_attribute(attr)
+            return existing_aspect
+
+        return self.aspects.setdefault(key, aspect)
+
 
     def create_xtarget(
         self,
@@ -144,7 +210,7 @@ class God:
             logger.warning(msg)
             return None
 
-            # create new xtarget
+        # create new xtarget
         xtarget = XTarget(
             tag=tag,
             configs=self.configs,
@@ -314,7 +380,7 @@ class God:
             return None
         
         pin_obj_from = self.create_pin(pin_from, "src", link)
-        pin_obj_to = self.create_pin(pin_to, "dest", link)
+        pin_obj_to = self.create_pin(pin_to, "dst", link)
         if pin_obj_from:
             link.set_src_pin(pin_obj_from)
         if pin_obj_to:
@@ -357,4 +423,4 @@ class God:
             self.pages_mapper.add_mapping(page_info, e)
 
     def __repr__(self):
-        return f"God(configs={self.configs},\n xtargets={len(self.xtargets)},\n connections={len(self.connections)},\n attributes={len(self.attributes)},\n links={len(self.links)},\n pins={len(self.pins)})"
+        return f"God(configs={self.configs},\n xtargets={len(self.xtargets)},\n connections={len(self.connections)},\n attributes={len(self.attributes)},\n links={len(self.links)},\n pins={len(self.pins)},\n aspects={len(self.aspects)})"

@@ -29,8 +29,8 @@ def demote_header(df: pd.DataFrame, header: list[str] | None = None):
     return pd.concat([header_row, df2], ignore_index=True)
 
 
-def promote_header(df: pd.DataFrame) -> pd.DataFrame:
-    return pd.DataFrame(df.values[1:], columns=df.values[0])
+def promote_header(df: pd.DataFrame, level=1) -> pd.DataFrame:
+    return pd.DataFrame(df.values[level:], columns=df.values[level-1])
 
 
 def extract_spans(page, clip=None, tolerance = 0.1):
@@ -134,6 +134,8 @@ class TableExtractor:
         PageType.WIRES_PART_LIST: lambda cls, page: cls.extract_wires_part_list(page),
         PageType.TERMINAL_DIAGRAM: lambda cls, page: cls.extract_terminal_diagram(page),
         PageType.CABLE_DIAGRAM: lambda cls, page: cls.extract_cable_diagram(page),
+        PageType.STRUCTURE_IDENTIFIER_OVERVIEW: lambda cls, page: cls.extract_structure_identifier_overview(page),
+        PageType.PLC_DIAGRAM: lambda cls, page: cls.extract_plc_diagram(page),
     }
 
     @classmethod
@@ -153,19 +155,19 @@ class TableExtractor:
         errors: list[PageError] = []
         for p in pages:
             page_num = (p.number + 1) if p.number is not None else "unknown"
-            logger.debug(f"Extracting '{what}' from page #{page_num}")
+            logger.warning(f"Extracting '{what}' from page #{page_num}")
             try:
                 t, msgs = f(cls, p)
                 tables.append(t)
                 errors += msgs
             except ValueError as ve:
                 errors.append(PageError(f"{ve}", error_type=ErrorType.FAULT))
-                logger.debug(
+                logger.warning(
                     f"ValueError extracting '{what}' from page #{page_num}: {ve}"
                 )
             except Exception as e:
                 errors.append(PageError(f"{e}", error_type=ErrorType.UNKNOWN_ERROR))
-                logger.debug(
+                logger.warning(
                     f"Unexpected error extracting '{what}' from page #{page_num}: {e}"
                 )
         #
@@ -566,7 +568,7 @@ class TableExtractor:
                     logger.warning(msg)
                 # 
                 rows.append(
-                    ["; ".join(cable_info_list), "; ".join(color_list)]
+                    [";".join(cable_info_list), ";".join(color_list)]
                     + non_number_values
                 )
             return pd.DataFrame(rows, columns=columns)
@@ -600,6 +602,60 @@ class TableExtractor:
         df.insert(0, "Strip", strip_name)
 
         return df, errors
+    
+
+    @staticmethod
+    def extract_structure_identifier_overview(page) -> tuple[pd.DataFrame, list[PageError]]:
+        w = page.rect.width
+        h = page.rect.height
+        if w <= h:
+            raise ValueError(
+                f"Album orientation expected, found: width={w}, height={h}."
+            )
+
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 32, 70, 1170, 780)))
+        # logger.debug_table_overview(tables)
+        if not tables:
+            raise ValueError("No required tables found on the page")
+        
+        # table extractor catches text above table as header - remove
+        df = tables[0].to_pandas()
+        df = promote_header(df)
+        
+        return df, []
+
+
+    @staticmethod
+    def extract_plc_diagram(page) -> tuple[pd.DataFrame, list[PageError]]:
+        w = page.rect.width
+        h = page.rect.height
+        if w <= h:
+            raise ValueError(
+                f"Album orientation expected, found: width={w}, height={h}."
+            )
+
+        tables = list(page.find_tables(
+            clip=get_clip_rect(w, h, 32, 70, 1170, 780)))
+        
+        if not tables:
+            raise ValueError("No required tables found on the page")
+
+        # get rid of table text on top
+        df = tables[0].to_pandas()
+        df = promote_header(df, 2)  # TODO extract project name
+
+        # get rid of empty rows
+        df = df[df.apply(lambda row: row.astype(
+            str).str.strip().ne('').any(), axis=1)]
+        
+        # forward fill Device Tag
+        df.iloc[:, 0] = df.iloc[:, 0].replace("", pd.NA).ffill()
+
+        # forward fill '=' stuff
+        df.iloc[:, 3] = df.iloc[:, 3].replace("=", pd.NA).ffill()
+        
+        return df, []
 
 
 if __name__ == "__main__":

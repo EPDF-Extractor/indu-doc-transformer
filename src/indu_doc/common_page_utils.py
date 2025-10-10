@@ -40,6 +40,8 @@ class PageType(Enum):
     CABLE_PLAN_DE = "Kabelplan"
     WIRES_PART_LIST = "Wires parts list"
     TERMINAL_DIAGRAM_DE = "Klemmenplan"
+    STRUCTURE_IDENTIFIER_OVERVIEW = "Structure identifier overview"
+    PLC_DIAGRAM = "PLC diagram"
 
 
 # Highlights important columns (like the ones containing tags). Other for now english. In future - internationalize
@@ -55,7 +57,7 @@ header_map_en = {
         "To",
     ],
     PageType.CABLE_DIAGRAM: [
-        "Function Text (source)",
+        "Function Text (source)", 
         "Page / Column (source)",
         "src_tag",
         "src_pin",

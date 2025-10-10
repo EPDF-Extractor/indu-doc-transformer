@@ -10,7 +10,7 @@ from indu_doc.common_page_utils import detect_page_type
 from indu_doc.configs import AspectsConfig
 from indu_doc.god import God, PageMapperEntry
 from indu_doc.page_processor import PageProcessor, PageInfo
-from indu_doc.tag import Tag
+from indu_doc.tag import Tag, Aspect
 from indu_doc.xtarget import XTarget
 
 logger = logging.getLogger(__name__)
@@ -215,7 +215,7 @@ class Manager:
 
     def get_tree(self) -> Any:
         # form tree of objects by aspects. Level of the tree is aspect priority
-        tags_parts = [(t, t.tag.get_tag_parts())
+        all_aspects = [(t, t.tag.get_aspects())
                       for t in self.god.xtargets.values()]
         # convert the parts into a prefex tree structure
         """
@@ -225,14 +225,14 @@ class Manager:
         ]
         """
         raw_tree: dict[str, Any] = {}
-        for t, parts in tags_parts:
+        for t, aspects in all_aspects:
             current_level = raw_tree
             for sep in self.configs.separators:
-                if sep in parts:
-                    for p in parts[sep]:
-                        TreeKey = sep + p
+                if sep in aspects:
+                    for aspect in aspects[sep]:
+                        TreeKey = str(aspect)
                         if TreeKey not in current_level:
-                            current_level[TreeKey] = {}
+                            current_level[TreeKey] = {"_aspect": aspect}
                         current_level = current_level[TreeKey]
 
             # at the leaf, we can store the full tag string or other info
@@ -240,7 +240,7 @@ class Manager:
                 current_level["_targets"] = set()
             current_level["_targets"].add(t)
 
-        # convert raw_tree to the desired format for the GUI
+        
         def get_gui_description(target: XTarget) -> str:
             lines = []
             lines.append(f"<div class='tree-description'>")
@@ -259,7 +259,21 @@ class Manager:
                 lines.append("</ul></div>")
             lines.append("</div>")
             return "".join(lines)
-
+        
+        def get_aspect_gui_description(aspect: Aspect) -> str:
+            lines = []
+            lines.append(f"<div class='tree-description'>")
+            if aspect.attributes:
+                lines.append(
+                    f"<div class='target-attributes'><strong>Attributes:</strong>")
+                lines.append("<ul>")
+                for attr in aspect.attributes:
+                    lines.append(f"<li>{attr}</li>")
+                lines.append("</ul></div>")
+            lines.append("</div>")
+            return "".join(lines)
+            
+        # convert raw_tree to the desired format for the GUI
         def convert_to_gui_format(node):
             if not isinstance(node, dict):
                 return []
@@ -267,7 +281,7 @@ class Manager:
             gui_node = []
             sorted_keys = sorted(
                 # sorted by 2 keys, to have _targets last and others alphabetically
-                node.keys(), key=lambda k: (k != "_targets", k))
+                node.keys(), key=lambda k: (k in ("_targets", "_aspects"), k))
             for key in sorted_keys:
                 child = node[key]
                 if key == "_targets":
@@ -279,12 +293,21 @@ class Manager:
                     for target in (c for c in child if isinstance(c, XTarget)):
                         gui_node.append(
                             {'id': target.tag.tag_str, 'description': get_gui_description(target), 'children': []})
+                elif key == "_aspect":
+                    continue
                 else:
                     converted_children = convert_to_gui_format(child)
-                    gui_node.append({
-                        'id': str(key),
-                        'children': converted_children or []
-                    })
+                    if "_aspect" in child:
+                        gui_node.append({
+                            'id': str(key),
+                            'description': get_aspect_gui_description(child["_aspect"]),
+                            'children': converted_children or []
+                        })
+                    else:
+                        gui_node.append({
+                            'id': str(key),
+                            'children': converted_children or []
+                        })
             return gui_node
 
         tree_data = convert_to_gui_format(raw_tree)
@@ -305,6 +328,7 @@ class Manager:
             "num_attributes": len(self.god.attributes),
             "num_links": len(self.god.links),
             "num_pins": len(self.god.pins),
+            "num_aspects": len(self.god.aspects)
         }
 
         # Add processing state info

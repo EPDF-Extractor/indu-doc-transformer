@@ -25,6 +25,9 @@ class Pin(AttributedBase):
         self.child: Optional["Pin"] = child
         self.role: str = role
         self.parentLink: Link = parentLink
+        # validate role
+        if role != "src" and role != "dst":
+            raise ValueError("Intalid pin type")
 
     def __repr__(self) -> str:
         return (
@@ -36,6 +39,7 @@ class Pin(AttributedBase):
 
     def get_guid(self) -> str:
         e = [self.name]
+        e += self.role
         e += self.child.get_guid() if self.child else ["CHILD:None"]
         e += self.parentLink.get_guid() if self.parentLink else ["PARENT:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"PIN:{':'.join(e)}".encode()).digest()))
