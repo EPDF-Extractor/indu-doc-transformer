@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from .god import God
 from .xtarget import XTarget
-from .attributes import Attribute, SimpleAttribute, RoutingTracksAttribute
+from .attributes import Attribute, SimpleAttribute, RoutingTracksAttribute, PLCAddressAttribute
 from .configs import AspectsConfig, LevelConfig
 from .connection import Connection, Link, Pin
 from .tag import Tag, Aspect
@@ -46,6 +46,8 @@ class InternalAttribute(ISerializeable):
                 value.text = str(self.attr.value)
             case RoutingTracksAttribute():
                 value.text = str(self.attr.tracks)
+            case PLCAddressAttribute():
+                value.text = str(self.attr.meta)
             case _:
                 raise ValueError(f"Unsupported attribute type")
         return item
