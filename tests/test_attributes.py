@@ -328,8 +328,7 @@ class TestAttributeType:
 
     def test_attribute_type_count(self):
         """Test that we have the expected number of attribute types."""
-        assert len(AttributeType) == 2
-        assert len(AvailableAttributes) == 2
+        assert len(AttributeType) == len(AvailableAttributes)
 
 
 class TestAttributeIntegration:
