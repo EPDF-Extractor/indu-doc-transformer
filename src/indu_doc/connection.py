@@ -40,7 +40,20 @@ class Pin(AttributedBase):
         e += self.parentLink.get_guid() if self.parentLink else ["PARENT:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"PIN:{':'.join(e)}".encode()).digest()))
 
+    def get_recursive_name(self) -> str:
+        return self.name + (f"{self.child.get_recursive_name()}" if self.child else "")
 
+    def to_dict(self) -> dict[str, Any]:
+        attrs = {}
+        for attr in (self.attributes if self.attributes else []):
+            attrs.update(attr.get_search_entries())
+        return {
+            "name": self.get_recursive_name(),
+            "role": self.role,
+            "attributes": attrs,
+            "guid": self.get_guid(),
+        }
+        
 class Link(AttributedBase):
     def __init__(
         self,
@@ -77,6 +90,17 @@ class Link(AttributedBase):
         e += self.parent.get_guid() if self.parent else ["PARENT:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"LINK:{':'.join(e)}".encode()).digest()))
 
+    def to_dict(self) -> dict[str, Any]:
+        attrs = {}
+        for attr in (self.attributes if self.attributes else []):
+            attrs.update(attr.get_search_entries())
+        return {
+            "name": self.name,
+            "src_pin": self.src_pin.to_dict() if self.src_pin else {"name": self.src_pin_name, "role": "src", "attributes": []},
+            "dest_pin": self.dest_pin.to_dict() if self.dest_pin else {"name": self.dest_pin_name, "role": "dest", "attributes": []},
+            "attributes": attrs,
+            "guid": self.get_guid(),
+        }
 
 class Connection:
     def __init__(
@@ -107,3 +131,12 @@ class Connection:
         e += self.dest.get_guid() if self.dest else ["DEST:None"]
         e += self.through.get_guid() if self.through else ["THROUGH:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"CONN:{':'.join(e)}".encode()).digest()))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "src_target": self.src.to_dict() if self.src else None,
+            "dest_target": self.dest.to_dict() if self.dest else None,
+            "through_target": self.through.to_dict() if self.through else None,
+            "guid"  : self.get_guid(),
+            "links": [link.to_dict() for link in self.links],
+        }
