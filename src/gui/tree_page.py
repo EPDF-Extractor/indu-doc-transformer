@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from gui.global_state import ClientState
 from indu_doc.god import PageMapperEntry
 from indu_doc.xtarget import XTarget
+from indu_doc.searcher import Searcher
 from gui.detail_panel_components import (
     create_type_badge, create_info_card, create_attributes_section,
     create_occurrences_section, create_empty_state, create_collapsible_section
@@ -32,41 +33,106 @@ def sanitize_tree_data(tree_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sanitized_data
 
 
-# Custom recursive filter for tree nodes by tag_str or GUID
-def filter_tree_by_description(tree_data: List[Dict[str, Any]], filter_str: str) -> List[Dict[str, Any]]:
-    if not filter_str:
+# Remove the old filter_tree_by_description function and replace with searcher-based approach
+def filter_tree_by_searcher(tree_data: List[Dict[str, Any]], searcher: Searcher, query: str) -> List[Dict[str, Any]]:
+    """Filter tree nodes using the Searcher class with query syntax."""
+    if not query or not query.strip():
         return tree_data
-    filter_str = filter_str.lower().strip()
-    filtered = []
-    for node in tree_data:
-        # Extract tag_str and GUID from description HTML
-        desc = node.get('description', '')
-        node_id = str(node.get('id', '')).lower()
+    
+    try:
+        # Search for matching target GUIDs
+        matching_guids = searcher.search_targets(query)
+        matching_guids_set = set(matching_guids)
+        
+        def filter_recursive(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            filtered = []
+            for node in nodes:
+                # Extract GUID from description
+                desc = node.get('description', '')
+                node_guid = None
+                if desc:
+                    import re
+                    guid_match = re.search(r'<code>([^<]+)</code>', desc)
+                    if guid_match:
+                        node_guid = guid_match.group(1)
+                
+                # Check if this node matches
+                node_matches = node_guid in matching_guids_set if node_guid else False
+                
+                # Recursively filter children
+                children = node.get('children', [])
+                filtered_children = filter_recursive(children) if children else []
+                
+                # Include node if it matches or has matching children
+                if node_matches or filtered_children:
+                    new_node = node.copy()
+                    new_node['children'] = filtered_children
+                    filtered.append(new_node)
+            
+            return filtered
+        
+        return filter_recursive(tree_data)
+    except Exception as e:
+        # If query is invalid, show error and return empty
+        ui.notify(f'Invalid query: {str(e)}', type='negative')
+        return []
 
-        # Check if filter matches tag_str (node id) or GUID (extract from description)
-        match = filter_str in node_id
-
-        # Try to extract GUID from description if it exists
-        if not match and desc:
-            import re
-            guid_match = re.search(r'<code>([^<]+)</code>', desc)
-            if guid_match:
-                guid = guid_match.group(1).lower()
-                match = filter_str in guid
-
-        # Recursively filter children
-        children = node.get('children', [])
-        filtered_children = filter_tree_by_description(
-            children, filter_str) if children else []
-        if match or filtered_children:
-            new_node = node.copy()
-            new_node['children'] = filtered_children
-            filtered.append(new_node)
-    return filtered
 
 
-def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback, state: ClientState):
-    """Create the tree outline section for the dedicated tree page with custom description filter."""
+def _build_search_guide_nodes(tree_dict: Dict[str, Any], path: List[str] | None = None) -> List[Dict[str, Any]]:
+    path = path or []
+    nodes: List[Dict[str, Any]] = []
+    
+    # Separate direct properties from nested ones
+    direct_keys = []
+    nested_keys = []
+    
+    for key in tree_dict.keys():
+        if key == '__filters__':
+            continue
+        value = tree_dict[key]
+        # Check if this is a direct property (no nested dict children except __filters__)
+        has_nested_children = any(k != '__filters__' and isinstance(v, dict) for k, v in value.items())
+        if has_nested_children:
+            nested_keys.append(key)
+        else:
+            direct_keys.append(key)
+    
+    # Sort within each group
+    direct_keys.sort(key=str.lower)
+    nested_keys.sort(key=str.lower)
+    
+    # Process direct keys first, then nested keys
+    for key in direct_keys + nested_keys:
+        value = tree_dict[key]
+        next_path = path if key == '[list items]' else path + [key]
+        children = _build_search_guide_nodes(value, next_path)
+        
+        # Special handling for list items - flatten them into the parent
+        if key == '[list items]':
+            # Instead of creating a node for '[list items]', return its children directly
+            nodes.extend(children)
+            continue
+            
+        filters_source = value.get('__filters__')
+        filters = sorted(filters_source, key=str.lower) if filters_source else []
+        if key == '[list items]' and not children and filters_source:
+            children = []
+        description = ''
+        if filters:
+            description = '<div class="guide-templates">' + ''.join(
+                f'<div><code>{tmpl}</code></div>' for tmpl in filters
+            ) + '</div>'
+        node = {'id': key, 'children': children}
+        if description:
+            node['description'] = description
+            node['body'] = description
+        nodes.append(node)
+    return nodes
+
+
+def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback, state: ClientState, searcher: Searcher):
+    """Create the tree outline section for the dedicated tree page with searcher-based filtering."""
     ui.label('Tree Outline').classes(
         'text-center w-full text-xl font-semibold mb-2 text-white')
     safe_tree_data = sanitize_tree_data(
@@ -75,7 +141,56 @@ def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback, state
         'text-center w-full text-sm text-gray-300 mb-4')
 
     filter_input = ui.input(
-        'Filter by tag or GUID...').classes('w-full mb-4').props('dark outlined')
+        'Search query (e.g., @tag=E+A1 @type=SYMBOL)').classes('w-full mb-4').props('dark outlined')
+
+    guide_dialog = ui.dialog()
+
+    with guide_dialog, ui.card().classes('bg-gray-900 border border-gray-700 text-white w-[60rem] max-h-[70rem] overflow-hidden'):
+        ui.label('Searchable Fields Guide').classes('text-lg font-semibold mb-2')
+        ui.label('Tree of available keys for advanced queries.').classes('text-xs text-gray-400 mb-3')
+        guide_tree_container = ui.column().classes('w-full max-h-[60rem] overflow-y-auto')
+
+    def show_search_guide():
+        guide_tree_container.clear()
+        guide_structure = searcher.create_target_search_guide_tree()
+        guide_nodes = _build_search_guide_nodes(guide_structure)
+        with guide_tree_container:
+            if guide_nodes:
+                guide_tree = ui.tree(guide_nodes, label_key='id').props('dark no-transition').classes('text-white')
+                guide_tree.expand()
+                guide_tree.add_slot('default-body', '''
+                    <div v-if="props.node.description" v-html="props.node.description" @click="handleCodeClick"></div>
+                ''')
+            else:
+                ui.label('Guide unavailable. Index targets first.').classes('text-sm text-gray-400')
+        
+        # Add the click handler function to Vue global properties
+        ui.run_javascript('''
+            app.config.globalProperties.handleCodeClick = function(event) {
+                if (event.target.tagName === "CODE") {
+                    const text = event.target.textContent;
+                    navigator.clipboard.writeText(text).then(() => {
+                        // Show a brief success indication
+                        const originalBg = event.target.style.backgroundColor;
+                        event.target.style.backgroundColor = "#10b981";
+                        setTimeout(() => {
+                            event.target.style.backgroundColor = originalBg;
+                        }, 200);
+                    }).catch(err => {
+                        console.error("Failed to copy: ", err);
+                    });
+                }
+            }
+        ''')
+        
+        guide_dialog.open()
+
+    ui.button('Show Search Guide', on_click=show_search_guide).classes('self-start mb-2').props('color=primary outline')
+    
+    # Add help text for query syntax
+    with ui.row().classes('w-full mb-2 gap-2'):
+        ui.icon('info').classes('text-blue-400')
+        ui.label('Examples: tag pattern, @guid=xxx, @type=SYMBOL, @attributes(Length)=12m').classes('text-xs text-gray-400')
 
     # Add custom CSS for tree description styling
     ui.add_head_html('''
@@ -122,6 +237,22 @@ def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback, state
         .q-tree__node-header:hover {
             background-color: #374151 !important;
         }
+        .guide-templates div {
+            margin-bottom: 4px;
+        }
+        .guide-templates code {
+            background-color: #312e81;
+            color: #dbeafe;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .guide-templates code:hover {
+            background-color: #1e1b4b;
+        }
     </style>
     ''')
 
@@ -152,8 +283,8 @@ def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback, state
 
         def update_tree():
             tree_section.clear()
-            filter_str = filter_input.value or ''
-            filtered = filter_tree_by_description(safe_tree_data, filter_str)
+            query = filter_input.value or ''
+            filtered = filter_tree_by_searcher(safe_tree_data, searcher, query)
             if filtered and len(filtered) > 0:
                 with tree_section:
                     tree = ui.tree(
@@ -179,6 +310,9 @@ def create_tree_outline(tree_data: List[Dict[str, Any]], details_callback, state
 
 def create_tree_page(state: ClientState):
     """Create a dedicated page for displaying the tree structure."""
+    # Initialize searcher with indexed targets
+    searcher = Searcher(state.manager.god, init_index=["targets"])
+    
     with ui.card().classes('w-full h-screen no-shadow border-2 border-gray-700 bg-gray-900 flex flex-col max-w-full'):
         # Header
         with ui.card_section().classes('flex-shrink-0 bg-gray-800'):
@@ -267,10 +401,14 @@ def create_tree_page(state: ClientState):
                     if tree_data is None:
                         tree_data = []
                     print(f"Refreshing tree with {len(tree_data)} nodes")
+                    
+                    # Re-index targets when refreshing
+                    searcher.index_targets(state.manager.god.xtargets)
+                    
                     tree_container.clear()
                     with tree_container:
                         create_tree_outline(
-                            tree_data, update_side_panel, state)
+                            tree_data, update_side_panel, state, searcher)
 
                 # Initial load
                 refresh_tree()

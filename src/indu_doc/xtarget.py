@@ -1,8 +1,10 @@
 from functools import cache
 import hashlib
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Any
 import uuid
+
+from indu_doc.common_utils import normalize_string
 
 from .attributed_base import AttributedBase
 from .attributes import Attribute
@@ -70,3 +72,14 @@ class XTarget(AttributedBase):
 
     def __repr__(self) -> str:
         return f"Object(tag={self.tag}, attributes={self.attributes})"
+    
+    def to_dict(self) -> dict[str, Any]:
+        attrs = {}
+        for attr in (self.attributes if self.attributes else []):
+            attrs.update(attr.get_search_entries())
+        return {
+            "tag": normalize_string(self.tag.tag_str),
+            "guid": self.get_guid(),
+            "type": normalize_string(self.target_type.value),
+            "attributes": attrs,
+        }

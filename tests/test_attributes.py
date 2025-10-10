@@ -62,9 +62,8 @@ class TestSimpleAttribute:
         attr = SimpleAttribute("color", "red")
         entries = attr.get_search_entries()
 
-        assert isinstance(entries, list)
-        assert len(entries) == 1
-        assert entries[0] == "red"
+        assert isinstance(entries, dict)
+        assert entries == {"color": "red"}
 
     def test_get_value_type(self):
         """Test getting value type."""
@@ -155,7 +154,7 @@ class TestSimpleAttribute:
         attr = SimpleAttribute("note", "")
 
         assert attr.value == ""
-        assert attr.get_search_entries() == [""]
+        assert attr.get_search_entries() == {"note": ""}
 
 
 class TestRoutingTracksAttribute:
@@ -215,7 +214,7 @@ class TestRoutingTracksAttribute:
         attr = RoutingTracksAttribute("route", ["R1", "R2", "R3"])
         entries = attr.get_search_entries()
 
-        assert entries == ["R1", "R2", "R3"]
+        assert entries == {"tracks": ["R1", "R2", "R3"]}
 
     def test_hash(self):
         """Test that routing tracks attribute is hashable."""
@@ -292,7 +291,7 @@ class TestRoutingTracksAttribute:
         attr = RoutingTracksAttribute("route", [])
 
         assert attr.tracks == []
-        assert attr.get_search_entries() == []
+        assert attr.get_search_entries() == {"tracks": []}
 
     def test_single_track(self):
         """Test with single track."""
