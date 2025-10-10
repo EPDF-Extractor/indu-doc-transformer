@@ -404,7 +404,7 @@ class PageProcessor:
             meta: dict[str, str] = {}
             for name in other:
                 value = str(row[name]).strip()
-                if name != "" and value != "":
+                if name and value:
                     meta[name] = value
 
             # create attribute
@@ -455,7 +455,7 @@ if __name__ == "__main__":
     god = God(configs=default_configs)
     processor = PageProcessor(god)
 
-    page = doc.load_page(82)  # Load the first page
+    page = doc.load_page(211)  # Load the first page
     page_type = detect_page_type(page)
     if page_type is not None:
         processor.run(page, page_type)
@@ -467,6 +467,7 @@ if __name__ == "__main__":
     for id, tgt in god.xtargets.items():
         print(tgt)
         print(tgt.tag.get_aspects())
+        print(tgt.attributes)
 
     for id, a in god.aspects.items():
         print(a)
