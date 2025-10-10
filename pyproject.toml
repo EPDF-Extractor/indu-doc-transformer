@@ -27,6 +27,7 @@ dependencies = [
     "nicegui>=2.24.0",
     "lxml>=6.0.2",
     "pywebview>=6.0",
+    "lark>=1.2.2",
 ]
 
 [project.scripts]
