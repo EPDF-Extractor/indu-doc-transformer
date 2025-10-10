@@ -3,9 +3,10 @@ import json
 from abc import ABC, abstractmethod
 from enum import Enum
 import hashlib
-from types import UnionType
 from typing import Any, Union
 import uuid
+
+from indu_doc.common_utils import normalize_string
 
 
 class Attribute(ABC):
@@ -35,11 +36,11 @@ class Attribute(ABC):
         pass
 
     @abstractmethod
-    def get_search_entries(self) -> list[str]:
-        """Return a list of strings that can be used for searching, e.g., in a search index.
+    def get_search_entries(self) -> dict[str, Any]:
+        """Return a dictionary of field-value pairs that can be used for searching, e.g., in a search index.
         The idea is to extract relevant text from the attribute for search purposes and create a table inside the db for this.
         Returns:
-            list[str]: A list of strings for searching.
+            dict[str, Any]: A dictionary with field names as keys and their values for searching.
         """
         pass
 
@@ -87,8 +88,8 @@ class SimpleAttribute(Attribute):
         data = json.loads(db_str)
         return cls(name=data["name"], value=data["value"])
 
-    def get_search_entries(self) -> list[str]:
-        return [self.value]
+    def get_search_entries(self) -> dict[str, Any]:
+        return {normalize_string(self.name): normalize_string(self.value)}
 
     @classmethod
     def get_value_type(cls) -> type:
@@ -129,8 +130,8 @@ class RoutingTracksAttribute(Attribute):
         data = json.loads(db_str)
         return cls(name=data["name"], tracks=data["tracks"])
 
-    def get_search_entries(self) -> list[str]:
-        return self.tracks
+    def get_search_entries(self) -> dict[str, Any]:
+        return {"tracks": self.tracks}
 
     @classmethod
     def get_value_type(cls) -> Any:
