@@ -155,33 +155,51 @@ class InternalConnection(InternalElementBase):
 
 # TODO might not need it if BMK for XTargets is allowed (currently as a bug theyre allowed)
 
-class InternalAspectBase(InternalElementBase):
+class InternalAspect(InternalElementBase):
+    # it is also an aspect but for the selected InstanceHierarchy.
+    # For ECAD it is "ECAD". This is also to make diamondID distinct from ID
+    # (for DiamondID it is empty and thus consistent over trees; other Internal elements do not appear in not ECAD InstanceHierarchies)
     prefix: str  # = separator
     bmk: str     # accumulated separators and levels
     name: str    # name of current level aspect
-    base: "InternalAspectBase | None" = None
+    base: "InternalAspect | None" = None
+    aspect: Aspect
+    
+    perspective: str
+    diamondID: GUID
 
-    def __init__(self, aspect: Aspect, base: "InternalAspectBase | None" = None):
+    def __init__(self, perspective: str, aspect: Aspect, base: "InternalAspect | None" = None):
         self.aspect = aspect
         self.name = aspect.value
         self.prefix = aspect.separator
         self.base = base
         # accumulate bmk
         self.bmk = (base.bmk if base else "") + str(aspect)
-        # accumulate guid (can not use aspect ID as it is non unique)
+        # accumulate guid (can not use aspect GUID as it is non unique)
         self.id = self._create_guid({
             "prefix": self.prefix,
             "name": self.name,
             "base": self.base.id if self.base else ""
         })
+        # set diamondId 
+        self.diamondID = aspect.get_guid()
+        # Update ID based on perspective (make unq across trees)
+        self.perspective = perspective
+        unq = {  # do not copy to reuse!
+            "base": self.id,
+            "salt": self.perspective
+        }
+        self._set_guid(self._create_guid(unq))  # will override self.id and check uniqueness
 
     def serialize(self) -> et._Element:
-        if self.__class__ == type(InternalAspectBase):
-            raise ValueError("Do not serialize InternalAspectBase directly")
-
         root = et.Element("InternalElement")
         root.set("Name", self.name)
         root.set("ID", self.id)
+
+        # Add diamondID (must go first)
+        item = et.SubElement(root, "SourceObjectInformation")
+        item.set("OriginID", "DiamondId")
+        item.set("SourceObjID", self.diamondID)
 
         # Add Prefix
         item = et.SubElement(root, "Attribute")
@@ -195,34 +213,6 @@ class InternalAspectBase(InternalElementBase):
         item.set("AttributeDataType", "xs:string")  # TODO: for now all strings
         et.SubElement(item, "Value").text = self.bmk
 
-        return root
-
-
-class InternalAspect(InternalAspectBase):
-    # it is also an aspect but for the selected InstanceHierarchy.
-    # For ECAD it is "ECAD". This is also to make diamondID distinct from ID
-    # (for DiamondID it is empty and thus consistent over trees; other Internal elements do not appear in not ECAD InstanceHierarchies)
-    perspective: str
-    diamondID: GUID
-
-    def __init__(self, perspective: str, aspect: Aspect, base: "InternalAspectBase | None" = None):
-        super().__init__(aspect, base)
-        # set diamondId
-        self.diamondID = aspect.get_guid()
-        # Update ID based on perspective (make unq across trees)
-        self.perspective = perspective
-        unq = {  # do not copy to reuse!
-            "base": self.id,
-            "salt": self.perspective
-        }
-        self._set_guid(self._create_guid(unq))  # will override self.id and check uniqueness
-
-    def serialize(self) -> et._Element:
-        root = super().serialize()
-        # Add diamondID
-        item = et.SubElement(root, "SourceObjectInformation")
-        item.set("OriginID", "DiamondId")
-        item.set("SourceObjID", self.diamondID)
         # Add all atributes
         for attr in self.aspect.attributes:
             item = InternalAttribute(attr).serialize()
@@ -238,7 +228,7 @@ class InternalXTarget(InternalElementBase):
     # this one required to create ...OrientedReferenceDesignation stuff
     aspects: dict[str, str]
     #
-    base: InternalAspectBase | None
+    base: InternalAspect | None
 
     serialized: bool = False
 
@@ -255,7 +245,7 @@ class InternalXTarget(InternalElementBase):
             self.aspects[levels[sep].Aspect.lower()] += "".join(sep +
                                                                 n for n in names)
 
-    def set_base(self, base: InternalAspectBase):
+    def set_base(self, base: InternalAspect):
         self.base = base
 
     def serialize(self) -> et._Element:
@@ -552,8 +542,8 @@ if __name__ == "__main__":
     print(et.tostring(item, pretty_print=True))
 
     it = InternalXTarget(tgt_a, configs.levels)
-    it.set_base(InternalAspectBase(
-        Aspect("+", "B"), InternalAspectBase(Aspect("=", "A"), None)))
+    it.set_base(InternalAspect("ECAD", Aspect("+", "B"), 
+        InternalAspect("ECAD", Aspect("=", "A"), None)))
     item = it.serialize()
     print(et.tostring(item, pretty_print=True))
 
