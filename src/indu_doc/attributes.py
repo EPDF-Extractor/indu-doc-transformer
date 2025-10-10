@@ -178,7 +178,8 @@ class PLCAddressAttribute(Attribute):
         return dict[str, str]
 
     def __hash__(self) -> int:
-        return hash((self.name, self.meta))
+        meta_str = ';'.join(f"{k}={v}" for k, v in sorted(self.meta.items()))
+        return hash((self.name, meta_str))
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, RoutingTracksAttribute):
@@ -207,4 +208,5 @@ class AttributeType(Enum):
 AvailableAttributes: dict[AttributeType, type[Attribute]] = {
     AttributeType.SIMPLE: SimpleAttribute,
     AttributeType.ROUTING_TRACKS: RoutingTracksAttribute,
+    AttributeType.PLC_ADDRESS: PLCAddressAttribute,
 }
