@@ -619,7 +619,11 @@ class TableExtractor:
         if not tables:
             raise ValueError("No required tables found on the page")
         
-        return tables[0].to_pandas(), []
+        # table extractor catches text above table as header - remove
+        df = tables[0].to_pandas()
+        df = promote_header(df)
+        
+        return df, []
 
 
     @staticmethod
