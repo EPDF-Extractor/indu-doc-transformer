@@ -6,6 +6,7 @@ import pandas as pd
 import pymupdf  # type: ignore
 import logging
 from .common_page_utils import PageType, PageError, ErrorType
+from .extraction_settings import rect, PageSetup, TableSetup, ExtractionSettings
 
 logger = logging.getLogger(__name__)
 # In pt
@@ -67,7 +68,7 @@ def extract_spans(page, clip=None, tolerance = 0.1):
     return spans
 
 
-def detect_overlaps(text_blocks):
+def detect_overlaps(text_blocks) -> list[tuple[str, str, rect, rect]]:
     overlaps = []
 
     rects = [(pymupdf.Rect(x0, y0, x1, y1), text)
@@ -97,7 +98,7 @@ def detect_row_overlaps(table, overlaps):
     return affected_rows
 
 
-def fix_row_overlaps(table, overlaps, method="center"):
+def fix_row_overlaps(table, overlaps: list[tuple[str, str, rect, rect]], method="center") -> list[tuple[int, rect, tuple[int, str], tuple[int, str]]]:
     affected_rows = []
 
     for t1, t2, rect1, rect2 in overlaps:
@@ -117,30 +118,69 @@ def fix_row_overlaps(table, overlaps, method="center"):
                         repl_1 = (idx, t1)
                     if cell.contains(rect2_center):
                         repl_2 = (idx, t2)
+
                 affected_rows.append((r, row.bbox, repl_1, repl_2))
 
-    return affected_rows
-                
+    return affected_rows # type: ignore
+
+
+def to_df_with_loc(
+    table: pymupdf.Table, 
+    loc_col_name: str = "_loc", 
+    row_offset: int = 0, 
+    header: list[str] = []
+) -> pd.DataFrame:
+    ''' extracts df from pymupdf table. 
+    Select header row using row_offset: (row_offset+1) row is taken as header
+    Adds loc_col_name attr with row bbox to each row. Start loc_col_name with '_'
+    Can create None or empty cells. Can create phantom rows and columns
+    '''
+    if row_offset < -1:
+        raise ValueError(
+            f"Can not demote on {-row_offset} levels")
+    
+    # In case of demotion to_pandas breaks table header to make it unq - save original
+    old_header = list(table.header.names)
+    #
+    df = table.to_pandas(header=False)
+    # promote/demote
+    if row_offset < 0:
+        df.columns = old_header # only for demotion so values are preserved
+        df = demote_header(df)
+    elif row_offset > 1:
+        df = promote_header(df, row_offset)
+    # overwrite header
+    if header:
+        df.columns = header
+
+    # get locations
+    bboxes = [r.bbox for r in table.rows]
+    # very weird thing here: sometimes pymupdf includes header bbox into table.rows and sometimes not
+    # fix: if already has header - do not add it:
+    if table.row_count > 0 and not np.allclose(table.rows[0].bbox, table.header.bbox, rtol=1e-9, atol=1e-9):
+        bboxes = [table.header.bbox] + bboxes
+    # attach _loc
+    df[loc_col_name] = bboxes[row_offset+1:]  
+    return df      
 
 
 class TableExtractor:
-    _type_handlers = {
-        PageType.CONNECTION_LIST: lambda cls, page: cls.extract_connection_list(page),
-        PageType.DEVICE_TAG_LIST: lambda cls, page: cls.extract_device_tag_list(page),
-        PageType.DEVICE_LIST_DE: lambda cls, page: cls.extract_device_tag_list_de(page),
-        PageType.CABLE_OVERVIEW: lambda cls, page: cls.extract_cable_overview(page),
-        PageType.CABLE_PLAN: lambda cls, page: cls.extract_cable_plan(page),
-        PageType.TOPOLOGY: lambda cls, page: cls.extract_topology(page),
-        PageType.WIRES_PART_LIST: lambda cls, page: cls.extract_wires_part_list(page),
-        PageType.TERMINAL_DIAGRAM: lambda cls, page: cls.extract_terminal_diagram(page),
-        PageType.CABLE_DIAGRAM: lambda cls, page: cls.extract_cable_diagram(page),
-        PageType.STRUCTURE_IDENTIFIER_OVERVIEW: lambda cls, page: cls.extract_structure_identifier_overview(page),
-        PageType.PLC_DIAGRAM: lambda cls, page: cls.extract_plc_diagram(page),
-    }
+
+    @classmethod
+    def get_extractor(cls, what):
+        _type_handlers = {
+            PageType.CABLE_PLAN: cls.extract_cable_plan,
+            PageType.TERMINAL_DIAGRAM: cls.extract_terminal_diagram,
+            PageType.CABLE_DIAGRAM: cls.extract_cable_diagram,
+        }
+        return _type_handlers.get(what, cls.extract_main_stub)
 
     @classmethod
     def extract(
-        cls, pages: pymupdf.Page | list[pymupdf.Page], what
+        cls, 
+        pages: pymupdf.Page | list[pymupdf.Page], 
+        what: PageType,
+        setup: PageSetup
     ) -> tuple[Optional[pd.DataFrame], list[PageError]]:
         if isinstance(pages, pymupdf.Page):
             pages = [pages]  # make it a list
@@ -148,16 +188,17 @@ class TableExtractor:
         if len(pages) == 0:
             return None, []
 
-        f = cls._type_handlers.get(what, None)
-        assert f is not None, f"Specified table type '{what}' does not have a processor"
         # concat the rest
         tables = []
         errors: list[PageError] = []
         for p in pages:
             page_num = (p.number + 1) if p.number is not None else "unknown"
-            logger.warning(f"Extracting '{what}' from page #{page_num}")
+            logger.info(f"Extracting '{what}' from page #{page_num}")
             try:
-                t, msgs = f(cls, p)
+                # 1st: Do generalized table extraction
+                dfs, msgs = extract_tables(p, setup)
+                # 2nd: Do table speciefic processing
+                t, msgs = cls.get_extractor(what)(dfs)
                 tables.append(t)
                 errors += msgs
             except ValueError as ve:
@@ -185,110 +226,13 @@ class TableExtractor:
         return table_df, errors
 
     @staticmethod
-    def extract_connection_list(page) -> tuple[pd.DataFrame, list[PageError]]:
-        tables = list(page.find_tables())
-        if len(tables) < 2:
-            raise ValueError("No required tables found on the page")
+    def extract_main_stub(dfs: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, list[PageError]]:
+        if "main" not in dfs:
+            raise ValueError(f"Required table was not found: {"main"}")
+        return dfs["main"], []
 
-        # TODO selection logic
-        t1 = tables[1]
-        t2 = tables[2] if len(tables) > 2 else None
 
-        if t1 is None:
-            raise ValueError("No required tables found on the page")
-
-        # Preserve header - to_pandas breaks empty fields
-        header = list(t1.header.names)
-        df1 = t1.to_pandas()
-
-        # Single table case
-        if t2 is None:
-            return df1
-
-        # Two tables case - combine them
-        if t1.col_count != t2.col_count:
-            raise ValueError(
-                f"Column count mismatch between tables: {t1.col_count} vs {t2.col_count}"
-            )
-
-        header_row = pd.DataFrame([t2.header.names], columns=header)
-        df2 = pd.DataFrame(t2.to_pandas().values, columns=header)
-
-        return pd.concat([df1, header_row, df2], ignore_index=True), []
-
-    @staticmethod
-    def extract_device_tag_list_de(page) -> tuple[pd.DataFrame, list[PageError]]:
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
-            raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
-
-        # TODO cliprect check
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 33, 132, 1170, 780)))
-        if not tables:
-            raise ValueError(
-                "No tables found in the specified clip area on the page")
-        return tables[0].to_pandas()
-
-    @staticmethod
-    def extract_device_tag_list(page) -> tuple[pd.DataFrame, list[PageError]]:
-        tables = list(page.find_tables())
-        if not tables:
-            raise ValueError("No tables found on the page")
-        # TODO selection logic
-        t = tables[1]
-        df = t.to_pandas()
-        #
-        return pd.DataFrame(
-            df.values[1:], columns=df.values[0]
-        ), [] # use 1st row as header
-
-    @staticmethod
-    def extract_cable_overview(page) -> tuple[pd.DataFrame, list[PageError]]:
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
-            raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
-
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 33, 33, 1170, 780)))
-        if not tables:
-            raise ValueError("No tables found on the page")
-        df = tables[0].to_pandas()
-
-        # use 1st row as header
-        df = pd.DataFrame(df.values[1:], columns=df.values[0])
-
-        # drop empty/None cols
-        df = df.drop(
-            columns=[col for col in df.columns if col is None or col == ""])
-
-        # disjoin "from to" column
-        col_to_drop = df.columns[1]
-        split_cols = df[col_to_drop].str.split(" ", expand=True)
-        if split_cols.shape[1] != 2:
-            raise ValueError(
-                f"Expected at most 2 columns after split 'from to' column, got {split_cols.shape[1]}, meaning some name had spaces in it!"
-            )
-        df[["from", "to"]] = split_cols
-        df = df.drop(columns=[col_to_drop])
-        # forward fill rows where designation is null, but src & dest are filled in
-        # rows where designation is null but "from" and "to" are not
-        mask = df[df.columns[0]].eq('') & df["from"].ne('') & df["to"].ne('')
-        df.loc[mask, df.columns[0]] = df[df.columns[0]].replace('', pd.NA).ffill()
-
-        # clean empty rows
-        # TODO findot what chars to ignore: s.str.rstrip('.!? \n\t')
-        # TODO unit test this
-        df = df[df.apply(lambda row: row.astype(
-            str).str.strip().ne('').any(), axis=1)]
-        return df, []
-
+    # TODO can not detect in sample doc
     @staticmethod
     def extract_cable_plan(page) -> tuple[pd.DataFrame, list[PageError]]:
         w = page.rect.width
@@ -360,57 +304,10 @@ class TableExtractor:
         return df, []
 
     @staticmethod
-    def extract_topology(page) -> tuple[pd.DataFrame, list[PageError]]:
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
-            raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
-
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 33, 75, 1170, 780)))
-        # logger.debug_table_overview(tables)
-        if not tables:
-            raise ValueError("No required tables found on the page")
-
-        return tables[0].to_pandas(), []
-
-    @staticmethod
-    def extract_wires_part_list(page) -> tuple[pd.DataFrame, list[PageError]]:
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
-            raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
-
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 33, 70, 1170, 780)))
-        # logger.debug_table_overview(tables)
-        if not tables:
-            raise ValueError("No required table found on the page")
-
-        df = tables[0].to_pandas()
-        return pd.DataFrame(
-            df.values[1:], columns=df.values[0]
-        ), []  # use 1st row as header
-
-    @staticmethod
-    def extract_cable_diagram(page) -> tuple[pd.DataFrame, list[PageError]]:
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
-            raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
-        #
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 33, 70, 1170, 780)))
-        if not tables:
-            raise ValueError("No required table found on the page")
-        # No way I can separate tables by coods - need to detect here
-        df = tables[0].to_pandas()
+    def extract_cable_diagram(dfs: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, list[PageError]]:
+        if "main" not in dfs:
+            raise ValueError(f"Required table was not found: {"main"}")
+        df = dfs["main"]
         i = 0
         tables = []
         while i < len(df):
@@ -443,99 +340,20 @@ class TableExtractor:
         return pd.concat(tables, ignore_index=True), []
 
     @staticmethod
-    def extract_terminal_diagram(page) -> tuple[pd.DataFrame, list[PageError]]:
+    def extract_terminal_diagram(dfs: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, list[PageError]]:
         errors: list[PageError] = []
         #
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
-            raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
-        # Left side Cables
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 20, 33, 410, 237)))
-        if not tables:
-            raise ValueError(
-                "No required tables found on the page: left cable info")
-        # preserve header as to_pandas breaks it
-        header = list(tables[0].header.names)
-        df = tables[0].to_pandas()
-        df.columns = header  # restore original names (.to_pandas breaks it)
-        df_l_cables = demote_header(df)
-        # Left side Cable Connections
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 20, 237, 410, 780)))
-        if not tables:
-            raise ValueError(
-                "No required tables found on the page: left color info")
-        df_l_conn = tables[0].to_pandas()
-        # forward fill '=' stuff
-        # rows where designation is null but "from" and "to" are not
-        df.iloc[:, 0] = df.iloc[:, 0].replace("=", pd.NA).ffill()
-        # Connections
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 410, 33, 780, 780)))
-        if not tables:
-            raise ValueError(
-                "No required tables found on the page: connection info")
-        # expand region of search beyond table in case of huge overlaps
-        spans = extract_spans(page, clip=get_clip_rect(w, h, 20, 260, 1170, 780))
-        overlaps = detect_overlaps(spans)
-        overlapping_rows = []
-        try:
-            if overlaps:
-                overlapping_rows = fix_row_overlaps(tables[0], overlaps)
-        except:
-            import traceback
-            traceback.print_exc()
-        df_center = tables[0].to_pandas()
-        # Right side Cables
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 780, 33, 1170, 237)))
-        if not tables:
-            raise ValueError(
-                "No required tables found on the page: right cable info")
-        # preserve header as to_pandas breaks it
-        header = list(tables[0].header.names)
-        df = tables[0].to_pandas()
-        df.columns = header  # restore original names (.to_pandas breaks it)
-        df_r_cables = demote_header(df)
-        # Right side Cable Connections
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 780, 237, 1170, 780)))
-        if not tables:
-            raise ValueError(
-                "No required tables found on the page: right color info")
-        df_r_conn = tables[0].to_pandas()
+        df_center   = dfs["main"]
+        df_r_cables = dfs["r_cables"]
+        df_r_conn   = dfs["r_conn"]
+        df_l_cables = dfs["l_cables"]
+        df_l_conn   = dfs["l_conn"]
 
         # here I have to do preprocessing to make a single df
         strip_info = df_center.columns[0]
         strip_name = strip_info.splitlines()[1]
 
         df = promote_header(df_center)
-
-        # Apply overlaps fix 
-        if overlapping_rows:
-            for row, _, repl1, repl2  in overlapping_rows:
-                # -2 as promote_header & index counts from 1 in detect_row_overlaps
-                row -= 2
-                # apply replacements
-                if repl1:
-                    msg = f"row #{row} overlap detected: replaced col #{repl1[0]}: {df.iloc[row, repl1[0]]} -> {repl1[1]}"
-                    errors.append(PageError(msg, error_type=ErrorType.INFO))
-                    logger.warning(msg)
-                    df.iloc[row, repl1[0]] = repl1[1]
-                if repl2:
-                    msg = f"row #{row} overlap detected: replaced col #{repl2[0]}: {df.iloc[row, repl2[0]]} -> {repl2[1]}"
-                    errors.append(PageError(msg, error_type=ErrorType.INFO))
-                    logger.warning(msg)
-                    df.iloc[row, repl2[0]] = repl2[1]
-                # log
-                if not (repl1 and repl2):
-                    msg = f"row #{row} overlap detected: could not repair (fully)"
-                    errors.append(PageError(msg, error_type=ErrorType.WARNING))
-                    logger.warning(msg)
 
         #
         def transform_dataframe(df_cables, df_conn):
@@ -602,60 +420,96 @@ class TableExtractor:
         df.insert(0, "Strip", strip_name)
 
         return df, errors
-    
 
-    @staticmethod
-    def extract_structure_identifier_overview(page) -> tuple[pd.DataFrame, list[PageError]]:
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
-            raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
 
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 32, 70, 1170, 780)))
-        # logger.debug_table_overview(tables)
+def extract_tables(page: pymupdf.Page, page_setup: PageSetup) -> tuple[dict[str, pd.DataFrame], list[PageError]]:
+    ''' Universal table extractor which behavior is specified and extended by PageSetup '''
+
+    errors: list[PageError] = []
+    res: dict[str, pd.DataFrame] = {}
+    for key, table_setup in page_setup.tables.items():
+        print(table_setup.lines)
+        tables = list(page.find_tables(clip=table_setup.roi, add_lines=table_setup.lines))
         if not tables:
-            raise ValueError("No required tables found on the page")
-        
-        # table extractor catches text above table as header - remove
-        df = tables[0].to_pandas()
-        df = promote_header(df)
-        
-        return df, []
-
-
-    @staticmethod
-    def extract_plc_diagram(page) -> tuple[pd.DataFrame, list[PageError]]:
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
             raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
-
-        tables = list(page.find_tables(
-            clip=get_clip_rect(w, h, 32, 70, 1170, 780)))
+                f"No required table(s) found on the page: {key}")
         
-        if not tables:
-            raise ValueError("No required tables found on the page")
+        if len(tables) > table_setup.expected_num_tables:
+            raise ValueError(
+                f"Expected <= {table_setup.expected_num_tables} tables, found more: {len(tables)}")
 
-        # get rid of table text on top
-        df = tables[0].to_pandas()
-        df = promote_header(df, 2)  # TODO extract project name
+        # do overlap detection if required - expensive! - doesnt work with >1 tables
+        overlap_fixes = []
+        if table_setup.overlap_test_roi:
+            if len(tables) > 1:
+                raise ValueError(
+                    f"Overlap detection does not work witn many tables")
+            spans = extract_spans(page, clip=table_setup.overlap_test_roi)
+            overlaps = detect_overlaps(spans)
+            overlap_fixes = fix_row_overlaps(tables[0], overlaps) if overlaps else []
 
-        # get rid of empty rows
-        df = df[df.apply(lambda row: row.astype(
-            str).str.strip().ne('').any(), axis=1)]
+        # test header size mathch
+        sz = tables[0].col_count
+        if sz != len(table_setup.columns):
+            print(repr(tables[0]))
+            raise ValueError(
+                f"Expected {len(table_setup.columns)} columns, found {sz}")
         
-        # forward fill Device Tag
-        df.iloc[:, 0] = df.iloc[:, 0].replace("", pd.NA).ffill()
-
-        # forward fill '=' stuff
-        df.iloc[:, 3] = df.iloc[:, 3].replace("=", pd.NA).ffill()
+        # assign new header out of table_setup.columns
+        columns = list(table_setup.columns.keys())
         
-        return df, []
+        # to pandas
+        dfs = [to_df_with_loc(tables[0], row_offset=table_setup.row_offset, header=columns)]
+        for t in tables[1:]:
+            # test header size mathch
+            if sz != t.col_count:
+                raise ValueError(
+                    f"Expected {sz} columns, found {t.col_count}")
+            # get promotion/demotion level
+            lvl = table_setup.row_offset + (-1 if table_setup.on_many_no_header else 0)
+            # convert to df
+            df = to_df_with_loc(t, row_offset=lvl, header=columns)
+            dfs.append(df)
+
+        df = pd.concat(dfs, ignore_index=True)
+
+        # apply overlap fix
+        if overlap_fixes:
+            for row, _, repl1, repl2 in overlap_fixes:
+                # as index counts from 1 in detect_row_overlaps
+                row -= 1 + table_setup.row_offset
+                # apply replacements
+                if repl1:
+                    msg = f"row #{row} overlap detected: replaced col #{repl1[0]}: {df.iloc[row, repl1[0]]} -> {repl1[1]}"
+                    errors.append(PageError(msg, error_type=ErrorType.INFO))
+                    logger.warning(msg)
+                    df.iloc[row, repl1[0]] = repl1[1]
+                if repl2:
+                    msg = f"row #{row} overlap detected: replaced col #{repl2[0]}: {df.iloc[row, repl2[0]]} -> {repl2[1]}"
+                    errors.append(PageError(msg, error_type=ErrorType.INFO))
+                    logger.warning(msg)
+                    df.iloc[row, repl2[0]] = repl2[1]
+                # log
+                if not (repl1 and repl2):
+                    msg = f"row #{row} overlap detected: could not repair (fully)"
+                    errors.append(PageError(msg, error_type=ErrorType.WARNING))
+                    logger.warning(msg)
+
+        # remove ignored columns
+        ignored = [k for k, v in table_setup.columns.items() if not v]
+        df = df.drop(columns=ignored)
+
+        # keep only rows where there is at least one non-empty string value
+        # 1. ignore meta cols
+        cols = [col for col in df.columns if not col.startswith('_')]
+        df = df[df[cols].apply(lambda row: row.notnull() & (row != ''), axis=1).any(axis=1)]
+
+        # do forward fill (? here)
+
+        # attach to res
+        res[key] = df
+
+    return res, errors    
 
 
 if __name__ == "__main__":
