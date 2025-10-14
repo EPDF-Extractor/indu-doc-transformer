@@ -122,13 +122,7 @@ class Manager:
 
                     # type: ignore
                     logger.info(f"Processing page {page.number + 1}")
-                    page_type = detect_page_type(page)
-                    if page_type:
-                        self.page_processor.run(page, page_type)
-                    else:
-                        logger.info(
-                            # type: ignore
-                            f"Could not detect page type for page #{page.number + 1}")
+                    self.page_processor.run(page)
 
                 doc.close()
 
