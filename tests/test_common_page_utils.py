@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 from indu_doc.common_page_utils import (
     PageType,
     PageInfo,
-    header_map_en,
     detect_page_type,
 )
 from indu_doc.footers import PageFooter
@@ -79,60 +78,6 @@ class TestPageType:
         """Test checking enum membership."""
         assert PageType.CONNECTION_LIST in PageType
         assert PageType.CABLE_OVERVIEW in PageType
-
-
-class TestHeaderMapEn:
-    """Test English header mapping."""
-
-    def test_header_map_exists(self):
-        """Test that header_map_en exists."""
-        assert header_map_en is not None
-        assert isinstance(header_map_en, dict)
-
-    def test_cable_overview_headers(self):
-        """Test cable overview headers."""
-        headers = header_map_en[PageType.CABLE_OVERVIEW]
-
-        assert "Cable designation" in headers
-        assert "Cable type" in headers
-        assert "From" in headers
-        assert "To" in headers
-
-    def test_cable_diagram_headers(self):
-        """Test cable diagram headers."""
-        headers = header_map_en[PageType.CABLE_DIAGRAM]
-
-        assert "src_tag" in headers
-        assert "src_pin" in headers
-        assert "dst_tag" in headers
-        assert "dst_pin" in headers
-        assert "cable_tag" in headers
-        assert "Color" in headers
-
-    def test_terminal_diagram_headers(self):
-        """Test terminal diagram headers."""
-        headers = header_map_en[PageType.TERMINAL_DIAGRAM]
-
-        assert "strip_tag" in headers
-        assert "src_cable_tag" in headers
-        assert "src_tag" in headers
-        assert "src_pin" in headers
-        assert "strip_pin" in headers
-        assert "dst_tag" in headers
-        assert "dst_pin" in headers
-
-    def test_all_header_lists_are_lists(self):
-        """Test that all header values are lists."""
-        for page_type, headers in header_map_en.items():
-            assert isinstance(headers, list)
-            assert len(headers) > 0
-
-    def test_headers_contain_strings(self):
-        """Test that headers contain strings."""
-        for page_type, headers in header_map_en.items():
-            for header in headers:
-                assert isinstance(header, str)
-                assert len(header) > 0
 
 
 class TestPageInfo:
@@ -226,7 +171,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.CONNECTION_LIST: "connection list"})
 
         assert result == PageType.CONNECTION_LIST
 
@@ -248,7 +193,13 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(
+            mock_page, 
+            {
+                PageType.CABLE_DIAGRAM: "Cable diagram", 
+                PageType.CONNECTION_LIST: "connection list"
+            }
+        )
 
         assert result == PageType.CABLE_DIAGRAM
 
@@ -270,7 +221,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.CONNECTION_LIST: "connection list"})
 
         assert result == PageType.CONNECTION_LIST
 
@@ -292,7 +243,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.CONNECTION_LIST: "connection list"})
 
         assert result == PageType.CONNECTION_LIST
 
@@ -314,7 +265,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.CONNECTION_LIST: "connection list"})
 
         assert result is None
 
@@ -336,7 +287,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.CONNECTION_LIST: "connection list"})
 
         assert result is None
 
@@ -358,7 +309,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.CONNECTION_LIST: "connection list"})
 
         assert result is None
 
@@ -382,7 +333,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.CABLE_DIAGRAM: "Cable diagram"})
 
         assert result == PageType.CABLE_DIAGRAM
 
@@ -413,7 +364,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.TERMINAL_DIAGRAM: "terminal diagram"})
 
         assert result == PageType.TERMINAL_DIAGRAM
 
@@ -423,7 +374,7 @@ class TestDetectPageType:
         mock_page.number = 0
         mock_page.get_text.return_value = {"blocks": []}
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.TERMINAL_DIAGRAM: "terminal diagram"})
 
         assert result is None
 
@@ -437,7 +388,7 @@ class TestDetectPageType:
             ]
         }
 
-        result = detect_page_type(mock_page)
+        result = detect_page_type(mock_page, {PageType.TERMINAL_DIAGRAM: "terminal diagram"})
 
         assert result is None
 
@@ -492,7 +443,7 @@ class TestPageInfoIntegration:
             ]
         }
 
-        detected_type = detect_page_type(mock_page)
+        detected_type = detect_page_type(mock_page, {PageType.CONNECTION_LIST: "connection list"})
         footer = PageFooter(project_name="Test", product_name="Test", tags=[])
 
         page_info = PageInfo(
