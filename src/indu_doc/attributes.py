@@ -5,6 +5,7 @@ from enum import Enum
 import hashlib
 from typing import Any, Union
 import uuid
+import numpy as np
 
 from indu_doc.common_utils import normalize_string
 
@@ -170,8 +171,8 @@ class PLCAddressAttribute(Attribute):
         data = json.loads(db_str)
         return cls(address=data["name"], meta=data["meta"])
 
-    def get_search_entries(self) -> list[str]:
-        return list(self.meta.values())
+    def get_search_entries(self) -> dict[str, Any]:
+        return self.meta
 
     @classmethod
     def get_value_type(cls) -> type:
@@ -194,6 +195,48 @@ class PLCAddressAttribute(Attribute):
         return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{meta_str}".encode()).digest()))
 
 
+
+class PDFLocationAttribute(Attribute):
+    """An attribute representing position information inside a PDF page.
+    This attribute holds a rectangle where the info was found
+    """
+
+    def __init__(self, name: str, meta: tuple[int, tuple[float, float, float, float]]) -> None:
+        super().__init__(name)
+        self.bbox = meta[1]
+        self.page_no = meta[0]
+
+    def get_db_representation(self) -> str:
+        return json.dumps({"name": self.name, "bbox": self.bbox, "page_no": self.page_no})
+
+    @classmethod
+    def from_db_representation(cls, db_str: str) -> "PDFLocationAttribute":
+        data = json.loads(db_str)
+        return cls(name=data["name"], meta=(data["page_no"], data["bbox"]))
+
+    def get_search_entries(self) -> dict[str, Any]:
+        return {}  # can not be searched
+
+    @classmethod
+    def get_value_type(cls) -> Any:
+        return tuple[int, tuple[float, float, float, float]]
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.bbox))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, PDFLocationAttribute):
+            return False
+        return self.name == other.name \
+            and self.page_no == other.page_no \
+            and np.allclose(self.bbox, other.bbox, rtol=1e-9, atol=1e-9)
+
+    def __repr__(self) -> str:
+        return f"Pos: age {self.page_no} {self.bbox}"
+
+    def get_guid(self) -> str:
+        return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{self.page_no}:{self.bbox}".encode()).digest()))
+
 # IMP: please register new attributes here
 
 
@@ -202,11 +245,13 @@ class PLCAddressAttribute(Attribute):
 class AttributeType(Enum):
     SIMPLE = "SimpleAttribute"
     ROUTING_TRACKS = "RoutingTracksAttribute"
-    PLC_ADDRESS = "PLCAddress"
+    PLC_ADDRESS = "PLCAddressAttribute"
+    PDF_LOCATION = "PDFLocationAttribute"
 
 
 AvailableAttributes: dict[AttributeType, type[Attribute]] = {
     AttributeType.SIMPLE: SimpleAttribute,
     AttributeType.ROUTING_TRACKS: RoutingTracksAttribute,
     AttributeType.PLC_ADDRESS: PLCAddressAttribute,
+    AttributeType.PDF_LOCATION: PDFLocationAttribute,
 }
