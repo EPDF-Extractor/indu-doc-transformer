@@ -12,6 +12,7 @@ from indu_doc.god import God, PageMapperEntry
 from indu_doc.page_processor import PageProcessor, PageInfo
 from indu_doc.tag import Tag, Aspect
 from indu_doc.xtarget import XTarget
+from indu_doc.page_settings import PageSettings
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,11 @@ class ProcessingState(Enum):
 
 
 class Manager:
-    def __init__(self, configs: AspectsConfig) -> None:
+    def __init__(self, configs: AspectsConfig, settings: PageSettings) -> None:
         self.configs: AspectsConfig = configs
         self.god: God = God(self.configs)
-        self.page_processor: PageProcessor = PageProcessor(self.god)
+        self.settings = settings
+        self.page_processor: PageProcessor = PageProcessor(self.god, self.settings)
 
         # Threading and state management
         self._processing_thread: threading.Thread | None = None
@@ -42,17 +44,19 @@ class Manager:
         }
 
     @classmethod
-    def from_config_file(cls, config_path: str) -> "Manager":
+    def from_config_files(cls, config_path: str, setup_path: str) -> "Manager":
         """_summary_
 
         Args:
             config_path (str): _description_
+            setup_path  (str): _description_
 
         Returns:
             Manager: _description_
         """
+        settings = PageSettings.init_from_file(setup_path)
         configs = AspectsConfig.init_from_file(config_path)
-        return cls(configs)
+        return cls(configs, settings)
 
     def process_pdfs(self, pdf_paths: str | list[str], blocking: bool = False) -> None:
         """
@@ -205,7 +209,7 @@ class Manager:
 
         self.configs = configs
         self.god = God(self.configs)
-        self.page_processor = PageProcessor(self.god)
+        self.page_processor = PageProcessor(self.god, self.settings)
 
     def get_tree(self) -> Any:
         # form tree of objects by aspects. Level of the tree is aspect priority
@@ -412,7 +416,7 @@ if __name__ == "__main__":
     logging.basicConfig(
         filename="myapp.log", encoding="utf-8", filemode="w", level=logging.INFO
     )
-    manager = Manager.from_config_file("../../config.json")
+    manager = Manager.from_config_files("../../config.json", "../../extraction_settings.json")
     manager.process_pdfs("../../pdfs/sample.pdf")
     print(manager.get_tree())
 
