@@ -560,7 +560,7 @@ if __name__ == "__main__":
     logging.basicConfig(
         filename="myapp.log", encoding="utf-8", filemode="w", level=logging.INFO
     )
-    manager = Manager.from_config_file("config.json")
+    manager = Manager.from_config_files("config.json", "extraction_settings.json")
 
     # TEST
     # from .tag import Tag
