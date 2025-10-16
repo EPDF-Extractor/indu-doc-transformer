@@ -3,7 +3,7 @@ from matplotlib.widgets import RectangleSelector
 import numpy as np
 import pymupdf 
 
-from indu_doc.extraction_settings import TableSetup
+from indu_doc.page_settings import TableSetup
 
 import click
 

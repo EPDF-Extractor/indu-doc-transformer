@@ -21,7 +21,7 @@ class TableSetup:
     on_many_join: bool              = False # 
     on_many_no_header: bool         = False
     row_offset: int                 = 0 # -1 will demote header (make current heaser a 0th row), >0 will promote (make nth row a header)
-    
+
 
 @dataclass 
 class PageSetup:
@@ -31,7 +31,7 @@ class PageSetup:
     language: str               = ""
 
 
-class ExtractionSettings:
+class PageSettings:
 
     filename: str
     pages_setup: dict[PageType, PageSetup]
@@ -52,6 +52,10 @@ class ExtractionSettings:
             self.save()
         else:
             self.load()
+
+    @classmethod
+    def init_from_file(cls, filepath) -> "PageSettings":
+        return PageSettings(filepath)
 
     def to_enum(self) -> dict[PageType, str]:
         return {k: v.search_name for k, v in self.pages_setup.items()}
