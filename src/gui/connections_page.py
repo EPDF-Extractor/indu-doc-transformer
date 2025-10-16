@@ -168,9 +168,13 @@ def create_connections_page(state: ClientState):
                                                 if link.src_pin:
                                                     ui.label(f'Source Pin: {link.src_pin.name}').classes(
                                                         'text-sm font-mono text-gray-200')
+                                                    ui.label(f'GUID: {link.src_pin.get_guid()}').classes(
+                                                        'text-xs text-gray-400')
                                                 if link.dest_pin:
                                                     ui.label(f'Dest Pin: {link.dest_pin.name}').classes(
                                                         'text-sm font-mono text-gray-200')
+                                                    ui.label(f'GUID: {link.dest_pin.get_guid()}').classes(
+                                                        'text-xs text-gray-400')
                                                 if link.get_guid():
                                                     ui.label(f'GUID: {link.get_guid()}').classes(
                                                         'text-xs text-gray-400')
