@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pymupdf  # type: ignore
 import logging
+import traceback
 from .common_page_utils import PageType, PageError, ErrorType
 from .page_settings import rect, PageSetup, TableSetup, PageSettings
 
@@ -147,7 +148,7 @@ def to_df_with_loc(
     if row_offset < 0:
         df.columns = old_header # only for demotion so values are preserved
         df = demote_header(df)
-    elif row_offset > 1:
+    elif row_offset >= 1:
         df = promote_header(df, row_offset)
     # overwrite header
     if header:
@@ -159,6 +160,11 @@ def to_df_with_loc(
     # fix: if already has header - do not add it:
     if table.row_count > 0 and not np.allclose(table.rows[0].bbox, table.header.bbox, rtol=1e-9, atol=1e-9):
         bboxes = [table.header.bbox] + bboxes
+    # print(f"offset={row_offset}")
+    # print(f"df rows={len(df)}")
+    # print(df)
+    # print(f"table rows={len(table.rows)}")
+    # print(bboxes)
     # attach _loc
     df[loc_col_name] = bboxes[row_offset+1:]  
     return df      
@@ -178,52 +184,37 @@ class TableExtractor:
     @classmethod
     def extract(
         cls, 
-        pages: pymupdf.Page | list[pymupdf.Page], 
+        page: pymupdf.Page, 
         what: PageType,
         setup: PageSetup
-    ) -> tuple[Optional[pd.DataFrame], list[PageError]]:
-        if isinstance(pages, pymupdf.Page):
-            pages = [pages]  # make it a list
-        logger.debug(f"Extracting '{what}' from {len(pages)} pages...")
-        if len(pages) == 0:
-            return None, []
-
-        # concat the rest
-        tables = []
+    ) -> tuple[pd.DataFrame | None, list[PageError]]:
+        #
         errors: list[PageError] = []
-        for p in pages:
-            page_num = (p.number + 1) if p.number is not None else "unknown"
-            logger.info(f"Extracting '{what}' from page #{page_num}")
-            try:
-                # 1st: Do generalized table extraction
-                dfs, msgs = extract_tables(p, setup)
-                # 2nd: Do table speciefic processing
-                t, msgs = cls.get_extractor(what)(dfs)
-                tables.append(t)
-                errors += msgs
-            except ValueError as ve:
-                errors.append(PageError(f"{ve}", error_type=ErrorType.FAULT))
-                logger.warning(
-                    f"ValueError extracting '{what}' from page #{page_num}: {ve}"
-                )
-            except Exception as e:
-                errors.append(PageError(f"{e}", error_type=ErrorType.UNKNOWN_ERROR))
-                logger.warning(
-                    f"Unexpected error extracting '{what}' from page #{page_num}: {e}"
-                )
+        df: pd.DataFrame | None = None
         #
-        if len(tables) == 0:
-            return None, errors
-        table_df = pd.concat(tables, ignore_index=True)
-        assert table_df.shape[1] == tables[0].shape[1], f"Table headers do not match"
-        # fill all inconsistent empty stuff with empty line
-        table_df = table_df.fillna('').map(
-            lambda x: str(x).strip() if x is not None else '')
-        # clean empty rows (some extractors do it also to prevent general data expansion)
-        # required as sometimes detects "fake" rows
-        table_df = table_df[(table_df != '').any(axis=1)]
+        page_num = (page.number + 1) if page.number is not None else "unknown"
+        logger.info(f"Extracting '{what}' from page #{page_num}")
+        try:
+            # 1st: Do generalized table extraction
+            dfs, msgs = extract_tables(page, setup)
+            # 2nd: Do table speciefic processing (TODO make it just stackable middleware per page type)
+            df, msgs = cls.get_extractor(what)(dfs)
+            # Return dfs
+            errors += msgs
+        except ValueError as ve:
+            errors.append(PageError(f"{ve}", error_type=ErrorType.FAULT))
+            logger.warning(
+                f"ValueError extracting '{what}' from page #{page_num}: {ve}"
+            )
+            logger.debug(traceback.format_exc())
+        except Exception as e:
+            errors.append(PageError(f"{e}", error_type=ErrorType.UNKNOWN_ERROR))
+            logger.warning(
+                f"Unexpected error extracting '{what}' from page #{page_num}: {e}"
+            )
+            logger.debug(traceback.format_exc())
         #
-        return table_df, errors
+        return df, errors
 
     @staticmethod
     def extract_main_stub(dfs: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, list[PageError]]:
@@ -311,14 +302,15 @@ class TableExtractor:
         i = 0
         tables = []
         while i < len(df):
+            #
             # Detect start of a block: two rows with col2 & col3 missing
-            if df.iloc[i, 1:3].isna().all() and df.iloc[i + 1, 1:3].isna().all():
+            if df.iloc[i, 1:3].isna().all() \
+                    and df.iloc[i + 1, 1:3].isna().all():
                 cable_name = df.iloc[i, 0].split(
                     " ")[-1]  # Here cable name is located
-                i += 2
                 # Ignore all info as duplicated and hard to extract
-
-                header = df.iloc[i].tolist()
+                i += 2
+                # Assume headers are all the same
                 i += 1
 
                 # Gather table rows until next info block or end
@@ -331,8 +323,8 @@ class TableExtractor:
                     rows.append(df.iloc[i].tolist())
                     i += 1
 
-                table = pd.DataFrame(rows, columns=header)
-                table["Cable"] = cable_name
+                table = pd.DataFrame(rows, columns=df.columns)
+                table["cable_tag"] = cable_name
                 tables.append(table)
             else:
                 i += 1
@@ -343,29 +335,30 @@ class TableExtractor:
     def extract_terminal_diagram(dfs: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, list[PageError]]:
         errors: list[PageError] = []
         #
-        df_center   = dfs["main"]
+        df          = dfs["main"]
         df_r_cables = dfs["r_cables"]
         df_r_conn   = dfs["r_conn"]
         df_l_cables = dfs["l_cables"]
         df_l_conn   = dfs["l_conn"]
-
-        # here I have to do preprocessing to make a single df
-        strip_info = df_center.columns[0]
-        strip_name = strip_info.splitlines()[1]
-
-        df = promote_header(df_center)
-
+        df_name     = dfs["strip_name"] 
         #
-        def transform_dataframe(df_cables, df_conn):
+        strip_name = df_name.loc[0, "strip_name"]
+        #
+        # here I have to do preprocessing to make a single df
+        #
+        def transform_dataframe(df_cables: pd.DataFrame, df_conn: pd.DataFrame, split_meta: str):
             rows = []
             number_cols = [col for col in df_conn.columns if col.isdigit()]
             non_number_cols = [
                 col for col in df_conn.columns if col not in number_cols]
-            columns = ["Cable", "Color"] + non_number_cols
+            columns = ["Cable", "Color"] + non_number_cols + ["_loc_cable", "_loc_conn"]
+            # TODO append meta info so can split later
+            columns = [f"{split_meta}{c}" for c in columns] 
             # for each connection
-            for idx, row in df_conn.iterrows():
+            for _, row in df_conn.iterrows():
                 non_number_values = row[non_number_cols].tolist()
                 cable_info_list = []
+                cable_loc_list = []
                 color_list = []
                 for col in number_cols:
                     color = row[col]
@@ -374,26 +367,22 @@ class TableExtractor:
                         cable_index = int(col) - 1
                         # As in the same row cable tag & info are located -> select only tag
                         # TODO might be wrong as cable tag might have spaces (?)
-                        cable_info = df_cables.iloc[cable_index, 1].split(" ")[
-                            0]
+                        cable_info = df_cables.loc[cable_index, "src_cable_tag"]
+                        cable_loc = df_cables.loc[cable_index, "_loc"]
                         # Extract a TAG from cable_info
-                        cable_info_list.append(cable_info)
+                        cable_info_list.append(str(cable_info) if cable_info else "")
+                        cable_loc_list.append(cable_loc)
                         color_list.append(color)
-                #
-                if len(cable_info_list) > 1:
-                    msg = f"row #{idx} partially ignored: has multiple cable connections"
-                    errors.append(PageError(msg, error_type=ErrorType.WARNING))
-                    logger.warning(msg)
                 # 
                 rows.append(
                     [";".join(cable_info_list), ";".join(color_list)]
-                    + non_number_values
+                    + non_number_values + [cable_loc_list, row["_loc"]]
                 )
             return pd.DataFrame(rows, columns=columns)
 
         # Check if the number of rows in the transformed dataframes matches the number of rows in df
-        left_transformed = transform_dataframe(df_l_cables, df_l_conn)
-        right_transformed = transform_dataframe(df_r_cables, df_r_conn)
+        left_transformed = transform_dataframe(df_l_cables, df_l_conn, "_l")
+        right_transformed = transform_dataframe(df_r_cables, df_r_conn, "_r")
         if left_transformed.shape[0] != df.shape[0]:
             raise ValueError(
                 f"Left cable assignment table ({left_transformed.shape[0]}) does not match connections ({df.shape[0]})"
@@ -413,14 +402,108 @@ class TableExtractor:
             axis=1,
         )
 
-        # clean empty rows
-        df = df[df.apply(lambda row: row.astype(
-            str).str.strip().ne('').any(), axis=1)]
         # insert strip name as 1st column
         df.insert(0, "Strip", strip_name)
 
         return df, errors
 
+
+def extract_table(page: pymupdf.Page, key: str, table_setup: TableSetup) -> tuple[pd.DataFrame, list[PageError]]:
+    errors: list[PageError] = []
+    #
+    tables = list(page.find_tables(clip=table_setup.roi, add_lines=table_setup.lines))
+    if not tables:
+        raise ValueError(
+            f"No required table(s) found on the page: {key}")
+    
+    if len(tables) > table_setup.expected_num_tables:
+        raise ValueError(
+            f"Expected <= {table_setup.expected_num_tables} tables, found more: {len(tables)}")
+
+    # do overlap detection if required - expensive! - doesnt work with >1 tables
+    overlap_fixes = []
+    if table_setup.overlap_test_roi:
+        if len(tables) > 1:
+            raise ValueError(
+                f"Overlap detection does not work witn many tables")
+        spans = extract_spans(page, clip=table_setup.overlap_test_roi)
+        overlaps = detect_overlaps(spans)
+        overlap_fixes = fix_row_overlaps(tables[0], overlaps) if overlaps else []
+
+    # test header size mathch
+    sz = tables[0].col_count
+    if sz != len(table_setup.columns):
+        raise ValueError(
+            f"Expected {len(table_setup.columns)} columns, found {sz}")
+    
+    # assign new header out of table_setup.columns
+    columns = list(table_setup.columns.keys())
+    
+    # to pandas
+    dfs = [to_df_with_loc(tables[0], row_offset=table_setup.row_offset, header=columns)]
+    for t in tables[1:]:
+        # test header size mathch
+        if sz != t.col_count:
+            raise ValueError(
+                f"Expected {sz} columns, found {t.col_count}")
+        # get promotion/demotion level
+        lvl = table_setup.row_offset + (-1 if table_setup.on_many_no_header else 0)
+        # convert to df
+        df = to_df_with_loc(t, row_offset=lvl, header=columns)
+        dfs.append(df)
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    # apply overlap fix
+    if overlap_fixes:
+        for row, _, repl1, repl2 in overlap_fixes:
+            # as index counts from 1 in detect_row_overlaps
+            row -= 1 + table_setup.row_offset
+            # apply replacements
+            if repl1:
+                msg = f"row #{row} overlap detected: replaced col #{repl1[0]}: {df.iloc[row, repl1[0]]} -> {repl1[1]}"
+                errors.append(PageError(msg, error_type=ErrorType.INFO))
+                logger.warning(msg)
+                df.iloc[row, repl1[0]] = repl1[1]
+            if repl2:
+                msg = f"row #{row} overlap detected: replaced col #{repl2[0]}: {df.iloc[row, repl2[0]]} -> {repl2[1]}"
+                errors.append(PageError(msg, error_type=ErrorType.INFO))
+                logger.warning(msg)
+                df.iloc[row, repl2[0]] = repl2[1]
+            # log
+            if not (repl1 and repl2):
+                msg = f"row #{row} overlap detected: could not repair (fully)"
+                errors.append(PageError(msg, error_type=ErrorType.WARNING))
+                logger.warning(msg)
+
+    # remove ignored columns
+    ignored = [k for k, v in table_setup.columns.items() if not v[0]]
+    df = df.drop(columns=ignored)
+
+    # keep only rows where there is at least one non-empty string value
+    # ignore meta cols
+    cols = [col for col in df.columns if not col.startswith('_')]
+    df = df[df[cols].apply(lambda row: row.notnull() & (row != ''), axis=1).any(axis=1)]
+
+    # do forward fill TODO make column meta params better than tuple
+    for k, v in table_setup.columns.items():
+        if len(v) > 1: # if tuple has ffill
+            df.loc[:, k] = df.loc[:, k].replace(v[1], pd.NA).ffill()
+    
+    return df, errors
+
+
+def extract_text(page: pymupdf.Page, key: str, table_setup: TableSetup) -> tuple[pd.DataFrame, list[PageError]]:
+    errors: list[PageError] = []
+    # TODO for now just simply extract text
+    texts = page.get_text("text", clip=table_setup.roi).strip()
+    if not texts:
+        raise ValueError(
+            f"No required text(s) found on the page: {key}")
+    #
+    df = pd.DataFrame([[ texts ]], columns=[key])
+
+    return df, errors
 
 def extract_tables(page: pymupdf.Page, page_setup: PageSetup) -> tuple[dict[str, pd.DataFrame], list[PageError]]:
     ''' Universal table extractor which behavior is specified and extended by PageSetup '''
@@ -428,90 +511,13 @@ def extract_tables(page: pymupdf.Page, page_setup: PageSetup) -> tuple[dict[str,
     errors: list[PageError] = []
     res: dict[str, pd.DataFrame] = {}
     for key, table_setup in page_setup.tables.items():
-        tables = list(page.find_tables(clip=table_setup.roi, add_lines=table_setup.lines))
-        if not tables:
-            raise ValueError(
-                f"No required table(s) found on the page: {key}")
-        
-        if len(tables) > table_setup.expected_num_tables:
-            raise ValueError(
-                f"Expected <= {table_setup.expected_num_tables} tables, found more: {len(tables)}")
-
-        # do overlap detection if required - expensive! - doesnt work with >1 tables
-        overlap_fixes = []
-        if table_setup.overlap_test_roi:
-            if len(tables) > 1:
-                raise ValueError(
-                    f"Overlap detection does not work witn many tables")
-            spans = extract_spans(page, clip=table_setup.overlap_test_roi)
-            overlaps = detect_overlaps(spans)
-            overlap_fixes = fix_row_overlaps(tables[0], overlaps) if overlaps else []
-
-        # test header size mathch
-        sz = tables[0].col_count
-        if sz != len(table_setup.columns):
-            print(repr(tables[0]))
-            raise ValueError(
-                f"Expected {len(table_setup.columns)} columns, found {sz}")
-        
-        # assign new header out of table_setup.columns
-        columns = list(table_setup.columns.keys())
-        
-        # to pandas
-        dfs = [to_df_with_loc(tables[0], row_offset=table_setup.row_offset, header=columns)]
-        for t in tables[1:]:
-            # test header size mathch
-            if sz != t.col_count:
-                raise ValueError(
-                    f"Expected {sz} columns, found {t.col_count}")
-            # get promotion/demotion level
-            lvl = table_setup.row_offset + (-1 if table_setup.on_many_no_header else 0)
-            # convert to df
-            df = to_df_with_loc(t, row_offset=lvl, header=columns)
-            dfs.append(df)
-
-        df = pd.concat(dfs, ignore_index=True)
-
-        # apply overlap fix
-        if overlap_fixes:
-            for row, _, repl1, repl2 in overlap_fixes:
-                # as index counts from 1 in detect_row_overlaps
-                row -= 1 + table_setup.row_offset
-                # apply replacements
-                if repl1:
-                    msg = f"row #{row} overlap detected: replaced col #{repl1[0]}: {df.iloc[row, repl1[0]]} -> {repl1[1]}"
-                    errors.append(PageError(msg, error_type=ErrorType.INFO))
-                    logger.warning(msg)
-                    df.iloc[row, repl1[0]] = repl1[1]
-                if repl2:
-                    msg = f"row #{row} overlap detected: replaced col #{repl2[0]}: {df.iloc[row, repl2[0]]} -> {repl2[1]}"
-                    errors.append(PageError(msg, error_type=ErrorType.INFO))
-                    logger.warning(msg)
-                    df.iloc[row, repl2[0]] = repl2[1]
-                # log
-                if not (repl1 and repl2):
-                    msg = f"row #{row} overlap detected: could not repair (fully)"
-                    errors.append(PageError(msg, error_type=ErrorType.WARNING))
-                    logger.warning(msg)
-
-        # remove ignored columns
-        ignored = [k for k, v in table_setup.columns.items() if not v]
-        df = df.drop(columns=ignored)
-
-        # keep only rows where there is at least one non-empty string value
-        # 1. ignore meta cols
-        cols = [col for col in df.columns if not col.startswith('_')]
-        df = df[df[cols].apply(lambda row: row.notnull() & (row != ''), axis=1).any(axis=1)]
-
-        # do forward fill (? here)
+        if table_setup.text_only:
+            df, err = extract_text(page, key, table_setup)
+        else:
+            df, err = extract_table(page, key, table_setup)
 
         # attach to res
         res[key] = df
+        errors.extend(err)
 
-    return res, errors    
-
-
-if __name__ == "__main__":
-    doc = pymupdf.open("pdfs/sample.pdf")
-
-    df = TableExtractor.extract(doc[82:83], PageType.CABLE_DIAGRAM)
+    return res, errors
