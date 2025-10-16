@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 
 import click
 
-from indu_doc.extraction_settings import ExtractionSettings
+from indu_doc.page_settings import PageSettings
 from table_setup.table_loader import do_main_loop
 
 
@@ -76,7 +76,7 @@ def main(pdf_path: Path, output: Path, verbose: bool) -> None:
     setup_logging(actual_log_level, "log.txt", False)
 
     # make stutings
-    settings = ExtractionSettings(str(output))
+    settings = PageSettings(str(output))
 
     # load PDF
     pdf = pymupdf.open(pdf_path)

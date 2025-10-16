@@ -6,7 +6,7 @@ import pandas as pd
 import pymupdf  # type: ignore
 import logging
 from .common_page_utils import PageType, PageError, ErrorType
-from .extraction_settings import rect, PageSetup, TableSetup, ExtractionSettings
+from .page_settings import rect, PageSetup, TableSetup, PageSettings
 
 logger = logging.getLogger(__name__)
 # In pt
@@ -428,7 +428,6 @@ def extract_tables(page: pymupdf.Page, page_setup: PageSetup) -> tuple[dict[str,
     errors: list[PageError] = []
     res: dict[str, pd.DataFrame] = {}
     for key, table_setup in page_setup.tables.items():
-        print(table_setup.lines)
         tables = list(page.find_tables(clip=table_setup.roi, add_lines=table_setup.lines))
         if not tables:
             raise ValueError(
