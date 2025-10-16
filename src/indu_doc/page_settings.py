@@ -8,13 +8,14 @@ logger = logging.getLogger(__name__)
 type rect = tuple[float, float, float, float]
 @dataclass
 class TableSetup:
-    key_columns: dict[str, str]     # name -> role
+    key_columns: dict[str, str]     = field(default_factory=dict) # name -> role
     #
     description: str                = ""
     roi: rect                       = (0, 0, 0, 0)
+    text_only: bool                 = False
     lines: list[tuple[tuple[float, float], tuple[float, float]]] = field(default_factory=list)
     # not sure about structure of those
-    columns: dict[str, bool]        = field(default_factory=dict) # name -> include bool
+    columns: dict[str, tuple[bool] | tuple[bool, str]] = field(default_factory=dict) # name -> include bool
     # TODO this is all extendable - make as dict
     overlap_test_roi: rect | None   = None
     expected_num_tables: int        = 1
@@ -28,11 +29,11 @@ class PageSetup:
     tables: dict[str, TableSetup] # role -> TableSetup, e.g. cable_info_left -> {...} ; main -> {...}
     description: str            = ""
     search_name: str            = ""
-    language: str               = ""
 
 
 class PageSettings:
 
+    language: str
     filename: str
     pages_setup: dict[PageType, PageSetup]
 
@@ -80,7 +81,6 @@ class PageSettings:
                 tables=tables,
                 description=value.get("description", ""),
                 search_name=value.get("search_name", ""),
-                language=value.get("language", "")
             )
         self.pages_setup = settings
 
