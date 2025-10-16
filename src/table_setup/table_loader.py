@@ -1,6 +1,6 @@
 from indu_doc.common_page_utils import PageType, detect_page_type
 from indu_doc.table_extractor import extract_tables
-from indu_doc.extraction_settings import rect, PageSetup, TableSetup, ExtractionSettings
+from indu_doc.page_settings import rect, PageSetup, TableSetup, PageSettings
 
 from typing import Any
 from pathlib import Path
@@ -35,7 +35,7 @@ INITIAL_SETUP: dict[PageType, PageSetup] = {
             key_columns={
                 "cable_tag": "cable designation",
                 "src_tag": "source tag",
-                "dst_tag": "destination tag", # TODO how to allow to select same column? - use add_lines param?
+                "dst_tag": "destination tag", 
             }
         )
     }),
@@ -230,7 +230,7 @@ def render_page_preview(page, roi=None, DPI=300):
 
 import click
 
-def do_main_loop(pdf: pymupdf.Document, settings: ExtractionSettings):
+def do_main_loop(pdf: pymupdf.Document, settings: PageSettings):
 
     while True:
         # Select page for setup

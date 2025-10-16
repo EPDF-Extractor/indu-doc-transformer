@@ -7,7 +7,7 @@ from pymupdf import pymupdf  # type: ignore
 
 from indu_doc.attributes import AttributeType, Attribute
 from indu_doc.common_page_utils import PageType, detect_page_type, PageInfo, PageError, ErrorType
-from indu_doc.extraction_settings import ExtractionSettings
+from indu_doc.page_settings import PageSettings
 from indu_doc.configs import default_configs
 from indu_doc.footers import extract_footer
 from indu_doc.god import God
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class PageProcessor:
-    def __init__(self, god_: God, settings: ExtractionSettings):
+    def __init__(self, god_: God, settings: PageSettings):
         self.god = god_
         self.settings = settings
         self.type_map = self.settings.to_enum() # gives appropriate page name mapping
