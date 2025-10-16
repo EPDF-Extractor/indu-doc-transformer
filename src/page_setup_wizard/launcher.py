@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 import click
 
 from indu_doc.page_settings import PageSettings
-from table_setup.table_loader import do_main_loop
+from page_setup_wizard.table_loader import do_main_loop
 
 
 def setup_logging(level: str = "INFO", log_file: Optional[str] = None, enable_stdout: bool = False) -> None:
@@ -67,7 +67,7 @@ def validate_file_path(path: str, must_exist: bool = True) -> Path:
 @click.option('-v', '--verbose', is_flag=True,
               help='Enable verbose logging')
 def main(pdf_path: Path, output: Path, verbose: bool) -> None:
-    """Industrial Document Transformer CLI - Process PDF files and extract industrial documentation components."""
+    """Page Setup Wizard CLI - Interactive page extraction setup."""
 
     # Determine logging level (verbose flag overrides log-level)
     actual_log_level = "DEBUG" if verbose else "WARNING"
