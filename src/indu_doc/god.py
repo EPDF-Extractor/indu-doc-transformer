@@ -154,6 +154,7 @@ class God:
         page_info: PageInfo,
         attributes: Optional[tuple[Attribute, ...]] = None,
     ) -> Optional[Aspect]:
+        ''' please provide location in the attributes '''
         #
         logger.info(
             f"create_aspect {tag_str}"
@@ -194,6 +195,7 @@ class God:
         target_type: XTargetType = XTargetType.OTHER,
         attributes: Optional[tuple[Attribute, ...]] = None,
     ) -> Optional[XTarget]:
+        ''' please provide location in the attributes '''
         # prohibit creation of xtargets with unparsed pins
         if _is_pin_tag(tag_str):
             logger.warning(f"XTarget tag has pins: {tag_str}")
@@ -269,6 +271,7 @@ class God:
         dest_pin_name: Optional[str] = None,
         attributes: Optional[tuple[Attribute, ...]] = None,
     ):
+        ''' please provide location in the attributes '''
         logger.debug(
             f"create_link {name} {src_pin_name} {dest_pin_name} {attributes}"
         )
@@ -309,8 +312,10 @@ class God:
         tag_from: str,
         tag_to: str,
         page_info: PageInfo,
-        attributes: Optional[tuple[Attribute, ...]] = None
+        attributes: Optional[tuple[Attribute, ...]] = None,
+        loc: Optional[Attribute] = None
     ):
+        ''' please provide connection location in the attributes '''
         logger.debug(
             f"create_connection at {tag}: {tag_from} -> {tag_to} {attributes}"
         )
@@ -324,10 +329,10 @@ class God:
 
         # TODO: send types of objects
         obj_from = self.create_xtarget(
-            tag_from, page_info=page_info, target_type=XTargetType.DEVICE
+            tag_from, page_info=page_info, target_type=XTargetType.DEVICE, attributes=(loc,) if loc else None
         )
         obj_to = self.create_xtarget(
-            tag_to, page_info=page_info, target_type=XTargetType.DEVICE
+            tag_to, page_info=page_info, target_type=XTargetType.DEVICE, attributes=(loc,) if loc else None
         )
         conn = Connection(src=obj_from, dest=obj_to, through=through, links=[])
         new_or_existing_conn = self.connections.setdefault(
@@ -342,8 +347,10 @@ class God:
         pin_tag_from: str,    # has shape tag:pin
         pin_tag_to: str,
         page_info: PageInfo,
-        attributes: Optional[tuple[Attribute, ...]] = None
+        attributes: Optional[tuple[Attribute, ...]] = None,
+        loc: Optional[Attribute] = None
     ):
+        ''' please provide link location in the attributes '''
         logger.debug(
             f"create_connection_with_link at {tag}: '{pin_tag_from}' -> '{pin_tag_to}' {attributes}"
         )
