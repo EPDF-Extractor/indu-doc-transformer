@@ -20,13 +20,15 @@ class InteractiveROISetup:
     - Finalize selection
     """
 
-    def __init__(self, page, hint: str, roi=None, dpi=150):
+    def __init__(self, page, hint: str, roi=None, dpi=150, text_mode: bool = False):
+        self.text_mode = text_mode
         self.page = page
         self.dpi = dpi
         self.roi = roi       # Bounding box of table (x0, y0, x1, y1)
         self.vlines: list[tuple[tuple[float, float], tuple[float, float]]] = []      # Vertical lines (for add_lines)
         self.drawn_lines = []   # type: ignore
         self.tables = []        # type: ignore
+        self.texts = []         # type: ignore
 
         # Render page as image
         pix = self.page.get_pixmap(dpi=dpi)
@@ -60,24 +62,36 @@ class InteractiveROISetup:
     def on_key(self, event):
         """Keyboard controls for column lines, reset, finalize."""
         if event.key == 't' and self.roi:
-            tables = list(self.page.find_tables(clip=self.roi, add_lines=self.vlines))
-            self.tables = tables
-            # draw
-            for i, tbl in enumerate(tables):  # iterate over all tables
-                for cell in tbl.header.cells:
-                    if cell is not None:
-                        self.ax.add_patch(
-                            plt.Rectangle(*bbox_to_plt_rect(cell), edgecolor='green', facecolor='none', linewidth=2)
-                        )
-                for r, row in enumerate(tbl.rows):
-                    for c, cell in enumerate(row.cells):
+            # clear prev selection
+            self._clear_canvas()
+            #
+            if self.text_mode:
+                texts = list(self.page.get_text("blocks", clip=self.roi))
+                self.texts = texts
+                # draw
+                for x0, y0, x1, y1, *_ in texts:  # iterate over all tables
+                    self.ax.add_patch(
+                        plt.Rectangle(*bbox_to_plt_rect((x0, y0, x1, y1)), edgecolor='purple', facecolor='none', linewidth=2)
+                    )
+            else:
+                tables = list(self.page.find_tables(clip=self.roi, add_lines=self.vlines))
+                self.tables = tables
+                # draw
+                for i, tbl in enumerate(tables):  # iterate over all tables
+                    for cell in tbl.header.cells:
                         if cell is not None:
                             self.ax.add_patch(
-                                plt.Rectangle(*bbox_to_plt_rect(cell), edgecolor='blue', facecolor='none', linewidth=1)
+                                plt.Rectangle(*bbox_to_plt_rect(cell), edgecolor='green', facecolor='none', linewidth=2)
                             )
-                self.ax.add_patch(
-                    plt.Rectangle(*bbox_to_plt_rect(tbl.bbox), edgecolor='purple', facecolor='none', linewidth=2)
-                )
+                    for r, row in enumerate(tbl.rows):
+                        for c, cell in enumerate(row.cells):
+                            if cell is not None:
+                                self.ax.add_patch(
+                                    plt.Rectangle(*bbox_to_plt_rect(cell), edgecolor='blue', facecolor='none', linewidth=1)
+                                )
+                    self.ax.add_patch(
+                        plt.Rectangle(*bbox_to_plt_rect(tbl.bbox), edgecolor='purple', facecolor='none', linewidth=2)
+                    )
             self.fig.canvas.draw_idle()
             
         elif event.key == 'enter' and self.roi:
@@ -86,6 +100,7 @@ class InteractiveROISetup:
             click.echo(f"\tROI:\t\t{self.roi}")
             click.echo(f"\tColumn separators:\t{self.vlines}")
             click.echo(f"\tTables #:\t{len(self.tables)}")
+            click.echo(f"\tTexts #:\t{len(self.texts)}")
             plt.close(self.fig)
 
         elif event.key == 'c' and self.roi:
@@ -101,15 +116,18 @@ class InteractiveROISetup:
             # Reset ROI and lines
             # self.roi = None
             self.vlines.clear()
-            # Remove previous graphics
-            for patch in self.ax.patches:
-                patch.remove()
-            for line in self.drawn_lines:
-                line.remove()
-            self.drawn_lines.clear()
+            self._clear_canvas()
             self.fig.canvas.draw_idle()
+
+    def _clear_canvas(self):
+        # Remove previous graphics
+        for patch in self.ax.patches:
+            patch.remove()
+        for line in self.drawn_lines:
+            line.remove()
+        self.drawn_lines.clear()
 
     def run(self):
         """Run interactive tool and return ROI and vertical lines."""
         plt.show()
-        return self.roi, self.vlines, self.tables
+        return self.roi, self.vlines, self.tables, self.texts
