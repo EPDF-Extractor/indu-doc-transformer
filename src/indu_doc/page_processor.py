@@ -129,14 +129,14 @@ class PageProcessor:
                             AttributeType.SIMPLE, name, value)
                     )
             # get meta stuff
+            loc = None
             if "_loc" in row:
-                attributes.append(
-                    self.god.create_attribute(
+                loc = self.god.create_attribute(
                         AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
-                )
+                attributes.append(loc)
             # build
             self.god.create_connection_with_link(
-                None, tag_from, tag_to, page_info, tuple(attributes)
+                None, tag_from, tag_to, page_info, tuple(attributes), loc
             )
 
     def process_device_tag_list(self, table: pd.DataFrame, page_info: PageInfo):
@@ -200,16 +200,16 @@ class PageProcessor:
                             AttributeType.SIMPLE, name, value)
                     )
             # get meta stuff
+            loc = None
             if "_loc" in row:
-                attributes.append(
-                    self.god.create_attribute(
+                loc = self.god.create_attribute(
                         AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
-                )
+                attributes.append(loc)
             # create connections if from/to specified
             if tag_from and tag_to:
                 self.god.create_connection(
                     tag, tag_from, tag_to, page_info, tuple(
-                        attributes)
+                        attributes), loc
                 )
 
     # TODO outdated can not test
@@ -283,11 +283,11 @@ class PageProcessor:
                     )
 
             # get meta stuff
+            loc = None
             if "_loc" in row:
-                attributes.append(
-                    self.god.create_attribute(
+                loc = self.god.create_attribute(
                         AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
-                )
+                attributes.append(loc)
 
             # Add route as attribute
             attributes.append(
@@ -300,7 +300,7 @@ class PageProcessor:
 
             for t1, t2 in product(tags_src.split(";"), tags_dst.split(";")):
                 self.god.create_connection(
-                    tag, t1, t2, page_info, tuple(attributes)
+                    tag, t1, t2, page_info, tuple(attributes), loc
                 )
 
     def process_wires_part_list(self, table: pd.DataFrame, page_info: PageInfo):
@@ -334,11 +334,11 @@ class PageProcessor:
                     )
 
             # get meta stuff
+            loc = None
             if "_loc" in row:
-                attributes.append(
-                    self.god.create_attribute(
+                loc = self.god.create_attribute(
                         AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
-                )
+                attributes.append(loc)
 
             # Add route as attribute
             if tags_route != "":
@@ -350,7 +350,7 @@ class PageProcessor:
             # build
             self.god.create_connection_with_link(
                 None, tag_src, tag_dst, page_info, tuple(
-                    attributes)
+                    attributes), loc
             )
 
     def process_cable_diagram(self, table: pd.DataFrame, page_info: PageInfo):
@@ -392,11 +392,11 @@ class PageProcessor:
                     )
 
             # get meta stuff
+            loc = None
             if "_loc" in row:
-                attributes.append( 
-                    self.god.create_attribute(
+                loc = self.god.create_attribute(
                         AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
-                )
+                attributes.append(loc)
                 # TODO for now I ignore it - might not have it
                 # cable_loc = self.god.create_attribute(
                 #         AttributeType.PDF_LOCATION, "location", row["_loc_cable"])    
@@ -417,7 +417,8 @@ class PageProcessor:
                     tag_s + ":" + pin_s,
                     tag_d + ":" + pin_d,
                     page_info,
-                    tuple(attributes)
+                    tuple(attributes),
+                    loc
                 )
 
 
