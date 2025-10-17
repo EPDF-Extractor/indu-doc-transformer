@@ -350,7 +350,7 @@ class God:
         attributes: Optional[tuple[Attribute, ...]] = None,
         loc: Optional[Attribute] = None
     ):
-        ''' please provide link location in the attributes '''
+        ''' please provide connection location in the attributes '''
         logger.debug(
             f"create_connection_with_link at {tag}: '{pin_tag_from}' -> '{pin_tag_to}' {attributes}"
         )
@@ -370,7 +370,7 @@ class God:
             return None
         # tag is cable tag. if none -> connection is in virtual cable
         connection = self.create_connection(
-            tag, tag_from, tag_to, page_info=page_info
+            tag, tag_from, tag_to, page_info=page_info, attributes=(loc,) if loc else None, loc=loc
         )
         # if it has no pins -> has no links
         link = self.create_link(
