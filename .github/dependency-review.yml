@@ -1,0 +1,22 @@
+# Configuration for the Dependency Review Action
+# See: https://docs.github.com/en/code-security/supply-chain-security/configuring-dependency-review
+
+# Deny any dependency with a license that is not approved for an MIT project.
+deny-licenses:
+  # Strong Copyleft - Must be denied.
+  - AGPL-3.0-only
+  - AGPL-3.0-or-later
+  - GPL-2.0-only
+  - GPL-2.0-or-later
+  - GPL-3.0-only
+  - GPL-3.0-or-later
+  
+  # Weak Copyleft - Best to deny for a purely permissive project.
+  - LGPL-2.1-only
+  - LGPL-2.1-or-later
+  - LGPL-3.0-only
+  - LGPL-3.0-or-later
+  - MPL-2.0
+
+  # Other problematic licenses.
+  - SSPL-1.0
