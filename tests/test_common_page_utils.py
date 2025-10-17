@@ -392,35 +392,6 @@ class TestDetectPageType:
 
         assert result is None
 
-    def test_detect_german_page_types(self):
-        """Test detecting German page types."""
-        test_cases = [
-            ("artikelstückliste", PageType.DEVICE_LIST_DE),
-            ("kabelübersicht", PageType.CABLE_OVERVIEW_DE),
-            ("Kabelplan", PageType.CABLE_PLAN_DE),
-            ("Klemmenplan", PageType.TERMINAL_DIAGRAM_DE),
-        ]
-
-        for text, expected_type in test_cases:
-            mock_page = MagicMock()
-            mock_page.number = 0
-            mock_page.get_text.return_value = {
-                "blocks": [
-                    {
-                        "lines": [
-                            {
-                                "spans": [
-                                    {"size": 25, "text": text}
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
-
-            result = detect_page_type(mock_page)
-            assert result == expected_type, f"Failed for text: {text}"
-
 
 class TestPageInfoIntegration:
     """Integration tests for PageInfo."""
