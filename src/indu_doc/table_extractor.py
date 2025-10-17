@@ -175,7 +175,7 @@ class TableExtractor:
     @classmethod
     def get_extractor(cls, what):
         _type_handlers = {
-            PageType.CABLE_PLAN: cls.extract_cable_plan,
+            # PageType.CABLE_PLAN: cls.extract_cable_plan,
             PageType.TERMINAL_DIAGRAM: cls.extract_terminal_diagram,
             PageType.CABLE_DIAGRAM: cls.extract_cable_diagram,
         }
@@ -224,75 +224,75 @@ class TableExtractor:
 
 
     # TODO can not detect in sample doc
-    @staticmethod
-    def extract_cable_plan(page) -> tuple[pd.DataFrame, list[PageError]]:
-        w = page.rect.width
-        h = page.rect.height
-        if w <= h:
-            raise ValueError(
-                f"Album orientation expected, found: width={w}, height={h}."
-            )
-        #
-        # Will not work for German!
-        # extract connections
-        tables_left = list(page.find_tables(
-            clip=get_clip_rect(w, h, 10, 98, 400, 780)))
-        if not tables_left:
-            raise ValueError("No required tables found on the page: left source info")
-        df_left = tables_left[0].to_pandas()
-        tables_right = list(
-            page.find_tables(clip=get_clip_rect(w, h, 790, 98, 1185, 780))
-        )
-        if not tables_right:
-            raise ValueError("No required tables found on the page: right target info")
-        df_right = tables_right[0].to_pandas()
-        df = pd.concat([df_left, df_right], axis=1)
-        #
-        # extract current device
-        # 80 for English; 136 German!
-        text = page.get_text(
-            "text", clip=get_clip_rect(w, h, 114, 29, 400, 47))
-        df["Cabel"] = text
-        if len(text) == 0:
-            raise ValueError("Failed to detect Cabel Tag")
-        # other TODO unstable
-        # tables_main = page.find_tables(strategy="text", clip=getClipRect(w, h, 33, 132, 1170, 203))
-        # 120 for English; 230 German!
-        tables_typ = list(
-            page.find_tables(
-                strategy="text", clip=get_clip_rect(w, h, 441, 120, 750, 780)
-            )
-        )
-        typ = None
-        if tables_typ:
-            typ_header = list(
-                tables_typ[0].header.names
-            )  # Preserve header - to_pandas breaks it
-            typ = tables_typ[0].to_pandas()
-            # restore original names (.to_pandas breaks it)
-            typ.columns = typ_header
-            typ = demote_header(typ, ["Source conductor", "Target conductor"])
-            typ = typ.iloc[::2].reset_index(drop=True)  # remove empty rows
-        else:
-            # fallback
-            text_typ = page.get_text(
-                "text", clip=get_clip_rect(w, h, 441, 120, 750, 780)
-            )
-            rows = [line for line in text_typ.split(
-                "\n") if line.strip()]  # flat list
-            rows = [
-                rows[i: i + 2] for i in range(0, len(rows), 2)
-            ]  # Group every 2 items into a row
-            typ = pd.DataFrame(
-                rows, columns=["Source conductor", "Target conductor"])
-        df = pd.concat([df, typ], axis=1)
+    # @staticmethod
+    # def extract_cable_plan(page) -> tuple[pd.DataFrame, list[PageError]]:
+    #     w = page.rect.width
+    #     h = page.rect.height
+    #     if w <= h:
+    #         raise ValueError(
+    #             f"Album orientation expected, found: width={w}, height={h}."
+    #         )
+    #     #
+    #     # Will not work for German!
+    #     # extract connections
+    #     tables_left = list(page.find_tables(
+    #         clip=get_clip_rect(w, h, 10, 98, 400, 780)))
+    #     if not tables_left:
+    #         raise ValueError("No required tables found on the page: left source info")
+    #     df_left = tables_left[0].to_pandas()
+    #     tables_right = list(
+    #         page.find_tables(clip=get_clip_rect(w, h, 790, 98, 1185, 780))
+    #     )
+    #     if not tables_right:
+    #         raise ValueError("No required tables found on the page: right target info")
+    #     df_right = tables_right[0].to_pandas()
+    #     df = pd.concat([df_left, df_right], axis=1)
+    #     #
+    #     # extract current device
+    #     # 80 for English; 136 German!
+    #     text = page.get_text(
+    #         "text", clip=get_clip_rect(w, h, 114, 29, 400, 47))
+    #     df["Cabel"] = text
+    #     if len(text) == 0:
+    #         raise ValueError("Failed to detect Cabel Tag")
+    #     # other TODO unstable
+    #     # tables_main = page.find_tables(strategy="text", clip=getClipRect(w, h, 33, 132, 1170, 203))
+    #     # 120 for English; 230 German!
+    #     tables_typ = list(
+    #         page.find_tables(
+    #             strategy="text", clip=get_clip_rect(w, h, 441, 120, 750, 780)
+    #         )
+    #     )
+    #     typ = None
+    #     if tables_typ:
+    #         typ_header = list(
+    #             tables_typ[0].header.names
+    #         )  # Preserve header - to_pandas breaks it
+    #         typ = tables_typ[0].to_pandas()
+    #         # restore original names (.to_pandas breaks it)
+    #         typ.columns = typ_header
+    #         typ = demote_header(typ, ["Source conductor", "Target conductor"])
+    #         typ = typ.iloc[::2].reset_index(drop=True)  # remove empty rows
+    #     else:
+    #         # fallback
+    #         text_typ = page.get_text(
+    #             "text", clip=get_clip_rect(w, h, 441, 120, 750, 780)
+    #         )
+    #         rows = [line for line in text_typ.split(
+    #             "\n") if line.strip()]  # flat list
+    #         rows = [
+    #             rows[i: i + 2] for i in range(0, len(rows), 2)
+    #         ]  # Group every 2 items into a row
+    #         typ = pd.DataFrame(
+    #             rows, columns=["Source conductor", "Target conductor"])
+    #     df = pd.concat([df, typ], axis=1)
 
-        # forward fill '=' stuff
-        # rows where designation is null but "from" and "to" are not
-        col_ids = [2, 9]
-        df.iloc[:, col_ids] = df.iloc[:, col_ids].replace("=", pd.NA).ffill()
+    #     # forward fill '=' stuff
+    #     # rows where designation is null but "from" and "to" are not
+    #     col_ids = [2, 9]
+    #     df.iloc[:, col_ids] = df.iloc[:, col_ids].replace("=", pd.NA).ffill()
 
-        return df, []
+    #     return df, []
 
     @staticmethod
     def extract_cable_diagram(dfs: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, list[PageError]]:
@@ -367,7 +367,7 @@ class TableExtractor:
                         cable_index = int(col) - 1
                         # As in the same row cable tag & info are located -> select only tag
                         # TODO might be wrong as cable tag might have spaces (?)
-                        cable_info = df_cables.loc[cable_index, "src_cable_tag"]
+                        cable_info = df_cables.loc[cable_index, "cable_tag"]
                         cable_loc = df_cables.loc[cable_index, "_loc"]
                         # Extract a TAG from cable_info
                         cable_info_list.append(str(cable_info) if cable_info else "")
@@ -496,12 +496,12 @@ def extract_table(page: pymupdf.Page, key: str, table_setup: TableSetup) -> tupl
 def extract_text(page: pymupdf.Page, key: str, table_setup: TableSetup) -> tuple[pd.DataFrame, list[PageError]]:
     errors: list[PageError] = []
     # TODO for now just simply extract text
-    texts = page.get_text("text", clip=table_setup.roi).strip()
+    texts = page.get_text("text", clip=table_setup.roi)
     if not texts:
         raise ValueError(
             f"No required text(s) found on the page: {key}")
     #
-    df = pd.DataFrame([[ texts ]], columns=[key])
+    df = pd.DataFrame([[ texts.strip() ]], columns=[key])
 
     return df, errors
 

@@ -74,9 +74,26 @@ class PageSettings:
             logger.error(f"Failed to load extraction settings: {e}")
             self.pages_setup = settings
             return
+        
+        def _to_tuple_rect(value):
+            if isinstance(value, list) and len(value) == 4 and all(isinstance(v, (int, float)) for v in value):
+                return tuple(value)
+            return value
+        
+        def _fix_table_data(v: dict):
+            # Convert list → tuple for rects
+            v["roi"] = _to_tuple_rect(v.get("roi", (0, 0, 0, 0)))
+            if "overlap_test_roi" in v and v["overlap_test_roi"] is not None:
+                v["overlap_test_roi"] = _to_tuple_rect(v["overlap_test_roi"])
+
+            # Convert nested list of lines to tuples
+            if "lines" in v:
+                v["lines"] = [tuple(map(tuple, line)) for line in v["lines"]]
+
+            return v
             
         for key, value in data.items():
-            tables = {k: TableSetup(**v) for k, v in value["tables"].items()}
+            tables = {k: TableSetup(**_fix_table_data(v)) for k, v in value["tables"].items()}
             settings[PageType[key]] = PageSetup(
                 tables=tables,
                 description=value.get("description", ""),
