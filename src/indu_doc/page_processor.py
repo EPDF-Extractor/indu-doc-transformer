@@ -27,9 +27,9 @@ class PageProcessor:
         errors: list[PageError] = []
 
         # --- detect page type ---
-        page_type_ = detect_page_type(page, self.type_map)
+        page_type_ = detect_page_type(page_, self.type_map)
         if not page_type_:
-            logger.warning(f"Could not detect page type for page #{page.number + 1}")
+            logger.warning(f"Could not detect page type for page #{page_.number + 1}")
             errors.append(PageError("Could not detect page type", error_type=ErrorType.FAULT))
             return
     
@@ -75,7 +75,7 @@ class PageProcessor:
             PageType.DEVICE_TAG_LIST: self.process_device_tag_list,
             PageType.DEVICE_LIST_DE: self.process_device_tag_list,
             PageType.CABLE_OVERVIEW: self.process_cable_overview,
-            PageType.CABLE_PLAN: self.process_cable_plan,
+            # PageType.CABLE_PLAN: self.process_cable_plan,
             PageType.TOPOLOGY: self.process_topology,
             PageType.WIRES_PART_LIST: self.process_wires_part_list,
             PageType.TERMINAL_DIAGRAM: self.process_terminal_diagram,
@@ -213,43 +213,43 @@ class PageProcessor:
                 )
 
     # TODO outdated can not test
-    def process_cable_plan(self, table: pd.DataFrame, page_info: PageInfo):
-        target = table.columns[-3]
-        target_src = table.columns[1]
-        target_dst = table.columns[-5]
-        other = [
-            col for col in table.columns if col not in (target, target_src, target_dst)
-            and not col.startswith("_")
-        ]
-        for idx, row in table.iterrows():
-            # get primary stuff
-            tag = str(row[target]).strip()
-            tag_src = str(row[target_src]).strip()
-            tag_dst = str(row[target_dst]).strip()
-            if tag == "" or tag_src == "" or tag_dst == "":
-                msg = f"row #{idx} skipped: empty cable connection info (is that intended?): `{tag}` from=`{tag_src}` to=`{tag_dst}`"
-                self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
-                logger.warning(msg)
-                continue
-            # get secondary stuff
-            attributes: list[Attribute] = []
-            for name in other:
-                value = str(row[name]).strip()
-                if name != "" and value != "":
-                    attributes.append(
-                        self.god.create_attribute(
-                            AttributeType.SIMPLE, name, value)
-                    )
-            # get meta stuff
-            if "_loc" in row:
-                attributes.append(
-                    self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
-                )
-            # build
-            self.god.create_connection_with_link(
-                tag, tag_src, tag_dst, page_info, tuple(attributes)
-            )
+    # def process_cable_plan(self, table: pd.DataFrame, page_info: PageInfo):
+    #     target = table.columns[-3]
+    #     target_src = table.columns[1]
+    #     target_dst = table.columns[-5]
+    #     other = [
+    #         col for col in table.columns if col not in (target, target_src, target_dst)
+    #         and not col.startswith("_")
+    #     ]
+    #     for idx, row in table.iterrows():
+    #         # get primary stuff
+    #         tag = str(row[target]).strip()
+    #         tag_src = str(row[target_src]).strip()
+    #         tag_dst = str(row[target_dst]).strip()
+    #         if tag == "" or tag_src == "" or tag_dst == "":
+    #             msg = f"row #{idx} skipped: empty cable connection info (is that intended?): `{tag}` from=`{tag_src}` to=`{tag_dst}`"
+    #             self.god.create_error(page_info, msg, error_type=ErrorType.WARNING)
+    #             logger.warning(msg)
+    #             continue
+    #         # get secondary stuff
+    #         attributes: list[Attribute] = []
+    #         for name in other:
+    #             value = str(row[name]).strip()
+    #             if name != "" and value != "":
+    #                 attributes.append(
+    #                     self.god.create_attribute(
+    #                         AttributeType.SIMPLE, name, value)
+    #                 )
+    #         # get meta stuff
+    #         if "_loc" in row:
+    #             attributes.append(
+    #                 self.god.create_attribute(
+    #                     AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+    #             )
+    #         # build
+    #         self.god.create_connection_with_link(
+    #             tag, tag_src, tag_dst, page_info, tuple(attributes)
+    #         )
 
     def process_topology(self, table: pd.DataFrame, page_info: PageInfo):
         other = [
