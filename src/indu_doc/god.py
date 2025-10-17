@@ -8,7 +8,7 @@ from functools import cache
 from typing import Any, Optional, Union
 from collections import defaultdict
 
-from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes, PDFLocationAttribute
+from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
 from indu_doc.common_page_utils import PageInfo, PageError, ErrorType
 from indu_doc.configs import AspectsConfig
 from indu_doc.connection import Connection, Link, Pin
@@ -313,7 +313,7 @@ class God:
         tag_to: str,
         page_info: PageInfo,
         attributes: Optional[tuple[Attribute, ...]] = None,
-        loc: Optional[PDFLocationAttribute] = None
+        loc: Optional[Attribute] = None
     ):
         ''' please provide connection location in the attributes '''
         logger.debug(
@@ -348,7 +348,7 @@ class God:
         pin_tag_to: str,
         page_info: PageInfo,
         attributes: Optional[tuple[Attribute, ...]] = None,
-        loc: Optional[PDFLocationAttribute] = None
+        loc: Optional[Attribute] = None
     ):
         ''' please provide connection location in the attributes '''
         logger.debug(
@@ -370,7 +370,10 @@ class God:
             return None
         # tag is cable tag. if none -> connection is in virtual cable
         connection = self.create_connection(
-            tag, tag_from, tag_to, page_info=page_info, attributes=(loc,) if loc else None, loc=loc
+            tag, tag_from, tag_to, 
+            page_info=page_info, 
+            attributes=(loc,) if loc else None, 
+            loc=loc
         )
         # if it has no pins -> has no links
         link = self.create_link(
