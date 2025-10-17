@@ -25,11 +25,11 @@ class ProcessingState(Enum):
 
 
 class Manager:
-    def __init__(self, configs: AspectsConfig, settings: PageSettings) -> None:
+    def __init__(self, configs: AspectsConfig, page_settings: PageSettings) -> None:
         self.configs: AspectsConfig = configs
         self.god: God = God(self.configs)
-        self.settings = settings
-        self.page_processor: PageProcessor = PageProcessor(self.god, self.settings)
+        self.page_settings = page_settings
+        self.page_processor: PageProcessor = PageProcessor(self.god, self.page_settings)
 
         # Threading and state management
         self._processing_thread: threading.Thread | None = None
@@ -44,19 +44,19 @@ class Manager:
         }
 
     @classmethod
-    def from_config_files(cls, config_path: str, setup_path: str) -> "Manager":
+    def from_config_files(cls, config_path: str, page_setup_path: str) -> "Manager":
         """_summary_
 
         Args:
-            config_path (str): _description_
-            setup_path  (str): _description_
+            config_path         (str): _description_
+            page_setup_path     (str): _description_
 
         Returns:
             Manager: _description_
         """
-        settings = PageSettings.init_from_file(setup_path)
+        page_settings = PageSettings.init_from_file(page_setup_path)
         configs = AspectsConfig.init_from_file(config_path)
-        return cls(configs, settings)
+        return cls(configs, page_settings)
 
     def process_pdfs(self, pdf_paths: str | list[str], blocking: bool = False) -> None:
         """
@@ -209,7 +209,7 @@ class Manager:
 
         self.configs = configs
         self.god = God(self.configs)
-        self.page_processor = PageProcessor(self.god, self.settings)
+        self.page_processor = PageProcessor(self.god, self.page_settings)
 
     def get_tree(self) -> Any:
         # form tree of objects by aspects. Level of the tree is aspect priority
