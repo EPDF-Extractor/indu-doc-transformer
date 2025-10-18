@@ -63,7 +63,7 @@ def validate_file_path(path: str, must_exist: bool = True) -> Path:
 @click.argument('pdf_path', type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path))
 @click.option('-o', '--output', type=click.Path(exists=False, file_okay=True, dir_okay=False, path_type=Path),
               help='Filename of the generated settings file',
-              default='extraction_settings.json')
+              default='page_settings.json')
 @click.option('-v', '--verbose', is_flag=True,
               help='Enable verbose logging')
 def main(pdf_path: Path, output: Path, verbose: bool) -> None:

@@ -170,7 +170,7 @@ class God:
     ) -> Optional[Aspect]:
         ''' please provide location in the attributes '''
         #
-        logger.info(
+        logger.debug(
             f"create_aspect {tag_str}"
         )
         # Must use raw try_parse_tag as it will not create any empty stuff

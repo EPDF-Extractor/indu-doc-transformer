@@ -132,7 +132,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
                 attributes.append(loc)
             # build
             self.god.create_connection_with_link(
@@ -165,7 +165,7 @@ class PageProcessor:
             if "_loc" in row:
                 attributes.append(
                     self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
                 )
 
             self.god.create_xtarget(
@@ -203,7 +203,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
                 attributes.append(loc)
             # create connections if from/to specified
             if tag_from and tag_to:
@@ -244,7 +244,7 @@ class PageProcessor:
     #         if "_loc" in row:
     #             attributes.append(
     #                 self.god.create_attribute(
-    #                     AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+    #                     AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
     #             )
     #         # build
     #         self.god.create_connection_with_link(
@@ -286,7 +286,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
                 attributes.append(loc)
 
             # Add route as attribute
@@ -337,7 +337,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
                 attributes.append(loc)
 
             # Add route as attribute
@@ -395,7 +395,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
                 attributes.append(loc)
                 # TODO for now I ignore it - might not have it
                 # cable_loc = self.god.create_attribute(
@@ -460,7 +460,7 @@ class PageProcessor:
             if "_loc" in row:
                 attributes.append(
                     self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
                 )
 
             # add attribute to xtarget with tag
@@ -493,7 +493,7 @@ class PageProcessor:
             if "_loc" in row:
                 attributes.append(
                     self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
                 )
 
             # create aspect
@@ -503,12 +503,12 @@ class PageProcessor:
     def process_terminal_diagram(self, table: pd.DataFrame, page_info: PageInfo):
         # TODO very annoying thing, must be somehow avoided
         # detect left/right prefixed columns
-        l_cols = [c for c in table.columns if c.startswith("_l")]
-        r_cols = [c for c in table.columns if c.startswith("_r")]
-        base_cols = [c for c in table.columns if not (c.startswith("_l") or c.startswith("_r"))]
+        l_cols = [c for c in table.columns if c.startswith("_1")]
+        r_cols = [c for c in table.columns if c.startswith("_2")]
+        base_cols = [c for c in table.columns if not (c.startswith("_1") or c.startswith("_2"))]
         # remove prefixes
         def strip_prefix(c: str) -> str:
-            return c.removeprefix("_l").removeprefix("_r")
+            return c.removeprefix("_1").removeprefix("_2")
 
         l_df = table[l_cols + base_cols].copy()
         l_df.columns = [strip_prefix(c) for c in l_df.columns] # type: ignore
@@ -526,10 +526,10 @@ if __name__ == "__main__":
 
     doc = pymupdf.open("pdfs/sample.pdf")
     god = God(configs=default_configs)
-    page_settings = PageSettings("extraction_settings.json")
+    page_settings = PageSettings("page_settings.json")
     processor = PageProcessor(god, page_settings)
 
-    page = doc.load_page(56)  # Load the first page
+    page = doc.load_page(211)  # Load the first page
     processor.run(page)
     print(god)
     for id, tgt in god.xtargets.items():
