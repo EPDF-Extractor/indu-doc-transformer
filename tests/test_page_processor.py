@@ -135,7 +135,7 @@ class TestProcessConnectionList:
     @pytest.fixture
     def page_info(self):
         """Stub page info."""
-        return MagicMock(page=5)
+        return MagicMock(page=MagicMock(number=5))
 
     def test_skips_empty_tags_creates_warning(self, processor, page_info):
         """Should skip rows with empty tags and log a warning."""
@@ -238,7 +238,7 @@ class TestProcessDeviceTagList:
     @pytest.fixture
     def page_info(self):
         mock_page_info = MagicMock(spec=PageInfo)
-        mock_page_info.page = MagicMock()  # required for PDF_LOCATION
+        mock_page_info.page = MagicMock(number=5)  # required for PDF_LOCATION
         return mock_page_info
 
     def test_creates_xtarget_for_valid_tag(self, processor, page_info):
@@ -331,7 +331,7 @@ class TestProcessCableOverview:
     def page_info(self):
         """Create a mock PageInfo with a .page attribute."""
         mock_page_info = MagicMock()
-        mock_page_info.page = MagicMock()  # required for PDF_LOCATION
+        mock_page_info.page = MagicMock(number=11)  # required for PDF_LOCATION
         return mock_page_info
 
     def test_creates_connection_for_valid_row(self, processor, page_info):
@@ -439,7 +439,7 @@ class TestProcessTopology:
     def page_info(self):
         """Creates a fake PageInfo with page attribute."""
         mock_page_info = MagicMock()
-        mock_page_info.page = 42
+        mock_page_info.page.number = 42
         return mock_page_info
 
     def test_skips_row_with_missing_required_fields(self, processor, page_info):
@@ -560,7 +560,7 @@ class TestProcessWiresPartList:
     def page_info(self):
         """Creates a fake PageInfo with 'page' attribute."""
         mock_page_info = MagicMock()
-        mock_page_info.page = 42
+        mock_page_info.page.number = 42
         return mock_page_info
 
     def test_skips_rows_with_empty_tags_and_logs_warning(self, processor, page_info):
@@ -692,7 +692,7 @@ class TestProcessCableDiagram:
     def page_info(self):
         """Creates a fake PageInfo with 'page' attribute."""
         page_info = MagicMock()
-        page_info.page = 7
+        page_info.page.number = 7
         return page_info
 
     def test_skips_row_with_all_empty_fields_and_logs_warning(self, processor, page_info):
@@ -790,7 +790,7 @@ class TestProcessCableDiagram:
         attrs = processor.god.create_connection_with_link.call_args[0][4]
         pdf_attrs = [a for a in attrs if a.type == AttributeType.PDF_LOCATION]
         assert len(pdf_attrs) == 1
-        assert pdf_attrs[0].value == (page_info.page, (100, 200, 300, 400))
+        assert pdf_attrs[0].value == (page_info.page.number, (100, 200, 300, 400))
 
     def test_creates_multiple_connections_for_semicolon_separated_tags(self, processor, page_info):
         """Should create connections for all src/dst tag-pin combinations."""
@@ -851,7 +851,7 @@ class TestProcessPlcDiagram:
     def page_info(self):
         """Fake PageInfo with 'page' attribute."""
         page_info = MagicMock()
-        page_info.page = 42
+        page_info.page.number = 42
         return page_info
 
     def test_skips_row_with_empty_tag_and_logs_warning(self, processor, page_info):
@@ -953,7 +953,7 @@ class TestProcessPlcDiagram:
         attrs = processor.god.create_xtarget.call_args[0][3]
         pdf_attrs = [a for a in attrs if a.type == AttributeType.PDF_LOCATION]
         assert len(pdf_attrs) == 1
-        assert pdf_attrs[0].value == (page_info.page, (10, 20, 30, 40))
+        assert pdf_attrs[0].value == (page_info.page.number, (10, 20, 30, 40))
 
     def test_ignores_empty_meta_columns(self, processor, page_info):
         """Should ignore empty or whitespace-only meta fields."""
@@ -991,7 +991,7 @@ class TestProcessStructureIdentifierOverview:
     def page_info(self):
         """Mocked PageInfo with 'page' property."""
         page_info = MagicMock()
-        page_info.page = 7
+        page_info.page.number = 7
         return page_info
 
     def test_creates_aspect_for_valid_tag_and_attributes(self, processor, page_info):
@@ -1041,7 +1041,7 @@ class TestProcessStructureIdentifierOverview:
         attrs = processor.god.create_aspect.call_args[0][2]
         pdf_attrs = [a for a in attrs if a.type == AttributeType.PDF_LOCATION]
         assert len(pdf_attrs) == 1
-        assert pdf_attrs[0].value == (page_info.page, (10, 20, 30, 40))
+        assert pdf_attrs[0].value == (page_info.page.number, (10, 20, 30, 40))
 
     def test_ignores_empty_or_whitespace_values(self, processor, page_info):
         """Should ignore empty or whitespace-only secondary attributes."""
@@ -1114,17 +1114,17 @@ class TestProcessTerminalDiagram:
     def page_info(self):
         """Mocked PageInfo object with 'page' property."""
         page_info = MagicMock()
-        page_info.page = 42
+        page_info.page.number = 42
         return page_info
 
     def test_processes_both_left_and_right_prefixed_columns(self, processor, page_info):
-        """Should correctly strip _l/_r prefixes and call process_cable_diagram twice."""
+        """Should correctly strip _1/_2 prefixes and call process_cable_diagram twice."""
         df = pd.DataFrame([
             {
-                "_lcable_tag": "L1",
-                "_lsrc_tag": "SRC_L",
-                "_rcable_tag": "R1",
-                "_rsrc_tag": "SRC_R",
+                "_1cable_tag": "L1",
+                "_1src_tag": "SRC_L",
+                "_2cable_tag": "R1",
+                "_2src_tag": "SRC_R",
                 "common": "shared"
             }
         ])
@@ -1156,9 +1156,9 @@ class TestProcessTerminalDiagram:
         assert all(call.args[1] == page_info for call in processor.process_cable_diagram.call_args_list)
 
     def test_handles_only_left_columns(self, processor, page_info):
-        """Should work even when only _l-prefixed columns exist."""
+        """Should work even when only _1-prefixed columns exist."""
         df = pd.DataFrame([
-            {"_lcable_tag": "L_ONLY", "_lsrc_tag": "SRC_L_ONLY"}
+            {"_1cable_tag": "L_ONLY", "_1src_tag": "SRC_L_ONLY"}
         ])
 
         processor.process_terminal_diagram(df, page_info)
@@ -1176,9 +1176,9 @@ class TestProcessTerminalDiagram:
         assert list(r_df.columns) == list()
 
     def test_handles_only_right_columns(self, processor, page_info):
-        """Should work even when only _r-prefixed columns exist."""
+        """Should work even when only _2-prefixed columns exist."""
         df = pd.DataFrame([
-            {"_rcable_tag": "R_ONLY", "_rdst_tag": "DST_R_ONLY"}
+            {"_2cable_tag": "R_ONLY", "_2dst_tag": "DST_R_ONLY"}
         ])
 
         processor.process_terminal_diagram(df, page_info)
@@ -1187,7 +1187,7 @@ class TestProcessTerminalDiagram:
         l_df = processor.process_cable_diagram.call_args_list[0][0][0]
         r_df = processor.process_cable_diagram.call_args_list[1][0][0]
 
-        # Left should contain NaNs (no _l columns)
+        # Left should contain no columns (no _1 columns)
         assert set(l_df.columns) == set()
 
         # Right should have proper values
@@ -1210,9 +1210,9 @@ class TestProcessTerminalDiagram:
             assert df_arg.equals(df)
 
     def test_prefix_stripping_works_for_multiple_levels(self, processor, page_info):
-        """Ensure that both _l and _r prefixes are correctly removed regardless of column order."""
+        """Ensure that both _1 and _2 prefixes are correctly removed regardless of column order."""
         df = pd.DataFrame([
-            {"_rcable_tag": "R2", "_lcable_tag": "L2", "_lsrc_tag": "SRC_L2", "extra": "value"}
+            {"_2cable_tag": "R2", "_1cable_tag": "L2", "_1src_tag": "SRC_L2", "extra": "value"}
         ])
 
         processor.process_terminal_diagram(df, page_info)
