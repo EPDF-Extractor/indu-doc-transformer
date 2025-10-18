@@ -7,6 +7,7 @@ import logging
 from functools import cache
 from typing import Any, Optional, Union
 from collections import defaultdict
+import threading
 
 from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
 from indu_doc.common_page_utils import PageInfo, PageError, ErrorType
@@ -50,29 +51,27 @@ class PagesObjectsMapper:
 
     def __init__(self) -> None:
         # many-to-many mapping
-        self.page_to_objects: dict[PageMapperEntry,
-                                   set[SupportedMapObjects]] = dict()
-        self.object_to_pages: dict[SupportedMapObjects,
-                                   set[PageMapperEntry]] = dict()
+        self.page_to_objects: defaultdict[PageMapperEntry,
+                                   set[SupportedMapObjects]] = defaultdict(set)
+        self.object_to_pages: defaultdict[SupportedMapObjects,
+                                   set[PageMapperEntry]] = defaultdict(set)
+        self._lock = threading.Lock()
 
     def add_mapping(self, page_info: PageInfo, obj: SupportedMapObjects):
         page_num = page_info.page.number + 1 if page_info.page.number else -1
         file_path = page_info.page.parent.name if page_info.page.parent else "unknown"
         entry = PageMapperEntry(page_num, file_path)
 
-        # add to both mappings
-        self.page_to_objects[entry] = self.page_to_objects.get(entry, set())
-        self.page_to_objects[entry].add(obj)
-
-        self.object_to_pages[obj] = self.object_to_pages.get(obj, set())
-        self.object_to_pages[obj].add(entry)
+        with self._lock:
+            self.page_to_objects[entry].add(obj)
+            self.object_to_pages[obj].add(entry)
 
     def get_pages_of_object(self, obj: SupportedMapObjects) -> set[PageMapperEntry]:
-        return self.object_to_pages.get(obj, set())
+        return self.object_to_pages[obj].copy()
 
     def get_objects_in_page(self, page_number: int, file_path: str) -> set[SupportedMapObjects]:
         entry = PageMapperEntry(page_number, file_path)
-        return self.page_to_objects.get(entry, set())
+        return self.page_to_objects[entry]
 
 
 class God:
@@ -97,6 +96,15 @@ class God:
         self.tags: dict[str, Tag] = dict[str, Tag]()
         self.aspects: dict[str, Aspect] = dict[str, Aspect]()
         self.pages_mapper = PagesObjectsMapper()
+        
+        # Fine-grained locks for each dictionary
+        self._xtargets_lock = threading.Lock()
+        self._connections_lock = threading.Lock()
+        self._attributes_lock = threading.Lock()
+        self._links_lock = threading.Lock()
+        self._pins_lock = threading.Lock()
+        self._tags_lock = threading.Lock()
+        self._aspects_lock = threading.Lock()
 
     def create_attribute(self, attribute_type: AttributeType, name: str, value: Any) -> Attribute:
         if attribute_type not in AvailableAttributes:
@@ -109,7 +117,8 @@ class God:
         #         f"Value for attribute {name} must be of type {attribute_cls.get_value_type().__name__}"
         #     )
         attribute = attribute_cls(name, value)  # type: ignore
-        self.attributes[str(attribute)] = attribute
+        with self._attributes_lock:
+            self.attributes[str(attribute)] = attribute
         return attribute
 
     def create_tag(self, tag_str: str, page_info: PageInfo):
@@ -121,7 +130,11 @@ class God:
 
         # check if tag not exists - create aspects for it
         aspects: dict[str, tuple[Aspect, ...]] = {}
-        if t.tag_str not in self.tags:
+        
+        with self._tags_lock:
+            tag_exists = t.tag_str in self.tags
+        
+        if not tag_exists:
             for sep, values in t.get_tag_parts().items():
                 level_aspects: list[Aspect] = []
                 for v in values:
@@ -145,7 +158,8 @@ class God:
         t.set_aspects(aspects)
 
         # cache tags by their string representation
-        return self.tags.setdefault(t.tag_str, t)
+        with self._tags_lock:
+            return self.tags.setdefault(t.tag_str, t)
 
 
     def create_aspect(
@@ -178,14 +192,15 @@ class God:
         aspect = Aspect(sep, vals[0], list(attributes or []))
 
         key = aspect.get_guid()
-        if key in self.aspects and attributes:
-            existing_aspect = self.aspects[key]
-            # merge attributes & return
-            for attr in attributes:
-                existing_aspect.add_attribute(attr)
-            return existing_aspect
+        with self._aspects_lock:
+            if key in self.aspects and attributes:
+                existing_aspect = self.aspects[key]
+                # merge attributes & return
+                for attr in attributes:
+                    existing_aspect.add_attribute(attr)
+                return existing_aspect
 
-        return self.aspects.setdefault(key, aspect)
+            return self.aspects.setdefault(key, aspect)
 
 
     def create_xtarget(
@@ -221,22 +236,25 @@ class God:
         )
         # Now that we have a valid tag, create the xtarget, lets see if it exists already
         target_key = xtarget.get_guid()
-        if target_key in self.xtargets:
-            # we have it already, merge attributes and use higher priority type
-            # +A1:1 -> GUID(tag.tag_str)
-            existing_xtarget = self.xtargets[target_key]
-            new_type = target_type if XTargetTypePriority[target_type] > XTargetTypePriority[
-                existing_xtarget.target_type] else existing_xtarget.target_type
+        
+        with self._xtargets_lock:
+            if target_key in self.xtargets:
+                # we have it already, merge attributes and use higher priority type
+                # +A1:1 -> GUID(tag.tag_str)
+                existing_xtarget = self.xtargets[target_key]
+                new_type = target_type if XTargetTypePriority[target_type] > XTargetTypePriority[
+                    existing_xtarget.target_type] else existing_xtarget.target_type
 
-            existing_xtarget.target_type = new_type
+                existing_xtarget.target_type = new_type
 
-            if attributes:
-                for attr in attributes:
-                    existing_xtarget.add_attribute(attr)
-            self.pages_mapper.add_mapping(page_info, existing_xtarget)
-            return existing_xtarget
+                if attributes:
+                    for attr in attributes:
+                        existing_xtarget.add_attribute(attr)
+                self.pages_mapper.add_mapping(page_info, existing_xtarget)
+                return existing_xtarget
 
-        new_xtarget = self.xtargets.setdefault(target_key, xtarget)
+            new_xtarget = self.xtargets.setdefault(target_key, xtarget)
+        
         self.pages_mapper.add_mapping(page_info, new_xtarget)
         return new_xtarget
 
@@ -257,10 +275,8 @@ class God:
             logger.warning(f"Failed to create pin from tag: {tag_pin}")
             return None
 
-        return (
-            # this is the first pin in the chain, get all children from it
-            self.pins.setdefault(current_pin.get_guid(), current_pin)
-        )
+        with self._pins_lock:
+            return self.pins.setdefault(current_pin.get_guid(), current_pin)
 
     def create_link(
         self,
@@ -293,16 +309,18 @@ class God:
         # if we had this link already, merge attributes and return existing one
         link_key = link.get_guid()
 
-        if link_key in self.links:
-            existing_link = self.links[link_key]
-            if attributes:
-                for attr in attributes:
-                    existing_link.attributes.add(attr)
+        with self._links_lock:
+            if link_key in self.links:
+                existing_link = self.links[link_key]
+                if attributes:
+                    for attr in attributes:
+                        existing_link.attributes.add(attr)
 
-            self.pages_mapper.add_mapping(page_info, existing_link)
-            return existing_link
+                self.pages_mapper.add_mapping(page_info, existing_link)
+                return existing_link
 
-        elink = self.links.setdefault(link_key, link)
+            elink = self.links.setdefault(link_key, link)
+        
         self.pages_mapper.add_mapping(page_info, elink)
         return elink
 
@@ -335,10 +353,12 @@ class God:
             tag_to, page_info=page_info, target_type=XTargetType.DEVICE, attributes=(loc,) if loc else None
         )
         conn = Connection(src=obj_from, dest=obj_to, through=through, links=[])
-        new_or_existing_conn = self.connections.setdefault(
-            conn.get_guid(), conn)
+        
+        with self._connections_lock:
+            new_or_existing_conn = self.connections.setdefault(
+                conn.get_guid(), conn)
+        
         self.pages_mapper.add_mapping(page_info, new_or_existing_conn)
-
         return new_or_existing_conn
 
     def create_connection_with_link(
