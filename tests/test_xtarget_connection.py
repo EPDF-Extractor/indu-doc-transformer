@@ -337,7 +337,7 @@ class TestLink:
         conn = Connection()
         link = Link("CABLE1", conn, "A1", "B1")
         src_pin = Pin("A1", "src", link)
-        dest_pin = Pin("B1", "dest", link)
+        dest_pin = Pin("B1", "dst", link)
 
         link.set_src_pin(src_pin)
         link.set_dest_pin(dest_pin)
@@ -348,7 +348,7 @@ class TestLink:
     def test_create_link_with_parent(self, sample_xtarget):
         """Test creating link with parent connection."""
         conn = Connection(src=sample_xtarget, dest=sample_xtarget)
-        link = Link("CABLE1", conn, "src", "dest")
+        link = Link("CABLE1", conn, "src", "dst")
 
         assert link.parent == conn
 
@@ -385,29 +385,29 @@ class TestLink:
         conn = Connection()
         link = Link("CABLE1", conn, "A1", "B1")
         src_pin = Pin("A1", "src", link)
-        dest_pin = Pin("B1", "dest", link)
+        dest_pin = Pin("B1", "dst", link)
         link.set_src_pin(src_pin)
         link.set_dest_pin(dest_pin)
 
         guid = link.get_guid()
 
         # Should be different from link without pins
-        link_no_pins = Link("CABLE1", conn, "src", "dest")
+        link_no_pins = Link("CABLE1", conn, "src", "dst")
         assert guid != link_no_pins.get_guid()
 
     def test_get_guid_consistency(self):
         """Test GUID consistency."""
         conn = Connection()
-        link = Link("dummy", conn, "src", "dest")
+        link = Link("dummy", conn, "src", "dst")
         src_pin = Pin("A1", "src", link)
-        dest_pin = Pin("B1", "dest", link)
+        dest_pin = Pin("B1", "dst", link)
 
         link1 = Link("CABLE1", conn, "A1", "B1")
         link1.set_src_pin(src_pin)
         link1.set_dest_pin(dest_pin)
         link2 = Link("CABLE1", conn, "A1", "B1")
         link2.set_src_pin(Pin("A1", "src", link))
-        link2.set_dest_pin(Pin("B1", "dest", link))
+        link2.set_dest_pin(Pin("B1", "dst", link))
 
         # Should have same GUID (same structure)
         assert link1.get_guid() == link2.get_guid()

@@ -197,7 +197,7 @@ class TestCreateTag:
 
         assert tag is not None
         assert tag.tag_str == ""
-        assert tag.get_tag_parts() == {'=': (), '+': (), '-': (), ':': ()}
+        assert tag.get_tag_parts() == {'=': ('',), '+': ('',), '-': ('',), ':': ('',)}
 
 
 class TestCreateXTarget:

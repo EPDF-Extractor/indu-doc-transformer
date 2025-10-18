@@ -6,13 +6,14 @@ from dataclasses import dataclass
 import logging
 from functools import cache
 from typing import Any, Optional, Union
-from enum import Enum
+from collections import defaultdict
+import threading
 
 from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
 from indu_doc.common_page_utils import PageInfo, PageError, ErrorType
 from indu_doc.configs import AspectsConfig
 from indu_doc.connection import Connection, Link, Pin
-from indu_doc.tag import Tag
+from indu_doc.tag import Tag, Aspect, try_parse_tag
 from indu_doc.xtarget import XTarget, XTargetType, XTargetTypePriority
 
 logger = logging.getLogger(__name__)
@@ -50,29 +51,27 @@ class PagesObjectsMapper:
 
     def __init__(self) -> None:
         # many-to-many mapping
-        self.page_to_objects: dict[PageMapperEntry,
-                                   set[SupportedMapObjects]] = dict()
-        self.object_to_pages: dict[SupportedMapObjects,
-                                   set[PageMapperEntry]] = dict()
+        self.page_to_objects: defaultdict[PageMapperEntry,
+                                   set[SupportedMapObjects]] = defaultdict(set)
+        self.object_to_pages: defaultdict[SupportedMapObjects,
+                                   set[PageMapperEntry]] = defaultdict(set)
+        self._lock = threading.Lock()
 
     def add_mapping(self, page_info: PageInfo, obj: SupportedMapObjects):
         page_num = page_info.page.number + 1 if page_info.page.number else -1
         file_path = page_info.page.parent.name if page_info.page.parent else "unknown"
         entry = PageMapperEntry(page_num, file_path)
 
-        # add to both mappings
-        self.page_to_objects[entry] = self.page_to_objects.get(entry, set())
-        self.page_to_objects[entry].add(obj)
-
-        self.object_to_pages[obj] = self.object_to_pages.get(obj, set())
-        self.object_to_pages[obj].add(entry)
+        with self._lock:
+            self.page_to_objects[entry].add(obj)
+            self.object_to_pages[obj].add(entry)
 
     def get_pages_of_object(self, obj: SupportedMapObjects) -> set[PageMapperEntry]:
-        return self.object_to_pages.get(obj, set())
+        return self.object_to_pages[obj].copy()
 
     def get_objects_in_page(self, page_number: int, file_path: str) -> set[SupportedMapObjects]:
         entry = PageMapperEntry(page_number, file_path)
-        return self.page_to_objects.get(entry, set())
+        return self.page_to_objects[entry]
 
 
 class God:
@@ -95,7 +94,17 @@ class God:
         self.links: dict[str, Link] = dict[str, Link]()
         self.pins: dict[str, Pin] = dict[str, Pin]()
         self.tags: dict[str, Tag] = dict[str, Tag]()
+        self.aspects: dict[str, Aspect] = dict[str, Aspect]()
         self.pages_mapper = PagesObjectsMapper()
+        
+        # Fine-grained locks for each dictionary
+        self._xtargets_lock = threading.Lock()
+        self._connections_lock = threading.Lock()
+        self._attributes_lock = threading.Lock()
+        self._links_lock = threading.Lock()
+        self._pins_lock = threading.Lock()
+        self._tags_lock = threading.Lock()
+        self._aspects_lock = threading.Lock()
 
     def create_attribute(self, attribute_type: AttributeType, name: str, value: Any) -> Attribute:
         if attribute_type not in AvailableAttributes:
@@ -108,7 +117,8 @@ class God:
         #         f"Value for attribute {name} must be of type {attribute_cls.get_value_type().__name__}"
         #     )
         attribute = attribute_cls(name, value)  # type: ignore
-        self.attributes[str(attribute)] = attribute
+        with self._attributes_lock:
+            self.attributes[str(attribute)] = attribute
         return attribute
 
     def create_tag(self, tag_str: str, page_info: PageInfo):
@@ -118,8 +128,80 @@ class God:
             logger.warning(f"Failed to create tag from string: {tag_str}")
             return None
 
+        # check if tag not exists - create aspects for it
+        aspects: dict[str, tuple[Aspect, ...]] = {}
+        
+        with self._tags_lock:
+            tag_exists = t.tag_str in self.tags
+        
+        if not tag_exists:
+            for sep, values in t.get_tag_parts().items():
+                level_aspects: list[Aspect] = []
+                for v in values:
+                    aspect = self.create_aspect(f"{sep}{v}", page_info)
+                    if not aspect:
+                        logger.warning(f"Weird tag which can not be broken into aspects: {str(aspect)} in {tag_str}")
+                        continue
+                    level_aspects.append(aspect)
+
+                if len(values) == 0:
+                    # empty aspect
+                    aspect = self.create_aspect(sep, page_info)
+                    if not aspect:
+                        logger.warning(f"Unexpected error creating aspect: {str(aspect)} in {tag_str}")
+                        continue
+                    level_aspects.append(aspect)
+                
+                aspects[sep] = tuple(level_aspects)
+
+        # assign created aspects to a tag
+        t.set_aspects(aspects)
+
         # cache tags by their string representation
-        return self.tags.setdefault(t.tag_str, t)
+        with self._tags_lock:
+            return self.tags.setdefault(t.tag_str, t)
+
+
+    def create_aspect(
+        self,
+        tag_str: str,
+        page_info: PageInfo,
+        attributes: Optional[tuple[Attribute, ...]] = None,
+    ) -> Optional[Aspect]:
+        ''' please provide location in the attributes '''
+        #
+        logger.debug(
+            f"create_aspect {tag_str}"
+        )
+        # Must use raw try_parse_tag as it will not create any empty stuff
+        parts = try_parse_tag(tag_str, self.configs)
+        if not parts:
+            msg = f"Failed to create aspect with tag: '{tag_str}'"
+            self.create_error(page_info, msg, error_type=ErrorType.WARNING)
+            logger.warning(msg)
+            return None
+        
+        sep, vals = next(iter(parts.items()))
+        # now assert that has one sep and one value
+        if len(parts) != 1 or len(vals) != 1:
+            msg = f"Failed to create aspect with tag: '{tag_str}' - has composite structure"
+            self.create_error(page_info, msg, error_type=ErrorType.WARNING)
+            logger.warning(msg)
+            return None
+        
+        aspect = Aspect(sep, vals[0], list(attributes or []))
+
+        key = aspect.get_guid()
+        with self._aspects_lock:
+            if key in self.aspects and attributes:
+                existing_aspect = self.aspects[key]
+                # merge attributes & return
+                for attr in attributes:
+                    existing_aspect.add_attribute(attr)
+                return existing_aspect
+
+            return self.aspects.setdefault(key, aspect)
+
 
     def create_xtarget(
         self,
@@ -128,6 +210,7 @@ class God:
         target_type: XTargetType = XTargetType.OTHER,
         attributes: Optional[tuple[Attribute, ...]] = None,
     ) -> Optional[XTarget]:
+        ''' please provide location in the attributes '''
         # prohibit creation of xtargets with unparsed pins
         if _is_pin_tag(tag_str):
             logger.warning(f"XTarget tag has pins: {tag_str}")
@@ -144,7 +227,7 @@ class God:
             logger.warning(msg)
             return None
 
-            # create new xtarget
+        # create new xtarget
         xtarget = XTarget(
             tag=tag,
             configs=self.configs,
@@ -153,22 +236,25 @@ class God:
         )
         # Now that we have a valid tag, create the xtarget, lets see if it exists already
         target_key = xtarget.get_guid()
-        if target_key in self.xtargets:
-            # we have it already, merge attributes and use higher priority type
-            # +A1:1 -> GUID(tag.tag_str)
-            existing_xtarget = self.xtargets[target_key]
-            new_type = target_type if XTargetTypePriority[target_type] > XTargetTypePriority[
-                existing_xtarget.target_type] else existing_xtarget.target_type
+        
+        with self._xtargets_lock:
+            if target_key in self.xtargets:
+                # we have it already, merge attributes and use higher priority type
+                # +A1:1 -> GUID(tag.tag_str)
+                existing_xtarget = self.xtargets[target_key]
+                new_type = target_type if XTargetTypePriority[target_type] > XTargetTypePriority[
+                    existing_xtarget.target_type] else existing_xtarget.target_type
 
-            existing_xtarget.target_type = new_type
+                existing_xtarget.target_type = new_type
 
-            if attributes:
-                for attr in attributes:
-                    existing_xtarget.add_attribute(attr)
-            self.pages_mapper.add_mapping(page_info, existing_xtarget)
-            return existing_xtarget
+                if attributes:
+                    for attr in attributes:
+                        existing_xtarget.add_attribute(attr)
+                self.pages_mapper.add_mapping(page_info, existing_xtarget)
+                return existing_xtarget
 
-        new_xtarget = self.xtargets.setdefault(target_key, xtarget)
+            new_xtarget = self.xtargets.setdefault(target_key, xtarget)
+        
         self.pages_mapper.add_mapping(page_info, new_xtarget)
         return new_xtarget
 
@@ -189,10 +275,8 @@ class God:
             logger.warning(f"Failed to create pin from tag: {tag_pin}")
             return None
 
-        return (
-            # this is the first pin in the chain, get all children from it
-            self.pins.setdefault(current_pin.get_guid(), current_pin)
-        )
+        with self._pins_lock:
+            return self.pins.setdefault(current_pin.get_guid(), current_pin)
 
     def create_link(
         self,
@@ -203,6 +287,7 @@ class God:
         dest_pin_name: Optional[str] = None,
         attributes: Optional[tuple[Attribute, ...]] = None,
     ):
+        ''' please provide location in the attributes '''
         logger.debug(
             f"create_link {name} {src_pin_name} {dest_pin_name} {attributes}"
         )
@@ -224,16 +309,18 @@ class God:
         # if we had this link already, merge attributes and return existing one
         link_key = link.get_guid()
 
-        if link_key in self.links:
-            existing_link = self.links[link_key]
-            if attributes:
-                for attr in attributes:
-                    existing_link.attributes.add(attr)
+        with self._links_lock:
+            if link_key in self.links:
+                existing_link = self.links[link_key]
+                if attributes:
+                    for attr in attributes:
+                        existing_link.attributes.add(attr)
 
-            self.pages_mapper.add_mapping(page_info, existing_link)
-            return existing_link
+                self.pages_mapper.add_mapping(page_info, existing_link)
+                return existing_link
 
-        elink = self.links.setdefault(link_key, link)
+            elink = self.links.setdefault(link_key, link)
+        
         self.pages_mapper.add_mapping(page_info, elink)
         return elink
 
@@ -243,8 +330,10 @@ class God:
         tag_from: str,
         tag_to: str,
         page_info: PageInfo,
-        attributes: Optional[tuple[Attribute, ...]] = None
+        attributes: Optional[tuple[Attribute, ...]] = None,
+        loc: Optional[Attribute] = None
     ):
+        ''' please provide connection location in the attributes '''
         logger.debug(
             f"create_connection at {tag}: {tag_from} -> {tag_to} {attributes}"
         )
@@ -258,16 +347,18 @@ class God:
 
         # TODO: send types of objects
         obj_from = self.create_xtarget(
-            tag_from, page_info=page_info, target_type=XTargetType.DEVICE
+            tag_from, page_info=page_info, target_type=XTargetType.DEVICE, attributes=(loc,) if loc else None
         )
         obj_to = self.create_xtarget(
-            tag_to, page_info=page_info, target_type=XTargetType.DEVICE
+            tag_to, page_info=page_info, target_type=XTargetType.DEVICE, attributes=(loc,) if loc else None
         )
         conn = Connection(src=obj_from, dest=obj_to, through=through, links=[])
-        new_or_existing_conn = self.connections.setdefault(
-            conn.get_guid(), conn)
+        
+        with self._connections_lock:
+            new_or_existing_conn = self.connections.setdefault(
+                conn.get_guid(), conn)
+        
         self.pages_mapper.add_mapping(page_info, new_or_existing_conn)
-
         return new_or_existing_conn
 
     def create_connection_with_link(
@@ -276,8 +367,10 @@ class God:
         pin_tag_from: str,    # has shape tag:pin
         pin_tag_to: str,
         page_info: PageInfo,
-        attributes: Optional[tuple[Attribute, ...]] = None
+        attributes: Optional[tuple[Attribute, ...]] = None,
+        loc: Optional[Attribute] = None
     ):
+        ''' please provide connection location in the attributes '''
         logger.debug(
             f"create_connection_with_link at {tag}: '{pin_tag_from}' -> '{pin_tag_to}' {attributes}"
         )
@@ -297,7 +390,10 @@ class God:
             return None
         # tag is cable tag. if none -> connection is in virtual cable
         connection = self.create_connection(
-            tag, tag_from, tag_to, page_info=page_info
+            tag, tag_from, tag_to, 
+            page_info=page_info, 
+            attributes=(loc,) if loc else None, 
+            loc=loc
         )
         # if it has no pins -> has no links
         link = self.create_link(
@@ -314,7 +410,7 @@ class God:
             return None
         
         pin_obj_from = self.create_pin(pin_from, "src", link)
-        pin_obj_to = self.create_pin(pin_to, "dest", link)
+        pin_obj_to = self.create_pin(pin_to, "dst", link)
         if pin_obj_from:
             link.set_src_pin(pin_obj_from)
         if pin_obj_to:
@@ -357,4 +453,4 @@ class God:
             self.pages_mapper.add_mapping(page_info, e)
 
     def __repr__(self):
-        return f"God(configs={self.configs},\n xtargets={len(self.xtargets)},\n connections={len(self.connections)},\n attributes={len(self.attributes)},\n links={len(self.links)},\n pins={len(self.pins)})"
+        return f"God(configs={self.configs},\n xtargets={len(self.xtargets)},\n connections={len(self.connections)},\n attributes={len(self.attributes)},\n links={len(self.links)},\n pins={len(self.pins)},\n aspects={len(self.aspects)})"

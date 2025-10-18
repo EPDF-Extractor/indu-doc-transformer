@@ -3,9 +3,11 @@ import json
 from abc import ABC, abstractmethod
 from enum import Enum
 import hashlib
-from types import UnionType
 from typing import Any, Union
 import uuid
+import numpy as np
+
+from indu_doc.common_utils import normalize_string
 
 
 class Attribute(ABC):
@@ -35,11 +37,11 @@ class Attribute(ABC):
         pass
 
     @abstractmethod
-    def get_search_entries(self) -> list[str]:
-        """Return a list of strings that can be used for searching, e.g., in a search index.
+    def get_search_entries(self) -> dict[str, Any]:
+        """Return a dictionary of field-value pairs that can be used for searching, e.g., in a search index.
         The idea is to extract relevant text from the attribute for search purposes and create a table inside the db for this.
         Returns:
-            list[str]: A list of strings for searching.
+            dict[str, Any]: A dictionary with field names as keys and their values for searching.
         """
         pass
 
@@ -87,8 +89,8 @@ class SimpleAttribute(Attribute):
         data = json.loads(db_str)
         return cls(name=data["name"], value=data["value"])
 
-    def get_search_entries(self) -> list[str]:
-        return [self.value]
+    def get_search_entries(self) -> dict[str, Any]:
+        return {normalize_string(self.name): normalize_string(self.value)}
 
     @classmethod
     def get_value_type(cls) -> type:
@@ -129,8 +131,8 @@ class RoutingTracksAttribute(Attribute):
         data = json.loads(db_str)
         return cls(name=data["name"], tracks=data["tracks"])
 
-    def get_search_entries(self) -> list[str]:
-        return self.tracks
+    def get_search_entries(self) -> dict[str, Any]:
+        return {"tracks": self.tracks}
 
     @classmethod
     def get_value_type(cls) -> Any:
@@ -151,15 +153,105 @@ class RoutingTracksAttribute(Attribute):
         tracks_str = self.sep.join(sorted(self.tracks))
         return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{tracks_str}".encode()).digest()))
 
+
+class PLCAddressAttribute(Attribute): 
+    """An attribute representing PLC diagram '%' addresses and their params.
+    """
+
+    def __init__(self, address: str, meta: dict[str, str]) -> None:
+        super().__init__(address)
+        self.meta = meta
+
+
+    def get_db_representation(self) -> str:
+        return json.dumps({"name": self.name, "meta": self.meta})
+
+    @classmethod
+    def from_db_representation(cls, db_str: str) -> "PLCAddressAttribute":
+        data = json.loads(db_str)
+        return cls(address=data["name"], meta=data["meta"])
+
+    def get_search_entries(self) -> dict[str, Any]:
+        return self.meta
+
+    @classmethod
+    def get_value_type(cls) -> type:
+        return dict[str, str]
+
+    def __hash__(self) -> int:
+        meta_str = ';'.join(f"{k}={v}" for k, v in sorted(self.meta.items()))
+        return hash((self.name, meta_str))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, RoutingTracksAttribute):
+            return False
+        return False # temporality assume theyre unique; self.name == other.name and self.meta == other.meta
+
+    def __repr__(self) -> str:
+        return f"PLC conn {self.name}: {self.meta}"
+
+    def get_guid(self) -> str:
+        meta_str = ';'.join(f"{k}={v}" for k, v in sorted(self.meta.items()))
+        return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{meta_str}".encode()).digest()))
+
+
+
+class PDFLocationAttribute(Attribute):
+    """An attribute representing position information inside a PDF page.
+    This attribute holds a rectangle where the info was found
+    """
+
+    def __init__(self, name: str, meta: tuple[int, tuple[float, float, float, float]]) -> None:
+        super().__init__(name)
+        self.bbox = meta[1]
+        self.page_no = meta[0]
+
+    def get_db_representation(self) -> str:
+        return json.dumps({"name": self.name, "bbox": self.bbox, "page_no": self.page_no})
+
+    @classmethod
+    def from_db_representation(cls, db_str: str) -> "PDFLocationAttribute":
+        data = json.loads(db_str)
+        return cls(name=data["name"], meta=(data["page_no"], data["bbox"]))
+
+    def get_search_entries(self) -> dict[str, Any]:
+        return {}  # can not be searched
+
+    @classmethod
+    def get_value_type(cls) -> Any:
+        return tuple[int, tuple[float, float, float, float]]
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.bbox))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, PDFLocationAttribute):
+            return False
+        return self.name == other.name \
+            and self.page_no == other.page_no \
+            and np.allclose(self.bbox, other.bbox, rtol=1e-9, atol=1e-9)
+
+    def __repr__(self) -> str:
+        return f"Pos: page {self.page_no} {self.bbox}"
+
+    def get_guid(self) -> str:
+        return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{self.page_no}:{self.bbox}".encode()).digest()))
+
 # IMP: please register new attributes here
+
+
 
 
 class AttributeType(Enum):
     SIMPLE = "SimpleAttribute"
     ROUTING_TRACKS = "RoutingTracksAttribute"
+    PLC_ADDRESS = "PLCAddressAttribute"
+    PDF_LOCATION = "PDFLocationAttribute"
 
 
 AvailableAttributes: dict[AttributeType, type[Attribute]] = {
     AttributeType.SIMPLE: SimpleAttribute,
     AttributeType.ROUTING_TRACKS: RoutingTracksAttribute,
+    AttributeType.PLC_ADDRESS: PLCAddressAttribute,
+    AttributeType.PDF_LOCATION: PDFLocationAttribute,
 }

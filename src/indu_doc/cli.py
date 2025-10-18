@@ -134,11 +134,11 @@ def monitor_processing(manager: Manager, show_progress: bool = True) -> bool:
             return False
 
 
-def process_pdf(pdf_file: Path, config: Path, show_stats: bool, export: Optional[str],
+def process_pdf(pdf_file: Path, config: Path, setup: Path, show_stats: bool, export: Optional[str],
                 export_format: str, show_progress: bool = True) -> None:
     """Process a PDF file using the async manager."""
     try:
-        manager = Manager.from_config_file(str(config))
+        manager = Manager.from_config_files(str(config), str(setup))
         click.echo(f"Processing PDF: {pdf_file}")
 
         # Start processing (this returns immediately)
@@ -174,7 +174,11 @@ def process_pdf(pdf_file: Path, config: Path, show_stats: bool, export: Optional
 @click.option('-c', '--config', 'config_file', required=True,
               type=click.Path(exists=True, file_okay=True,
                               dir_okay=False, path_type=Path),
-              help='Path to configuration file (required)')
+              help='Path to levels configuration file (required)')
+@click.option('-p', '--pages_setup', 'pages_setup', required=True,
+              type=click.Path(exists=True, file_okay=True,
+                              dir_okay=False, path_type=Path),
+              help='Path to pages configuration file (required)')
 @click.option('--no-stats', is_flag=True,
               help='Disable processing statistics display')
 @click.option('--no-progress', is_flag=True,
@@ -191,7 +195,7 @@ def process_pdf(pdf_file: Path, config: Path, show_stats: bool, export: Optional
               help='Write logs to file')
 @click.option('--out-to-std', is_flag=True,
               help='Enable logging output to stdout (disabled by default)')
-def main(pdf_file: Path, config_file: Path, no_stats: bool, no_progress: bool,
+def main(pdf_file: Path, config_file: Path, pages_setup: Path, no_stats: bool, no_progress: bool,
          export: Optional[str], export_format: str, verbose: bool, log_level: str,
          log_file: Optional[str], out_to_std: bool) -> None:
     """Industrial Document Transformer CLI - Process PDF files and extract industrial documentation components."""
@@ -203,7 +207,7 @@ def main(pdf_file: Path, config_file: Path, no_stats: bool, no_progress: bool,
     setup_logging(actual_log_level, log_file, out_to_std)
 
     # Execute the processing (show_stats is opposite of no_stats, show_progress is opposite of no_progress)
-    process_pdf(pdf_file, config_file, not no_stats,
+    process_pdf(pdf_file, config_file, pages_setup, not no_stats,
                 export, export_format, not no_progress)
 
 

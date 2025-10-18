@@ -754,6 +754,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "graphviz" },
+    { name = "lark" },
     { name = "lxml" },
     { name = "matplotlib" },
     { name = "networkx" },
@@ -793,6 +794,7 @@ test = [
 requires-dist = [
     { name = "click", specifier = ">=8.0.0" },
     { name = "graphviz" },
+    { name = "lark", specifier = ">=1.2.2" },
     { name = "lxml", specifier = ">=6.0.2" },
     { name = "matplotlib" },
     { name = "networkx" },

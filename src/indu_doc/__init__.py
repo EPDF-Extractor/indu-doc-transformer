@@ -27,6 +27,9 @@ from .footers import PageFooter, PaperSize, extract_footer
 # Base classes
 from .attributed_base import AttributedBase
 
+# Searcher
+from .searcher import Searcher
+
 # CLI entry point
 from .cli import main as cli_main
 
@@ -57,6 +60,9 @@ __all__ = [
     "PageFooter",
     "PaperSize",
     "extract_footer",
+    
+    # Searcher
+    "Searcher",
     
     # Base classes
     "AttributedBase",

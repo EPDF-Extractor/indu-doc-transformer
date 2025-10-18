@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from .aspects_menu import load_default_aspects, make_config_opener
 from indu_doc.manager import Manager
 from indu_doc.configs import AspectsConfig, LevelConfig
+from indu_doc.page_settings import PageSettings
 
 import logging
 
@@ -32,7 +33,7 @@ class ClientState:
         self.manager: Manager = Manager(AspectsConfig.init_from_list([
             {"Aspect": aspect.Aspect, "Separator": aspect.Separator}
             for aspect in self.aspects
-        ]))
+        ]), PageSettings("page_settings.json"))
 
     def is_valid(self) -> bool:
         return self.manager is not None and isinstance(self.uploaded_pdfs, list) and isinstance(self.aspects, list)
