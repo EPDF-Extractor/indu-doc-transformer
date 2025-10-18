@@ -1,0 +1,696 @@
+{
+  "CONNECTION_LIST": {
+    "tables": {
+      "main": {
+        "key_columns": {
+          "name": "connection name",
+          "src_pin_tag": "source tag with connection point",
+          "dst_pin_tag": "destination tag with connection point"
+        },
+        "description": "",
+        "roi": [
+          32.02580645161288,
+          67.42159139784928,
+          1163.6043010752687,
+          759.1790107526881
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "name": [
+            true
+          ],
+          "src_pin_tag": [
+            true
+          ],
+          "dst_pin_tag": [
+            true
+          ],
+          "Color": [
+            true
+          ],
+          "Cross-section": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 2,
+        "on_many_join": true,
+        "on_many_no_header": true,
+        "row_offset": 0
+      }
+    },
+    "description": "",
+    "search_name": "Connection list"
+  },
+  "CABLE_OVERVIEW": {
+    "tables": {
+      "main": {
+        "key_columns": {
+          "cable_tag": "cable designation",
+          "src_tag": "source tag",
+          "dst_tag": "destination tag"
+        },
+        "description": "",
+        "roi": [
+          31.546105725260645,
+          73.31172489482356,
+          1159.8138942747396,
+          775.2689226266691
+        ],
+        "text_only": false,
+        "lines": [
+          [
+            [
+              336.2982549844522,
+              73.31172489482356
+            ],
+            [
+              336.2982549844522,
+              775.2689226266691
+            ]
+          ]
+        ],
+        "columns": {
+          "cable_tag": [
+            true,
+            ""
+          ],
+          "Col1": [
+            false
+          ],
+          "src_tag": [
+            true
+          ],
+          "dst_tag": [
+            true
+          ],
+          "Cable type": [
+            true
+          ],
+          "Conductors": [
+            true
+          ],
+          "Cross-section": [
+            true
+          ],
+          "Length": [
+            true
+          ],
+          "Function text": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 0
+      }
+    },
+    "description": "",
+    "search_name": "Cable overview"
+  },
+  "TERMINAL_DIAGRAM": {
+    "tables": {
+      "l_cables": {
+        "key_columns": {
+          "cable_tag": "cable tag"
+        },
+        "description": "left side cable list",
+        "roi": [
+          19.56147064203401,
+          44.206182549844584,
+          411.6302469361623,
+          238.52847997073354
+        ],
+        "text_only": false,
+        "lines": [
+          [
+            [
+              148.8243204682641,
+              44.206182549844584
+            ],
+            [
+              148.8243204682641,
+              238.52847997073354
+            ]
+          ]
+        ],
+        "columns": {
+          "Ignored1": [
+            false
+          ],
+          "cable_tag": [
+            true
+          ],
+          "Ignored3": [
+            false
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": -1
+      },
+      "l_conn": {
+        "key_columns": {},
+        "description": "left side cable assignment",
+        "roi": [
+          20.41751600512157,
+          240.24057069690878,
+          412.48629229925007,
+          776.9810133528443
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "Function text": [
+            true,
+            "="
+          ],
+          "1": [
+            true
+          ],
+          "2": [
+            true
+          ],
+          "3": [
+            true
+          ],
+          "4": [
+            true
+          ],
+          "5": [
+            true
+          ],
+          "6": [
+            true
+          ],
+          "7": [
+            true
+          ],
+          "8": [
+            true
+          ],
+          "9": [
+            true
+          ],
+          "10": [
+            true
+          ],
+          "11": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 0
+      },
+      "r_cables": {
+        "key_columns": {
+          "cable_tag": "cable tag"
+        },
+        "description": "right side cable list",
+        "roi": [
+          790.0022974208891,
+          44.206182549844584,
+          1171.798529357966,
+          238.52847997073354
+        ],
+        "text_only": false,
+        "lines": [
+          [
+            [
+              950.8243204682641,
+              44.206182549844584
+            ],
+            [
+              950.8243204682641,
+              238.52847997073354
+            ]
+          ]
+        ],
+        "columns": {
+          "Ignored1": [
+            false
+          ],
+          "cable_tag": [
+            true
+          ],
+          "Ignored2": [
+            false
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": -1
+      },
+      "r_conn": {
+        "key_columns": {},
+        "description": "right side cable assignment",
+        "roi": [
+          790.8583427839767,
+          238.52847997073354,
+          1173.5106200841415,
+          778.6931040790196
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "11": [
+            true
+          ],
+          "10": [
+            true
+          ],
+          "9": [
+            true
+          ],
+          "8": [
+            true
+          ],
+          "7": [
+            true
+          ],
+          "6": [
+            true
+          ],
+          "5": [
+            true
+          ],
+          "4": [
+            true
+          ],
+          "3": [
+            true
+          ],
+          "2": [
+            true
+          ],
+          "1": [
+            true
+          ],
+          "Page / column": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 0
+      },
+      "strip_name": {
+        "key_columns": {},
+        "description": "area with strip name text (only)",
+        "roi": [
+          425.8,
+          86.4,
+          776.7,
+          125.2
+        ],
+        "text_only": true,
+        "lines": [],
+        "columns": {},
+        "overlap_test_roi": null,
+        "expected_num_tables": 0,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 0
+      },
+      "main": {
+        "key_columns": {
+          "cable_pin": "cable connection point",
+          "src_tag": "source tag",
+          "src_pin": "source connection point",
+          "dst_tag": "destination tag",
+          "dst_pin": "destination connection point"
+        },
+        "description": "right side cable assignment",
+        "roi": [
+          423.61488201938903,
+          166.62066947137373,
+          780.5857984269252,
+          776.9810133528443
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "src_tag": [
+            true
+          ],
+          "src_pin": [
+            true
+          ],
+          "cable_pin": [
+            true
+          ],
+          "Jumpers": [
+            true
+          ],
+          "PLC connection point": [
+            true
+          ],
+          "dst_tag": [
+            true
+          ],
+          "dst_pin": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 0
+      }
+    },
+    "description": "",
+    "search_name": "Terminal diagram"
+  },
+  "CABLE_DIAGRAM": {
+    "tables": {
+      "main": {
+        "key_columns": {
+          "src_tag": "source tag",
+          "src_pin": "source connection point",
+          "dst_tag": "destination tag",
+          "dst_pin": "destination connection point"
+        },
+        "description": "",
+        "roi": [
+          31.546105725260645,
+          66.46336199012262,
+          1159.8138942747396,
+          733.3226998353759
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "Function text Src": [
+            true,
+            "="
+          ],
+          "Page / Column Src": [
+            true
+          ],
+          "src_tag": [
+            true
+          ],
+          "src_pin": [
+            true
+          ],
+          "Conductor": [
+            true
+          ],
+          "dst_tag": [
+            true
+          ],
+          "dst_pin": [
+            true
+          ],
+          "Page / Column Dst": [
+            true
+          ],
+          "Function text Dst": [
+            true,
+            "="
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 0
+      }
+    },
+    "description": "",
+    "search_name": "Cable diagram"
+  },
+  "DEVICE_TAG_LIST": {
+    "tables": {
+      "main": {
+        "key_columns": {
+          "tag": "device tag"
+        },
+        "description": "",
+        "roi": [
+          30.69006036217297,
+          63.895225900859714,
+          1158.9578489116516,
+          767.5645143588806
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "tag": [
+            true
+          ],
+          "Quantity": [
+            true
+          ],
+          "Designation": [
+            true
+          ],
+          "Type number": [
+            true
+          ],
+          "Manufacturer": [
+            true
+          ],
+          "Part number": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 1
+      }
+    },
+    "description": "",
+    "search_name": "device tag list"
+  },
+  "TOPOLOGY": {
+    "tables": {
+      "main": {
+        "key_columns": {
+          "designation": "designation tag (cable tag)",
+          "src_tags": "source tag(s)",
+          "dst_tags": "destination tag(s)",
+          "route": "routing track"
+        },
+        "description": "",
+        "roi": [
+          32.402151088348205,
+          71.59963416864832,
+          1158.9578489116516,
+          776.1249679897567
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "designation": [
+            true
+          ],
+          "Part number": [
+            true
+          ],
+          "Type number": [
+            true
+          ],
+          "Length [m]": [
+            true
+          ],
+          "src_tags": [
+            true
+          ],
+          "Source connection length [m]": [
+            true
+          ],
+          "route": [
+            true
+          ],
+          "dst_tags": [
+            true
+          ],
+          "Target connection length [m]": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 0
+      }
+    },
+    "description": "",
+    "search_name": "Topology: Routed cables / connections"
+  },
+  "WIRES_PART_LIST": {
+    "tables": {
+      "main": {
+        "key_columns": {
+          "src_pin_tag": "source tag with connection point",
+          "dst_pin_tag": "destination tag with connection point",
+          "route": "routing track"
+        },
+        "description": "",
+        "roi": [
+          31.546105725260645,
+          66.46336199012262,
+          1159.8138942747396,
+          754.7238339125663
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "src_pin_tag": [
+            true
+          ],
+          "dst_pin_tag": [
+            true
+          ],
+          "Part number": [
+            true
+          ],
+          "Cross-section": [
+            true
+          ],
+          "Color": [
+            true
+          ],
+          "Length": [
+            true
+          ],
+          "Bundle": [
+            true
+          ],
+          "Bundle groups": [
+            true
+          ],
+          "Conductor end source": [
+            true
+          ],
+          "Conductor end target": [
+            true
+          ],
+          "Routing direction source": [
+            true
+          ],
+          "Routing direction target": [
+            true
+          ],
+          "route": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 1
+      }
+    },
+    "description": "",
+    "search_name": "Wires parts list"
+  },
+  "STRUCTURE_IDENTIFIER_OVERVIEW": {
+    "tables": {
+      "main": {
+        "key_columns": {
+          "tag": "designation tag (separator&name)"
+        },
+        "description": "",
+        "roi": [
+          31.546105725260645,
+          66.46336199012262,
+          1161.5259850009147,
+          747.0194256447778
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "tag": [
+            true
+          ],
+          "Ignored2": [
+            false
+          ],
+          "Structure description": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 1
+      }
+    },
+    "description": "",
+    "search_name": "Structure identifier overview"
+  },
+  "PLC_DIAGRAM": {
+    "tables": {
+      "main": {
+        "key_columns": {
+          "tag": "PLC device tag",
+          "plc_addr": "PLC address (%)"
+        },
+        "description": "",
+        "roi": [
+          31.546105725260645,
+          99.84913115053962,
+          1160.6699396378272,
+          749.5875617340406
+        ],
+        "text_only": false,
+        "lines": [],
+        "columns": {
+          "tag": [
+            true,
+            ""
+          ],
+          "plc_addr": [
+            true
+          ],
+          "Placement": [
+            true
+          ],
+          "Function text": [
+            true,
+            "="
+          ],
+          "Rack": [
+            true
+          ],
+          "Module": [
+            true
+          ],
+          "Symbolic address": [
+            true
+          ],
+          "Terminal": [
+            true
+          ]
+        },
+        "overlap_test_roi": null,
+        "expected_num_tables": 1,
+        "on_many_join": false,
+        "on_many_no_header": false,
+        "row_offset": 0
+      }
+    },
+    "description": "",
+    "search_name": "PLC diagram"
+  }
+}
