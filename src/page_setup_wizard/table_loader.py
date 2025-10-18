@@ -101,14 +101,14 @@ INITIAL_SETUP: dict[PageType, PageSetup] = {
             description="right side cable assignment",
             key_columns={}
         ),
-        "strip_name": TableSetup(
-            description="area with strip name text (only)",
+        "strip_tag": TableSetup(
+            description="area with strip tag text (only)",
             text_only=True
         ),
         "main": TableSetup(
             description="central table with all main info",
             key_columns={
-                "cable_pin": "cable connection point",
+                "strip_pin": "cable connection point",
                 "src_tag": "source tag",
                 "src_pin": "source connection point",
                 "dst_tag": "destination tag",
