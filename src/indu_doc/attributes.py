@@ -232,7 +232,7 @@ class PDFLocationAttribute(Attribute):
             and np.allclose(self.bbox, other.bbox, rtol=1e-9, atol=1e-9)
 
     def __repr__(self) -> str:
-        return f"Pos: age {self.page_no} {self.bbox}"
+        return f"Pos: page {self.page_no} {self.bbox}"
 
     def get_guid(self) -> str:
         return str(uuid.UUID(bytes=hashlib.md5(f"{self.name}:{self.page_no}:{self.bbox}".encode()).digest()))

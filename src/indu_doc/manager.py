@@ -416,7 +416,7 @@ if __name__ == "__main__":
     logging.basicConfig(
         filename="myapp.log", encoding="utf-8", filemode="w", level=logging.INFO
     )
-    manager = Manager.from_config_files("../../config.json", "../../extraction_settings.json")
+    manager = Manager.from_config_files("../../config.json", "../../page_settings.json")
     manager.process_pdfs("../../pdfs/sample.pdf")
     print(manager.get_tree())
 

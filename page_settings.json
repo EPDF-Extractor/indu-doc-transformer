@@ -306,7 +306,7 @@
         "on_many_no_header": false,
         "row_offset": 0
       },
-      "strip_name": {
+      "strip_tag": {
         "key_columns": {},
         "description": "area with strip name text (only)",
         "roi": [
@@ -326,7 +326,7 @@
       },
       "main": {
         "key_columns": {
-          "cable_pin": "cable connection point",
+          "strip_pin": "cable connection point",
           "src_tag": "source tag",
           "src_pin": "source connection point",
           "dst_tag": "destination tag",
@@ -348,7 +348,7 @@
           "src_pin": [
             true
           ],
-          "cable_pin": [
+          "strip_pin": [
             true
           ],
           "Jumpers": [

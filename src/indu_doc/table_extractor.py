@@ -198,6 +198,7 @@ class TableExtractor:
             # 1st: Do generalized table extraction
             dfs, msgs = extract_tables(page, setup)
             # 2nd: Do table speciefic processing (TODO make it just stackable middleware per page type)
+            print(f"get extractor {what}")
             df, msgs = cls.get_extractor(what)(dfs)
             # Return dfs
             errors += msgs
@@ -340,9 +341,9 @@ class TableExtractor:
         df_r_conn   = dfs["r_conn"]
         df_l_cables = dfs["l_cables"]
         df_l_conn   = dfs["l_conn"]
-        df_name     = dfs["strip_name"] 
+        df_name     = dfs["strip_tag"] 
         #
-        strip_name = df_name.loc[0, "strip_name"]
+        strip_tag = df_name.loc[0, "strip_tag"]
         #
         # here I have to do preprocessing to make a single df
         #
@@ -350,10 +351,15 @@ class TableExtractor:
             rows = []
             number_cols = [col for col in df_conn.columns if col.isdigit()]
             non_number_cols = [
-                col for col in df_conn.columns if col not in number_cols]
-            columns = ["Cable", "Color"] + non_number_cols + ["_loc_cable", "_loc_conn"]
-            # TODO append meta info so can split later
+                col for col in df_conn.columns 
+                if col not in number_cols
+                and not col.startswith("_") # also ignore meta cols
+                ]
+            columns = ["cable_tag", "Color"]  # + ["_loc_cable", "_loc_conn"] TODO how to integrate it
+            # first append meta info for split
             columns = [f"{split_meta}{c}" for c in columns] 
+            # regular columns are shared
+            columns.extend(non_number_cols)
             # for each connection
             for _, row in df_conn.iterrows():
                 non_number_values = row[non_number_cols].tolist()
@@ -376,13 +382,14 @@ class TableExtractor:
                 # 
                 rows.append(
                     [";".join(cable_info_list), ";".join(color_list)]
-                    + non_number_values + [cable_loc_list, row["_loc"]]
+                    # + [cable_loc_list, row["_loc"]] TODO how to integrate it?
+                    + non_number_values 
                 )
             return pd.DataFrame(rows, columns=columns)
 
         # Check if the number of rows in the transformed dataframes matches the number of rows in df
-        left_transformed = transform_dataframe(df_l_cables, df_l_conn, "_l")
-        right_transformed = transform_dataframe(df_r_cables, df_r_conn, "_r")
+        left_transformed = transform_dataframe(df_l_cables, df_l_conn, "_1")
+        right_transformed = transform_dataframe(df_r_cables, df_r_conn, "_2")
         if left_transformed.shape[0] != df.shape[0]:
             raise ValueError(
                 f"Left cable assignment table ({left_transformed.shape[0]}) does not match connections ({df.shape[0]})"
@@ -401,9 +408,18 @@ class TableExtractor:
             ],
             axis=1,
         )
+        # rename stuff (TODO awful, wish to avoid)
+        df.rename(columns={"src_tag": "_1src_tag"}, inplace=True)
+        df.rename(columns={"src_pin": "_1src_pin"}, inplace=True)
+        df.rename(columns={"dst_tag": "_2dst_tag"}, inplace=True)
+        df.rename(columns={"dst_pin": "_2dst_pin"}, inplace=True)
 
-        # insert strip name as 1st column
-        df.insert(0, "Strip", strip_name)
+        # insert strip name as dst
+        df.insert(0, "_1dst_tag", strip_tag)
+        df.rename(columns={"strip_pin": "_1dst_pin"}, inplace=True)
+        # insert strip name as src
+        df.insert(0, "_2src_tag", strip_tag)
+        df.insert(0, "_2src_pin", df["_1dst_pin"])
 
         return df, errors
 
