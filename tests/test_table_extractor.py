@@ -593,21 +593,57 @@ class TestTableExtractor:
     # -------------------------------
     def test_extract_terminal_diagram_basic(self):
         dfs = {
-            "main": pd.DataFrame([["main1"], ["main2"]], columns=["col"]),
+            "main": pd.DataFrame([
+                    ["cable_pin_1", "SRC_A", "PIN_A1", "DST_B", "PIN_B1"],
+                    ["cable_pin_2", "SRC_C", "PIN_C1", "DST_D", "PIN_D1"],
+                ], 
+                columns=["strip_pin", "src_tag", "src_pin", "dst_tag", "dst_pin"]),
             "r_cables": pd.DataFrame([{"cable_tag": "R1", "_loc": "locR"}]),
             "r_conn": pd.DataFrame([{"1": "red", "_loc": "locRconn1"}, {"": "", "_loc": "locRconn2"}]),
             "l_cables": pd.DataFrame([{"cable_tag": "L1", "_loc": "locL"}]),
             "l_conn": pd.DataFrame([{"1": "blue", "_loc": "locLconn1"}, {"1": "blue", "_loc": "locLconn2"}]),
-            "strip_name": pd.DataFrame([{"strip_name": "StripA"}])
+            "strip_tag": pd.DataFrame([{"strip_tag": "StripA"}])
         }
 
         df, errors = TableExtractor.extract_terminal_diagram(dfs)
         assert isinstance(df, pd.DataFrame)
-        assert df["Strip"].iloc[0] == "StripA"
         assert errors == []
-        # columns prefixed with _l and _r exist
-        assert any(c.startswith("_l") for c in df.columns)
-        assert any(c.startswith("_r") for c in df.columns)
+        # columns prefixed with _1 and _2 exist
+        assert any(c.startswith("_1") for c in df.columns)
+        assert any(c.startswith("_2") for c in df.columns)
+
+    # -------------------------------
+    # extract_terminal_diagram tests
+    # -------------------------------
+    def test_extract_terminal_all_required_columns_are_present(self):
+        dfs = {
+            "main": pd.DataFrame([
+                    ["strip_pin", "SRC", "PIN_SRC", "DST", "PIN_DST", "loc"],
+                ], 
+                columns=["strip_pin", "src_tag", "src_pin", "dst_tag", "dst_pin", "_loc"]),
+            "r_cables": pd.DataFrame([{"cable_tag": "R1", "_loc": "locR"}]),
+            "r_conn": pd.DataFrame([{"1": "red", "_loc": "locRconn1"}]),
+            "l_cables": pd.DataFrame([{"cable_tag": "L1", "_loc": "locL"}]),
+            "l_conn": pd.DataFrame([{"1": "blue", "_loc": "locLconn1"}]),
+            "strip_tag": pd.DataFrame([{"strip_tag": "Strip"}])
+        }
+
+        df, errors = TableExtractor.extract_terminal_diagram(dfs)
+        print(df)
+        assert isinstance(df, pd.DataFrame)
+        assert df["_1src_tag"].iloc[0] == "SRC"
+        assert df["_1dst_tag"].iloc[0] == "Strip"
+        assert df["_1src_pin"].iloc[0] == "PIN_SRC"
+        assert df["_1dst_pin"].iloc[0] == "strip_pin"
+        assert df["_2src_tag"].iloc[0] == "Strip"
+        assert df["_2dst_tag"].iloc[0] == "DST"
+        assert df["_2src_pin"].iloc[0] == "strip_pin"
+        assert df["_2dst_pin"].iloc[0] == "PIN_DST"
+        assert df["_loc"].iloc[0] == "loc"
+        assert errors == []
+        # columns prefixed with _1 and _2 exist
+        assert any(c.startswith("_1") for c in df.columns)
+        assert any(c.startswith("_2") for c in df.columns)
 
     def test_extract_terminal_diagram_row_mismatch_raises(self):
         dfs = {
@@ -616,7 +652,7 @@ class TestTableExtractor:
             "r_conn": pd.DataFrame([{"1": "red", "_loc": "locRconn1"}]),
             "l_cables": pd.DataFrame([{"cable_tag": "L1", "_loc": "locL"}]),
             "l_conn": pd.DataFrame([{"1": "blue", "_loc": "locLconn1"}]),
-            "strip_name": pd.DataFrame([{"strip_name": "StripA"}])
+            "strip_tag": pd.DataFrame([{"strip_tag": "StripA"}])
         }
         with pytest.raises(ValueError, match="Left cable assignment table"):
             TableExtractor.extract_terminal_diagram(dfs)
