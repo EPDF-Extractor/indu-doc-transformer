@@ -1,0 +1,16 @@
+{
+  "aspects": [
+    {
+      "Separator": "=",
+      "Aspect": "Function"
+    },
+    {
+      "Separator": "+",
+      "Aspect": "Location"
+    },
+    {
+      "Separator": "-",
+      "Aspect": "Product"
+    }
+  ]
+}
