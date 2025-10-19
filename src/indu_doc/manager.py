@@ -476,11 +476,6 @@ if __name__ == "__main__":
         
         # Monitor progress during processing
         import time
-        
-        
-        while True:
-            print(manager.get_stats())
-            time.sleep(1)
         print("Monitoring file progress...")
         start_time = time.time()
         while not manager.wait_for_completion(timeout=1):  # Check every 1 second

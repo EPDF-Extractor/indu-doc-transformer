@@ -56,7 +56,7 @@ class TestPagesObjectsMapper:
         mock_page.number = None
         mock_page.parent.name = "test.pdf"
 
-        from indu_doc.common_page_utils import PageInfo, PageType
+        from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageType
         page_info = PageInfo(
             page=mock_page,
             page_footer=mock_page_info_no_footer.page_footer,
@@ -80,7 +80,7 @@ class TestPagesObjectsMapper:
         mock_page.number = 5
         mock_page.parent = None
 
-        from indu_doc.common_page_utils import PageInfo, PageType
+        from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageType
         page_info = PageInfo(
             page=mock_page,
             page_footer=mock_page_info_no_footer.page_footer,
@@ -100,7 +100,7 @@ class TestPagesObjectsMapper:
     def test_get_objects_on_page(self, god_instance):
         """Test retrieving objects from a specific page."""
         # Create a consistent page info
-        from indu_doc.common_page_utils import PageInfo, PageType
+        from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageType
         from indu_doc.footers import PageFooter
         from unittest.mock import MagicMock
 
@@ -255,7 +255,7 @@ class TestMultiplePageMappings:
         mock_page2.number = 5
         mock_page2.parent.name = "test2.pdf"
 
-        from indu_doc.common_page_utils import PageInfo, PageType
+        from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageType
         page_info2 = PageInfo(
             page=mock_page2,
             page_footer=mock_page_info_no_footer.page_footer,
@@ -284,7 +284,7 @@ class TestMultiplePageMappings:
         mock_page2.number = 3
         mock_page2.parent.name = "test2.pdf"
 
-        from indu_doc.common_page_utils import PageInfo, PageType
+        from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageType
         page_info2 = PageInfo(
             page=mock_page2,
             page_footer=mock_page_info_no_footer.page_footer,

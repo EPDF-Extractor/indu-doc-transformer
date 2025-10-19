@@ -3,8 +3,8 @@ import pandas as pd
 from itertools import product
 from unittest.mock import MagicMock, patch
 
-from indu_doc.page_processor import PageProcessor
-from indu_doc.common_page_utils import PageError, ErrorType, PageInfo, PageType
+from indu_doc.plugins.eplan_pdfs.page_processor import PageProcessor
+from indu_doc.plugins.eplan_pdfs.common_page_utils import PageError, ErrorType, PageInfo, PageType
 from indu_doc.attributes import Attribute, AttributeType, PDFLocationAttribute
 from indu_doc.xtarget import XTargetType
 
@@ -39,7 +39,7 @@ class TestPageProcessorRun:
         page.number = 0
         return page
 
-    @patch("indu_doc.page_processor.detect_page_type", return_value=None)
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.detect_page_type", return_value=None)
     def test_run_page_type_not_detected(self, mock_detect, page_proc):
         page = self.make_mock_page()
 
@@ -50,8 +50,8 @@ class TestPageProcessorRun:
         # check logger and error list path executed
         page_proc.god.add_errors.assert_not_called()
 
-    @patch("indu_doc.page_processor.detect_page_type", return_value=PageType.CABLE_PLAN)
-    @patch("indu_doc.page_processor.extract_footer", return_value=None)
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.detect_page_type", return_value=PageType.CABLE_PLAN)
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.extract_footer", return_value=None)
     def test_run_no_footer(self, mock_footer, mock_detect, page_proc):
         page = self.make_mock_page()
 
@@ -61,9 +61,9 @@ class TestPageProcessorRun:
         mock_footer.assert_called_once()
         page_proc.god.add_errors.assert_not_called()
 
-    @patch("indu_doc.page_processor.detect_page_type", return_value=PageType.CABLE_PLAN)
-    @patch("indu_doc.page_processor.extract_footer", return_value="footer")
-    @patch("indu_doc.page_processor.TableExtractor.extract", return_value=(None, [PageError("err")]))
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.detect_page_type", return_value=PageType.CABLE_PLAN)
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.extract_footer", return_value="footer")
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.TableExtractor.extract", return_value=(None, [PageError("err")]))
     def test_run_no_table_found(self, mock_extract, mock_footer, mock_detect, page_proc):
         page = self.make_mock_page()
 
@@ -73,9 +73,9 @@ class TestPageProcessorRun:
         page_proc.god.add_errors.assert_called_once()
         assert isinstance(page_proc.god.add_errors.call_args[0][1][0], PageError)
 
-    @patch("indu_doc.page_processor.detect_page_type", return_value=PageType.CABLE_PLAN)
-    @patch("indu_doc.page_processor.extract_footer", return_value="footer")
-    @patch("indu_doc.page_processor.TableExtractor.extract", return_value=(pd.DataFrame({"a": [1]}), []))
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.detect_page_type", return_value=PageType.CABLE_PLAN)
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.extract_footer", return_value="footer")
+    @patch("indu_doc.plugins.eplan_pdfs.page_processor.TableExtractor.extract", return_value=(pd.DataFrame({"a": [1]}), []))
     def test_run_successful_process_called(self, mock_extract, mock_footer, mock_detect, page_proc):
         page = self.make_mock_page()
         with patch.object(page_proc, "process") as mock_proc:
