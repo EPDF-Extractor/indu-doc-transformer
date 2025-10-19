@@ -6,12 +6,12 @@ import pandas as pd
 from pymupdf import pymupdf  # type: ignore
 
 from indu_doc.attributes import AttributeType, Attribute
-from indu_doc.common_page_utils import PageType, detect_page_type, PageInfo, PageError, ErrorType
-from indu_doc.page_settings import PageSettings
+from indu_doc.plugins.eplan_pdfs.common_page_utils import PageType, detect_page_type, PageInfo, PageError, ErrorType
+from indu_doc.plugins.eplan_pdfs.page_settings import PageSettings
 from indu_doc.configs import default_configs
-from indu_doc.footers import extract_footer
+from indu_doc.plugins.eplan_pdfs.footers_extractor import extract_footer
 from indu_doc.god import God
-from indu_doc.table_extractor import TableExtractor
+from indu_doc.plugins.eplan_pdfs.table_extractor import TableExtractor
 from indu_doc.xtarget import XTargetType
 import traceback
 logger = logging.getLogger(__name__)

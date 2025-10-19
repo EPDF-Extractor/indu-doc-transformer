@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass, field, asdict
-from indu_doc.common_page_utils import PageType
+from indu_doc.plugins.eplan_pdfs.common_page_utils import PageType
 import logging
 
 logger = logging.getLogger(__name__)

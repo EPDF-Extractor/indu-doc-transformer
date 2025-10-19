@@ -1,13 +1,12 @@
 from __future__ import annotations
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 import pymupdf  # type: ignore
 import logging
 import traceback
-from .common_page_utils import PageType, PageError, ErrorType
-from .page_settings import rect, PageSetup, TableSetup, PageSettings
+from indu_doc.plugins.eplan_pdfs.common_page_utils import PageType, PageError, ErrorType
+from indu_doc.plugins.eplan_pdfs.page_settings import rect, PageSetup, TableSetup, PageSettings
 
 logger = logging.getLogger(__name__)
 # In pt

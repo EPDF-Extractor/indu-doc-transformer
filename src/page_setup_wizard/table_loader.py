@@ -1,4 +1,4 @@
-from indu_doc.common_page_utils import PageType, detect_page_type
+from indu_doc.plugins.eplan_pdfs.common_page_utils import PageType, detect_page_type
 from indu_doc.table_extractor import extract_tables
 from indu_doc.page_settings import PageSetup, TableSetup, PageSettings
 

@@ -1,9 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib.widgets import RectangleSelector
 import numpy as np
-import pymupdf 
-
-from indu_doc.page_settings import TableSetup
 
 import click
 

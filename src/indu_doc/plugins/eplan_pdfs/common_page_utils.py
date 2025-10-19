@@ -1,10 +1,7 @@
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from enum import Enum
-import os
 from typing import Optional
-from collections import defaultdict
 import logging
-import json
 
 from pymupdf import pymupdf  # type: ignore
 
