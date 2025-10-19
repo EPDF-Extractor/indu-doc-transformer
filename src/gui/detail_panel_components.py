@@ -1,5 +1,6 @@
 from nicegui import ui
 from typing import Any, Set
+from indu_doc.attributes import PDFLocationAttribute
 from indu_doc.god import PageMapperEntry
 
 
@@ -34,6 +35,8 @@ def create_attributes_section(attributes: Set[Any]):
     create_section_header('settings', 'Attributes')
     with ui.column().classes('gap-2 ml-6'):
         for attr in attributes:
+            if attr is None or isinstance(attr, PDFLocationAttribute):
+                continue
             with ui.card().classes('w-full bg-gray-700 border border-gray-600 p-3'):
                 ui.label(f'{attr}').classes('text-sm text-gray-200')
 
