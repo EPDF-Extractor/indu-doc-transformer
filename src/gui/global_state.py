@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+
+from indu_doc.plugins.eplan_pdfs.page_settings import PageSettings
 from .aspects_menu import load_default_aspects, make_config_opener
 from indu_doc.manager import Manager
 from indu_doc.configs import AspectsConfig, LevelConfig
-from indu_doc.page_settings import PageSettings
+from indu_doc.plugins.eplan_pdfs.eplan_pdf_plugin import EplanPDFPlugin
 
 import logging
 
@@ -30,10 +32,14 @@ class ClientState:
         self.uploaded_pdfs: list[str] = []
         self.aspects: list[LevelConfig] = load_default_aspects()
         logger.debug(f"Loaded aspects: {self.aspects}")
-        self.manager: Manager = Manager(AspectsConfig.init_from_list([
+        ps = PageSettings("page_settings.json")
+        cs = AspectsConfig.init_from_list([
             {"Aspect": aspect.Aspect, "Separator": aspect.Separator}
             for aspect in self.aspects
-        ]), PageSettings("page_settings.json"))
+        ])
+        pdfPlugin = EplanPDFPlugin(cs, ps)
+        self.manager: Manager = Manager(cs)
+        self.manager.register_plugin(pdfPlugin)
 
     def is_valid(self) -> bool:
         return self.manager is not None and isinstance(self.uploaded_pdfs, list) and isinstance(self.aspects, list)

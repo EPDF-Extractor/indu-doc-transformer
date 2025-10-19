@@ -3,8 +3,8 @@ from typing import List, Dict, Any
 from gui.global_state import ClientState
 from indu_doc.connection import Connection, Link
 from indu_doc.searcher import Searcher
-from gui.detail_panel_components import (
-    create_section_header, create_info_card, create_occurrences_section,
+from indu_doc.attributes import PDFLocationAttribute
+from gui.detail_panel_components import (create_info_card, 
     create_empty_state, create_collapsible_section
 )
 
@@ -285,13 +285,15 @@ def create_connections_page(state: ClientState):
 
                                     # Through object attributes
                                     if conn.through.attributes:
-                                        ui.label('Attributes:').classes(
-                                            'text-sm font-semibold mt-2 text-gray-300')
-                                        with ui.column().classes('gap-1 mt-1'):
-                                            for attr in conn.through.attributes:
-                                                with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-2'):
-                                                    ui.label(f'{attr}').classes(
-                                                        'text-xs text-gray-200')
+                                        used_attrs = [attr for attr in conn.through.attributes if not isinstance(attr, PDFLocationAttribute)]
+                                        if used_attrs:
+                                            ui.label('Attributes:').classes(
+                                                'text-sm font-semibold mt-2 text-gray-300')
+                                            with ui.column().classes('gap-1 mt-1'):
+                                                for attr in used_attrs:
+                                                    with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-2'):
+                                                        ui.label(f'{attr}').classes(
+                                                            'text-xs text-gray-200')
                             else:
                                 ui.label('Direct connection').classes(
                                     'text-sm text-gray-400 p-3')
@@ -318,13 +320,15 @@ def create_connections_page(state: ClientState):
                                                         'text-xs text-gray-400')
                                                 # Link attributes
                                                 if link.attributes:
-                                                    ui.label('Attributes:').classes(
-                                                        'text-sm font-semibold mt-2 text-gray-300')
-                                                    with ui.column().classes('gap-1 mt-1'):
-                                                        for attr in link.attributes:
-                                                            with ui.card().classes('w-full bg-gray-500 border border-gray-400 p-2'):
-                                                                ui.label(f'{attr}').classes(
-                                                                    'text-xs text-gray-200')
+                                                    used_attrs = [attr for attr in link.attributes if not isinstance(attr, PDFLocationAttribute)]
+                                                    if used_attrs:
+                                                        ui.label('Attributes:').classes(
+                                                            'text-sm font-semibold mt-2 text-gray-300')
+                                                        with ui.column().classes('gap-1 mt-1'):
+                                                            for attr in used_attrs:
+                                                                with ui.card().classes('w-full bg-gray-500 border border-gray-400 p-2'):
+                                                                    ui.label(f'{attr}').classes(
+                                                                        'text-xs text-gray-200')
 
                         # GUID
                         with create_collapsible_section('fingerprint', 'GUID', default_open=False):

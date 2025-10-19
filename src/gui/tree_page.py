@@ -1,12 +1,13 @@
 from nicegui import ui
 from typing import List, Dict, Any
 from gui.global_state import ClientState
+from gui.gui_utils import convert_tree_to_gui_format
+from indu_doc.attributes import PDFLocationAttribute
 from indu_doc.god import PageMapperEntry
 from indu_doc.xtarget import XTarget
 from indu_doc.searcher import Searcher
 from gui.detail_panel_components import (
-    create_type_badge, create_info_card, create_attributes_section,
-    create_occurrences_section, create_empty_state, create_collapsible_section
+    create_type_badge, create_info_card,create_empty_state, create_collapsible_section
 )
 
 
@@ -363,9 +364,10 @@ def create_tree_page(state: ClientState):
 
                         # Attributes
                         if target.attributes:
-                            with create_collapsible_section('settings', f'Attributes ({len(target.attributes)})', default_open=True):
+                            used_attributes = set([attr for attr in target.attributes if attr is not None and not isinstance(attr, PDFLocationAttribute)])
+                            with create_collapsible_section('settings', f'Attributes ({len(used_attributes)})', default_open=True):
                                 with ui.column().classes('gap-2 p-3'):
-                                    for attr in target.attributes:
+                                    for attr in used_attributes:
                                         with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-3'):
                                             ui.label(f'{attr}').classes(
                                                 'text-sm text-gray-200')
@@ -396,7 +398,8 @@ def create_tree_page(state: ClientState):
 
                 def refresh_tree():
                     """Refresh the tree data from the manager."""
-                    tree_data = state.manager.get_tree()
+                    tree_data = convert_tree_to_gui_format(state.manager.get_tree())
+                    
                     # Ensure tree_data is not None
                     if tree_data is None:
                         tree_data = []
