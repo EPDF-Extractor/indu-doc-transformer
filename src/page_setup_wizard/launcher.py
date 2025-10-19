@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 
 import click
 
-from indu_doc.page_settings import PageSettings
+from indu_doc.plugins.eplan_pdfs.page_settings import PageSettings
 from page_setup_wizard.table_loader import do_main_loop
 
 
