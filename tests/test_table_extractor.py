@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from unittest.mock import MagicMock, patch
 
-from indu_doc.table_extractor import (
+from indu_doc.plugins.eplan_pdfs.table_extractor import (
     demote_header,
     promote_header,
     extract_spans,
@@ -17,12 +17,12 @@ from indu_doc.table_extractor import (
     TableExtractor
 ) 
 
-from indu_doc.common_page_utils import (
+from indu_doc.plugins.eplan_pdfs.common_page_utils import (
     PageError,
     ErrorType,
     PageType
 )
-from indu_doc.page_settings import PageSetup, TableSetup
+from indu_doc.plugins.eplan_pdfs.page_settings import PageSetup, TableSetup
 
 def make_mock_row(bbox, cells=None):
     r = MagicMock()
@@ -206,7 +206,7 @@ class TestExtractTable:
         )
         return table
 
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_no_tables_found(self, mock_to_df):
         page = MagicMock()
         page.find_tables.return_value = []
@@ -214,7 +214,7 @@ class TestExtractTable:
         with pytest.raises(ValueError, match="No required table"):
             extract_table(page, "key", table_setup)
 
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_too_many_tables_error(self, mock_to_df):
         page = MagicMock()
         page.find_tables.return_value = [MagicMock(), MagicMock()]
@@ -222,10 +222,10 @@ class TestExtractTable:
         with pytest.raises(ValueError, match="Expected <= 1 tables"):
             extract_table(page, "key", table_setup)
 
-    @patch("indu_doc.table_extractor.extract_spans")
-    @patch("indu_doc.table_extractor.detect_overlaps")
-    @patch("indu_doc.table_extractor.fix_row_overlaps")
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_spans")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.detect_overlaps")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.fix_row_overlaps")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_overlap_detection_single_table(self, mock_to_df, mock_fix, mock_detect, mock_extract):
         table = self.make_mock_table()
         page = MagicMock()
@@ -245,10 +245,10 @@ class TestExtractTable:
         assert any(isinstance(e, PageError) for e in errors)
         assert df.shape[1] == 3
 
-    @patch("indu_doc.table_extractor.extract_spans")
-    @patch("indu_doc.table_extractor.detect_overlaps")
-    @patch("indu_doc.table_extractor.fix_row_overlaps")
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_spans")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.detect_overlaps")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.fix_row_overlaps")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_overlap_detection_multi_table_fails(self, mock_to_df, mock_fix, mock_detect, mock_extract):
         table1 = self.make_mock_table(col_count=3)
         table2 = self.make_mock_table(col_count=3)
@@ -266,7 +266,7 @@ class TestExtractTable:
         with pytest.raises(ValueError, match="Overlap detection does not work"):
             df, errors = extract_table(page, "key", table_setup)
 
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_column_count_mismatch(self, mock_to_df):
         table = self.make_mock_table(col_count=2)
         page = MagicMock()
@@ -275,7 +275,7 @@ class TestExtractTable:
         with pytest.raises(ValueError, match="Expected 3 columns"):
             extract_table(page, "key", table_setup)
 
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_column_count_mismatch_multiple_tables(self, mock_to_df):
         table1 = self.make_mock_table(col_count=3)
         table2 = self.make_mock_table(col_count=2)
@@ -286,7 +286,7 @@ class TestExtractTable:
             extract_table(page, "key", table_setup)
 
 
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_multiple_tables_header_offset(self, mock_to_df):
         table1 = self.make_mock_table(col_count=3)
         table2 = self.make_mock_table(col_count=3)
@@ -306,7 +306,7 @@ class TestExtractTable:
         assert df.iloc[0,0] == 1
         assert df.iloc[2,0] == 7
 
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_ignore_columns_removed(self, mock_to_df):
         table = self.make_mock_table(col_count=3)
         page = MagicMock()
@@ -319,7 +319,7 @@ class TestExtractTable:
         assert 'A' not in df.columns
         assert 'B' in df.columns
 
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_row_filtering_empty(self, mock_to_df):
         table = self.make_mock_table(col_count=2)
         page = MagicMock()
@@ -336,7 +336,7 @@ class TestExtractTable:
         # middle row removed
         assert df.shape[0] == 2
 
-    @patch("indu_doc.table_extractor.to_df_with_loc")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.to_df_with_loc")
     def test_forward_fill_applied(self, mock_to_df):
         table = self.make_mock_table(col_count=2)
         page = MagicMock()
@@ -404,8 +404,8 @@ class TestExtractTables:
         page = MagicMock()
         return page
 
-    @patch("indu_doc.table_extractor.extract_text")
-    @patch("indu_doc.table_extractor.extract_table")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_text")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_table")
     def test_single_text_table(self, mock_extract_table, mock_extract_text):
         page = self.make_mock_page()
         df_mock = pd.DataFrame([[1]], columns=["A"])
@@ -422,8 +422,8 @@ class TestExtractTables:
         mock_extract_text.assert_called_once()
         mock_extract_table.assert_not_called()
 
-    @patch("indu_doc.table_extractor.extract_text")
-    @patch("indu_doc.table_extractor.extract_table")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_text")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_table")
     def test_single_table_normal(self, mock_extract_table, mock_extract_text):
         page = self.make_mock_page()
         df_mock = pd.DataFrame([[1,2]], columns=["A","B"])
@@ -440,8 +440,8 @@ class TestExtractTables:
         mock_extract_table.assert_called_once()
         mock_extract_text.assert_not_called()
 
-    @patch("indu_doc.table_extractor.extract_text")
-    @patch("indu_doc.table_extractor.extract_table")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_text")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_table")
     def test_multiple_tables_mixed(self, mock_extract_table, mock_extract_text):
         page = self.make_mock_page()
 
@@ -472,8 +472,8 @@ class TestExtractTables:
         mock_extract_text.assert_called_once()
         mock_extract_table.assert_called_once()
 
-    @patch("indu_doc.table_extractor.extract_text")
-    @patch("indu_doc.table_extractor.extract_table")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_text")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_table")
     def test_no_tables(self, mock_extract_table, mock_extract_text):
         page = self.make_mock_page()
         page_setup = PageSetup(tables={})
@@ -508,7 +508,7 @@ class TestTableExtractor:
     # -------------------------------
     # extract method tests
     # -------------------------------
-    @patch("indu_doc.table_extractor.extract_tables")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_tables")
     def test_extract_success(self, mock_extract_tables):
         page = self.make_mock_page(3)
         dfs_mock = {"main": pd.DataFrame([[1]])}
@@ -523,7 +523,7 @@ class TestTableExtractor:
         assert df.equals(dfs_mock["main"])
         assert errors == []
 
-    @patch("indu_doc.table_extractor.extract_tables")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_tables")
     def test_extract_value_error_caught(self, mock_extract_tables):
         page = self.make_mock_page(1)
         # simulate extract_tables returning empty dict
@@ -538,7 +538,7 @@ class TestTableExtractor:
         assert errors[0].error_type == ErrorType.FAULT
         assert "bad" in errors[0].message
 
-    @patch("indu_doc.table_extractor.extract_tables")
+    @patch("indu_doc.plugins.eplan_pdfs.table_extractor.extract_tables")
     def test_extract_unknown_exception_caught(self, mock_extract_tables):
         page = self.make_mock_page(1)
         mock_extract_tables.return_value = ({"main": pd.DataFrame([[1]])}, [])
