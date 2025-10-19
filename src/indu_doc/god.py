@@ -4,31 +4,19 @@ This module contains the factory class for creating Different objects.
 
 from dataclasses import dataclass
 import logging
-from functools import cache
 from typing import Any, Optional, Union
 from collections import defaultdict
 import threading
 
 from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
-from indu_doc.common_page_utils import PageInfo, PageError, ErrorType
+from indu_doc.common_utils import _is_pin_tag, _split_pin_tag
+from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageError, ErrorType
 from indu_doc.configs import AspectsConfig
 from indu_doc.connection import Connection, Link, Pin
 from indu_doc.tag import Tag, Aspect, try_parse_tag
 from indu_doc.xtarget import XTarget, XTargetType, XTargetTypePriority
 
 logger = logging.getLogger(__name__)
-
-
-def _is_pin_tag(tag: str) -> bool:
-    # every pin for error handling starts from ':'
-    return tag.find(':') != -1
-
-
-def _split_pin_tag(tag_pin: str) -> tuple[str, Optional[str]]:
-    # now I assume that pin starts from ':'
-    tags = tag_pin.split(':', 1)
-    # every pin for error handling starts from ':'
-    return tags[0], None if len(tags) == 1 else ':' + tags[1]
 
 
 @dataclass(frozen=True)
@@ -73,6 +61,13 @@ class PagesObjectsMapper:
         entry = PageMapperEntry(page_number, file_path)
         return self.page_to_objects[entry]
 
+    def __iadd__(self, other: 'PagesObjectsMapper') -> 'PagesObjectsMapper':
+        with self._lock:
+            for page_entry, objects in other.page_to_objects.items():
+                self.page_to_objects[page_entry].update(objects)
+            for obj, page_entries in other.object_to_pages.items():
+                self.object_to_pages[obj].update(page_entries)
+        return self
 
 class God:
     """
@@ -454,3 +449,47 @@ class God:
 
     def __repr__(self):
         return f"God(configs={self.configs},\n xtargets={len(self.xtargets)},\n connections={len(self.connections)},\n attributes={len(self.attributes)},\n links={len(self.links)},\n pins={len(self.pins)},\n aspects={len(self.aspects)})"
+    
+    def __iadd__(self, other: 'God') -> 'God':
+        # Merge xtargets
+        with self._xtargets_lock:
+            self.xtargets.update(other.xtargets)
+        # Merge connections
+        with self._connections_lock:
+            self.connections.update(other.connections)
+        # Merge attributes
+        with self._attributes_lock:
+            self.attributes.update(other.attributes)
+        # Merge links
+        with self._links_lock:
+            self.links.update(other.links)
+        # Merge pins
+        with self._pins_lock:
+            self.pins.update(other.pins)
+        # Merge tags
+        with self._tags_lock:
+            self.tags.update(other.tags)
+        # Merge aspects
+        with self._aspects_lock:
+            self.aspects.update(other.aspects)
+        self.pages_mapper += other.pages_mapper
+        return self
+    
+    
+    def reset(self):
+        with self._xtargets_lock:
+            self.xtargets.clear()
+        with self._connections_lock:
+            self.connections.clear()
+        with self._attributes_lock:
+            self.attributes.clear()
+        with self._links_lock:
+            self.links.clear()
+        with self._pins_lock:
+            self.pins.clear()
+        with self._tags_lock:
+            self.tags.clear()
+        with self._aspects_lock:
+            self.aspects.clear()
+        # reset pages mapper
+        self.pages_mapper = PagesObjectsMapper()

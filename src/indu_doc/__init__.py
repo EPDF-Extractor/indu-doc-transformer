@@ -8,7 +8,6 @@ __version__ = "0.0.1"
 __author__ = "Ahmed Abdelhay, Artsiom Drankevich"
 
 # Core classes - most commonly used
-from .manager import Manager
 from .god import God
 from .configs import AspectsConfig, LevelConfig
 
@@ -19,10 +18,7 @@ from .attributes import Attribute, AttributeType, SimpleAttribute, RoutingTracks
 from .tag import Tag
 
 # Page processing
-from .page_processor import PageProcessor
-from .table_extractor import TableExtractor
-from .common_page_utils import PageType, detect_page_type
-from .footers import PageFooter, PaperSize, extract_footer
+from .plugins.eplan_pdfs.common_page_utils import PageType, detect_page_type
 
 # Base classes
 from .attributed_base import AttributedBase
@@ -35,7 +31,6 @@ from .cli import main as cli_main
 
 __all__ = [
     # Core
-    "Manager",
     "God",
     "AspectsConfig",
     "LevelConfig",
@@ -53,13 +48,8 @@ __all__ = [
     "Tag",
     
     # Page processing
-    "PageProcessor",
-    "TableExtractor",
     "PageType",
     "detect_page_type",
-    "PageFooter",
-    "PaperSize",
-    "extract_footer",
     
     # Searcher
     "Searcher",
