@@ -184,7 +184,11 @@ def try_parse_tag(tag_str: str, configs: AspectsConfig) -> dict[str, tuple[str, 
     separators_index = []
     pattern = "|".join(re.escape(separator)
                        for separator in configs.separators)
-    matches = re.finditer(pattern, tag_str)
+    matches = list(re.finditer(pattern, tag_str))
+
+    if not matches or matches[0].start() != 0:
+        logger.debug(f"Tag can not have anything appear before first separator.")
+        return None
 
     for match in matches:
         separator = match.group(0)
