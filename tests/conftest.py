@@ -6,7 +6,7 @@ from typing import OrderedDict
 from unittest.mock import MagicMock
 from indu_doc.configs import AspectsConfig, LevelConfig
 from indu_doc.footers import PageFooter
-from indu_doc.common_page_utils import PageInfo, PageType
+from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageType
 
 
 @pytest.fixture

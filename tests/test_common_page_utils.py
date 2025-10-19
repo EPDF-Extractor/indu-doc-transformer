@@ -7,7 +7,7 @@ This module tests PageType enum, PageInfo dataclass, and page detection utilitie
 import pytest
 from unittest.mock import MagicMock, patch
 
-from indu_doc.common_page_utils import (
+from indu_doc.plugins.eplan_pdfs.common_page_utils import (
     PageType,
     PageInfo,
     detect_page_type,

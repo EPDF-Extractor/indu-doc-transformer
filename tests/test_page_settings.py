@@ -3,8 +3,8 @@ import os
 import pytest
 from unittest.mock import mock_open, patch
 
-from indu_doc.common_page_utils import PageType
-from indu_doc.page_settings import TableSetup, PageSetup, PageSettings
+from indu_doc.plugins.eplan_pdfs.common_page_utils import PageType
+from indu_doc.plugins.eplan_pdfs.page_settings import TableSetup, PageSetup, PageSettings
 
 
 class TestPageSettings:
