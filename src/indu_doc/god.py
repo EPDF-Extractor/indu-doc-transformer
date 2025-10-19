@@ -125,7 +125,7 @@ class God:
         t = Tag.get_tag_with_footer(
             tag_str, page_info.page_footer, self.configs) if page_info.page_footer else Tag(tag_str, self.configs)
         if not t:
-            logger.warning(f"Failed to create tag from string: {tag_str}")
+            logger.debug(f"Failed to create tag from string: {tag_str}")
             return None
 
         # check if tag not exists - create aspects for it
@@ -153,6 +153,12 @@ class God:
                     level_aspects.append(aspect)
                 
                 aspects[sep] = tuple(level_aspects)
+
+            # validate - if no aspects created - scrap it
+            if not aspects:
+                msg = f"Tag is invalid: {tag_str}"
+                logger.warning(msg)
+                self.create_error(page_info, msg, error_type=ErrorType.WARNING)
 
         # assign created aspects to a tag
         t.set_aspects(aspects)
