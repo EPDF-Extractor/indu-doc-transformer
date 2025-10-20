@@ -211,7 +211,8 @@ def create_gui(state: ClientState):
 
             # Start processing (non-blocking)
             ui.notify('Starting PDF processing...', color='info')
-            await run.io_bound(state.manager.process_files, tuple(state.uploaded_pdfs))
+            # Run it as blocking in another thread to avoid blocking the UI
+            await run.io_bound(state.manager.process_files, tuple(state.uploaded_pdfs), True)
 
         except Exception as e:
             logger.error(f"Error starting extraction: {e}")

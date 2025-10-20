@@ -132,7 +132,10 @@ class EventEmitter:
 
     def __init__(self):
         self._listeners: Dict[EventType, List[Callable[[PluginEvent], Awaitable[None]]]] = {}
-        self._loop = asyncio.get_event_loop()
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
 
     def on(self, event_type: EventType, listener: Callable[[PluginEvent], Awaitable[None]]):
         """Register an event listener."""
