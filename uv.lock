@@ -762,12 +762,14 @@ dependencies = [
     { name = "pandas" },
     { name = "pandas-stubs" },
     { name = "pdfplumber" },
+    { name = "peewee" },
     { name = "plotly" },
     { name = "pymupdf" },
     { name = "pyvis" },
     { name = "pywebview" },
     { name = "tqdm" },
     { name = "treelib" },
+    { name = "types-peewee" },
 ]
 
 [package.dev-dependencies]
@@ -802,12 +804,14 @@ requires-dist = [
     { name = "pandas" },
     { name = "pandas-stubs", specifier = ">=2.3.2.250827" },
     { name = "pdfplumber", specifier = ">=0.11.7" },
+    { name = "peewee", specifier = ">=3.18.2" },
     { name = "plotly" },
     { name = "pymupdf" },
     { name = "pyvis" },
     { name = "pywebview", specifier = ">=6.0" },
     { name = "tqdm" },
     { name = "treelib" },
+    { name = "types-peewee", specifier = ">=3.18.2.20250710" },
 ]
 
 [package.metadata.requires-dev]
@@ -1793,6 +1797,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/6d/0d/4135821aa7b1a0b77
 wheels = [
     { url = "https://files.pythonhosted.org/packages/db/e0/52b67d4f00e09e497aec4f71bc44d395605e8ebcea52543242ed34c25ef9/pdfplumber-0.11.7-py3-none-any.whl", hash = "sha256:edd2195cca68bd770da479cf528a737e362968ec2351e62a6c0b71ff612ac25e", size = 60029, upload-time = "2025-06-12T11:30:48.89Z" },
 ]
+
+[[package]]
+name = "peewee"
+version = "3.18.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/89/76f6f1b744c8608e0d416b588b9d63c2a500ff800065ae610f7c80f532d6/peewee-3.18.2.tar.gz", hash = "sha256:77a54263eb61aff2ea72f63d2eeb91b140c25c1884148e28e4c0f7c4f64996a0", size = 949220, upload-time = "2025-07-08T12:52:03.941Z" }
 
 [[package]]
 name = "pefile"
@@ -2814,6 +2824,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7a/31/145bdbee73d7ee4ac4e879c37faa196a32208b288ca4f308c1ad8db3f010/treelib-1.8.0.tar.gz", hash = "sha256:e1be2c6b66ffbfae85079fc4c76fb4909946d01d915ee29ff6795de53aed5d55", size = 28607, upload-time = "2025-06-29T15:06:49.293Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2e/24/32361f5d0e2eff7ff1881ac6833b6b090cfe34515b1ee9082636cbe69442/treelib-1.8.0-py3-none-any.whl", hash = "sha256:5235d1ebf988c5026f26ce6e5e0cd470007f16d4978185f5c9b3eee8a25aef81", size = 30728, upload-time = "2025-06-29T15:06:48.248Z" },
+]
+
+[[package]]
+name = "types-peewee"
+version = "3.18.2.20250710"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/89/5f/37fc1ae26b0b75f0bd4fa9ddd14d2188c74aae140eee2b41372746b057b6/types_peewee-3.18.2.20250710.tar.gz", hash = "sha256:8fc803df43f42f663798300d36cd5015478960c8cca5e27de9676c42ff3b74f1", size = 20722, upload-time = "2025-07-10T03:15:43.097Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/bf/307bae454876eb9f8536217572d1adfc23fa6bf5ee4ef8665a911028e918/types_peewee-3.18.2.20250710-py3-none-any.whl", hash = "sha256:f4fa6f849247a9167abf11e5908354efbd41c1f5f2cca66abf6900d2332b03c3", size = 19090, upload-time = "2025-07-10T03:15:42.015Z" },
 ]
 
 [[package]]

@@ -48,6 +48,15 @@ class AspectsConfig:
         for _, level_config in entries_with_order.items():
             ret[level_config.Separator] = level_config
         return AspectsConfig(ret)
+    
+    @classmethod
+    def from_json_str(cls, json_str: str):
+        config = json.loads(json_str).get("aspects", [])
+        return cls.init_from_list(config)
+
+    # @classmethod
+    # def to_json_str(cls) -> str:
+    #     json.dumps()
 
     @classmethod
     def init_from_list(cls, config_list: List[dict]) -> "AspectsConfig":

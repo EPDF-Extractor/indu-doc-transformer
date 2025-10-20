@@ -28,6 +28,8 @@ dependencies = [
     "lxml>=6.0.2",
     "pywebview>=6.0",
     "lark>=1.2.2",
+    "peewee>=3.18.2",
+    "types-peewee>=3.18.2.20250710",
 ]
 
 [project.scripts]
