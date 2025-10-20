@@ -1,10 +1,8 @@
 from indu_doc.plugins.eplan_pdfs.common_page_utils import PageType, detect_page_type
-from indu_doc.table_extractor import extract_tables
-from indu_doc.page_settings import PageSetup, TableSetup, PageSettings
+from indu_doc.plugins.eplan_pdfs.table_extractor import extract_tables
+from indu_doc.plugins.eplan_pdfs.page_settings import PageSetup, TableSetup, PageSettings
 
 from typing import Any
-from pathlib import Path
-import pandas as pd
 import pymupdf  # type: ignore
 import copy
 import traceback

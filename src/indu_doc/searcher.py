@@ -1,15 +1,10 @@
 from typing import Any
-from indu_doc.attributes import Attribute
 from indu_doc.common_utils import normalize_string
 from indu_doc.god import God
 
-from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
-from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageError, ErrorType
-from indu_doc.configs import AspectsConfig
-from indu_doc.connection import Connection, Link, Pin
-from indu_doc.lark_parser import run_parser, Filter
-from indu_doc.tag import Tag
-from indu_doc.xtarget import XTarget, XTargetType, XTargetTypePriority
+from indu_doc.connection import Connection
+from indu_doc.lark_parser import run_parser
+from indu_doc.xtarget import XTarget
 import logging
 logger = logging.getLogger(__name__)
 

@@ -7,6 +7,7 @@ from indu_doc.configs import AspectsConfig, LevelConfig
 from indu_doc.plugins.eplan_pdfs.eplan_pdf_plugin import EplanPDFPlugin
 
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class ClientState:
         self.uploaded_pdfs: list[str] = []
         self.aspects: list[LevelConfig] = load_default_aspects()
         logger.debug(f"Loaded aspects: {self.aspects}")
-        ps = PageSettings("page_settings.json")
+        ps = PageSettings(os.path.join(os.getcwd(), "page_settings.json"))
         cs = AspectsConfig.init_from_list([
             {"Aspect": aspect.Aspect, "Separator": aspect.Separator}
             for aspect in self.aspects
