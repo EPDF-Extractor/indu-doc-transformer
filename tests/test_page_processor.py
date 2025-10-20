@@ -790,7 +790,7 @@ class TestProcessCableDiagram:
         attrs = processor.god.create_connection_with_link.call_args[0][4]
         pdf_attrs = [a for a in attrs if a.type == AttributeType.PDF_LOCATION]
         assert len(pdf_attrs) == 1
-        assert pdf_attrs[0].value == (page_info.page.number, (100, 200, 300, 400))
+        assert pdf_attrs[0].value == (page_info.page.number+1, (100, 200, 300, 400))
 
     def test_creates_multiple_connections_for_semicolon_separated_tags(self, processor, page_info):
         """Should create connections for all src/dst tag-pin combinations."""
@@ -953,7 +953,7 @@ class TestProcessPlcDiagram:
         attrs = processor.god.create_xtarget.call_args[0][3]
         pdf_attrs = [a for a in attrs if a.type == AttributeType.PDF_LOCATION]
         assert len(pdf_attrs) == 1
-        assert pdf_attrs[0].value == (page_info.page.number, (10, 20, 30, 40))
+        assert pdf_attrs[0].value == (page_info.page.number+1, (10, 20, 30, 40))
 
     def test_ignores_empty_meta_columns(self, processor, page_info):
         """Should ignore empty or whitespace-only meta fields."""
@@ -1041,7 +1041,7 @@ class TestProcessStructureIdentifierOverview:
         attrs = processor.god.create_aspect.call_args[0][2]
         pdf_attrs = [a for a in attrs if a.type == AttributeType.PDF_LOCATION]
         assert len(pdf_attrs) == 1
-        assert pdf_attrs[0].value == (page_info.page.number, (10, 20, 30, 40))
+        assert pdf_attrs[0].value == (page_info.page.number+1, (10, 20, 30, 40))
 
     def test_ignores_empty_or_whitespace_values(self, processor, page_info):
         """Should ignore empty or whitespace-only secondary attributes."""

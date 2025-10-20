@@ -132,7 +132,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
                 attributes.append(loc)
             # build
             self.god.create_connection_with_link(
@@ -165,7 +165,7 @@ class PageProcessor:
             if "_loc" in row:
                 attributes.append(
                     self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
                 )
 
             self.god.create_xtarget(
@@ -203,7 +203,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
                 attributes.append(loc)
             # create connections if from/to specified
             if tag_from and tag_to:
@@ -244,7 +244,7 @@ class PageProcessor:
     #         if "_loc" in row:
     #             attributes.append(
     #                 self.god.create_attribute(
-    #                     AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+    #                     AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
     #             )
     #         # build
     #         self.god.create_connection_with_link(
@@ -286,7 +286,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
                 attributes.append(loc)
 
             # Add route as attribute
@@ -337,7 +337,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
                 attributes.append(loc)
 
             # Add route as attribute
@@ -395,7 +395,7 @@ class PageProcessor:
             loc = None
             if "_loc" in row:
                 loc = self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
                 attributes.append(loc)
                 # TODO for now I ignore it - might not have it
                 # cable_loc = self.god.create_attribute(
@@ -460,7 +460,7 @@ class PageProcessor:
             if "_loc" in row:
                 attributes.append(
                     self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
                 )
 
             # add attribute to xtarget with tag
@@ -493,7 +493,7 @@ class PageProcessor:
             if "_loc" in row:
                 attributes.append(
                     self.god.create_attribute(
-                        AttributeType.PDF_LOCATION, "location", (page_info.page.number, row["_loc"]))
+                        AttributeType.PDF_LOCATION, "location", (page_info.page.number + 1, row["_loc"]))
                 )
 
             # create aspect
@@ -529,7 +529,7 @@ if __name__ == "__main__":
     page_settings = PageSettings("page_settings.json")
     processor = PageProcessor(god, page_settings)
 
-    page = doc.load_page(211)  # Load the first page
+    page = doc.load_page(29)  # Load the first page
     processor.run(page)
     print(god)
     for id, tgt in god.xtargets.items():
