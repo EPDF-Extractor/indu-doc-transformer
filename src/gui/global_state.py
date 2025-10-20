@@ -5,6 +5,11 @@ from .aspects_menu import load_default_aspects, make_config_opener
 from indu_doc.manager import Manager
 from indu_doc.configs import AspectsConfig, LevelConfig
 from indu_doc.plugins.eplan_pdfs.eplan_pdf_plugin import EplanPDFPlugin
+from .aspects_menu import load_default_aspects
+from indu_doc.manager import Manager
+from indu_doc.configs import AspectsConfig, LevelConfig
+import pymupdf 
+from typing import Optional
 
 import logging
 import os
@@ -41,6 +46,8 @@ class ClientState:
         pdfPlugin = EplanPDFPlugin(cs, ps)
         self.manager: Manager = Manager(cs)
         self.manager.register_plugin(pdfPlugin)
+        self.current_doc: Optional[pymupdf.Document] = None  # To cache the opened PDF document
+        self.current_file_path: str = ''  # To track the current file
 
     def is_valid(self) -> bool:
         return self.manager is not None and isinstance(self.uploaded_pdfs, list) and isinstance(self.aspects, list)

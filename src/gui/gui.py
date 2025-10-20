@@ -33,9 +33,11 @@ def connections_page():
 
 # Register PDF preview page route
 @ui.page('/pdf-preview', dark=True)
-def pdf_preview_page(file: str = '', page: int = 1):
+async def pdf_preview_page(file: str = '', page: int = 1):
+    await ui.context.client.connected()
     state = clients_to_state.get(app.storage.browser['id'])
     if state:
+        app.storage.tab['current_pdf_file'] = file
         create_pdf_preview_page(state, file, int(page))
     else:
         ui.label('Manager not initialized. Please go back to home page.').classes(
@@ -44,6 +46,7 @@ def pdf_preview_page(file: str = '', page: int = 1):
 
 @ui.page('/', dark=True)
 def main_page(client: Client):
+    
     state = ClientState()
     print(app.storage.browser['id'])
     clients_to_state[app.storage.browser['id']] = state
