@@ -226,18 +226,20 @@ def create_connections_page(state: ClientState):
 
         ui.separator().classes('bg-gray-700')
 
-        # Main content with list and detail panel
+        # Main content with list and detail panel using splitter
         with ui.card_section().classes('flex-1 min-h-0 w-full max-w-full overflow-hidden bg-gray-900'):
-            with ui.row().classes('w-full h-full gap-4'):
-                # Connection list (left side)
-                list_container = ui.column().classes('flex-1 min-w-0 h-full')
+            with ui.splitter(value=70).classes('w-full h-full') as splitter:
+                with splitter.before:
+                    # Connection list (left side)
+                    list_container = ui.column().classes('h-full w-full')
 
-                # Detail panel (right side)
-                detail_panel = ui.column().classes(
-                    'w-96 flex-shrink-0 h-full border-2 border-gray-600 rounded-lg p-4 overflow-y-auto bg-gray-800')
+                with splitter.after:
+                    # Detail panel (right side)
+                    detail_panel = ui.column().classes(
+                        'h-full w-full border-2 border-gray-600 rounded-lg p-4 overflow-y-auto bg-gray-800')
 
-                with detail_panel:
-                    create_empty_state('Select a connection to view details')
+                    with detail_panel:
+                        create_empty_state('Select a connection to view details')
 
                 def update_detail_panel(conn_info: Dict[str, Any]):
                     """Update the detail panel with connection details."""

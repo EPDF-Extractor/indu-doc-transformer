@@ -323,19 +323,20 @@ def create_tree_page(state: ClientState):
 
         ui.separator().classes('bg-gray-700')
 
-        # Main content with tree and side panel
+        # Main content with tree and side panel using splitter
         with ui.card_section().classes('flex-1 min-h-0 w-full max-w-full overflow-hidden bg-gray-900'):
-            with ui.row().classes('w-full h-full gap-4'):
-                # Tree container (left side)
-                tree_container = ui.column().classes(
-                    'flex-1 min-w-0 h-full')
+            with ui.splitter(value=70).classes('w-full h-full') as splitter:
+                with splitter.before:
+                    # Tree container (left side)
+                    tree_container = ui.column().classes('h-full w-full')
 
-                # Side panel container (right side)
-                side_panel = ui.column().classes(
-                    'w-96 flex-shrink-0 h-full border-2 border-gray-600 rounded-lg p-4 overflow-y-auto bg-gray-800')
+                with splitter.after:
+                    # Side panel container (right side)
+                    side_panel = ui.column().classes(
+                        'h-full w-full border-2 border-gray-600 rounded-lg p-4 overflow-y-auto bg-gray-800')
 
-                with side_panel:
-                    create_empty_state('Select a node to view details')
+                    with side_panel:
+                        create_empty_state('Select a node to view details')
 
                 def update_side_panel(target_info: Dict[str, Any]):
                     """Update the side panel with target details."""
