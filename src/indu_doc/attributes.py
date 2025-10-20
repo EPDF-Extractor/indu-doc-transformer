@@ -275,3 +275,10 @@ AvailableAttributes: dict[AttributeType, type[Attribute]] = {
     AttributeType.PLC_ADDRESS: PLCAddressAttribute,
     AttributeType.PDF_LOCATION: PDFLocationAttribute,
 }
+
+ReverseAttributes = {cls: attr_type for attr_type, cls in AvailableAttributes.items()}
+def get_attribute_type(cls) -> AttributeType:
+    type = ReverseAttributes.get(cls, None)
+    if type is None:
+        raise ValueError("Attribute class is not in the AvailableAttributes lookup")
+    return type

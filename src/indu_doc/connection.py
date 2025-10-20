@@ -15,7 +15,7 @@ class Pin(AttributedBase):
     def __init__(
         self,
         name: str,  # +A1:1
-        role: str,  # src/dest
+        role: str,  # src/dst
         parentLink: Link,  # a pin belongs to a link
         attributes: Optional[List[Attribute]] = None,
         child: Optional[Pin] = None,
