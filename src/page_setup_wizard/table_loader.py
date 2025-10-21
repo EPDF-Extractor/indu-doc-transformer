@@ -3,6 +3,9 @@ from indu_doc.plugins.eplan_pdfs.table_extractor import extract_tables
 from indu_doc.plugins.eplan_pdfs.page_settings import PageSetup, TableSetup, PageSettings
 
 from typing import Any
+from pathlib import Path
+from collections import defaultdict
+import pandas as pd
 import pymupdf  # type: ignore
 import copy
 import traceback
@@ -303,6 +306,16 @@ def do_table_setup(page: pymupdf.Page, table_setup: TableSetup, tables: list[Any
         }
         if ffill:
             new_map[i]["ffill"] = ffill
+
+    # Ensure uniqueness
+    name_counts: dict[str, int] = defaultdict(int)
+
+    for i, n in new_map.items():
+        name = n["name"]
+        count = name_counts[name]
+        unique_name = n if count == 0 else f"{name}{count}"
+        name_counts[name] += 1
+        new_map[i] = {"name": unique_name, "index": i}
     
     # print new header map
     new_map = dict(sorted(new_map.items()))
@@ -313,7 +326,7 @@ def do_table_setup(page: pymupdf.Page, table_setup: TableSetup, tables: list[Any
         if "ffill" in v:
             table_setup.columns[v["name"]] = (not v.get("ignore", False), v["ffill"])
         else:
-            table_setup.columns[v["name"]] = (not v.get("ignore", False))
+            table_setup.columns[v["name"]] = (not v.get("ignore", False), )
     print(table_setup.columns)
 
 
