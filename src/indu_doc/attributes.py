@@ -56,6 +56,14 @@ class Attribute(ABC):
         pass
 
     @abstractmethod
+    def get_value(self) -> Any:
+        """Returns _value_ of this attribute of type get_value_type() type
+        Returns:
+            Any: A value of this attribute
+        """
+        pass
+
+    @abstractmethod
     def __hash__(self) -> int:
         pass
 
@@ -95,6 +103,9 @@ class SimpleAttribute(Attribute):
     @classmethod
     def get_value_type(cls) -> type:
         return str
+    
+    def get_value(self) -> str:
+        return self.value
 
     def __hash__(self) -> int:
         return hash((self.name, self.value))
@@ -137,6 +148,9 @@ class RoutingTracksAttribute(Attribute):
     @classmethod
     def get_value_type(cls) -> Any:
         return Union[list[str], str]
+    
+    def get_value(self) -> Union[list[str], str]:
+        return self.tracks
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.tracks)))
@@ -177,6 +191,9 @@ class PLCAddressAttribute(Attribute):
     @classmethod
     def get_value_type(cls) -> type:
         return dict[str, str]
+    
+    def get_value(self) -> dict[str, str]:
+        return self.meta
 
     def __hash__(self) -> int:
         meta_str = ';'.join(f"{k}={v}" for k, v in sorted(self.meta.items()))
@@ -220,6 +237,9 @@ class PDFLocationAttribute(Attribute):
     @classmethod
     def get_value_type(cls) -> Any:
         return tuple[int, tuple[float, float, float, float]]
+    
+    def get_value(self) -> tuple[int, tuple[float, float, float, float]]:
+        return (self.page_no, self.bbox)
 
     def __hash__(self) -> int:
         return hash((self.name, self.bbox))
