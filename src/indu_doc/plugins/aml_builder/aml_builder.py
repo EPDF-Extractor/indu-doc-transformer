@@ -29,6 +29,14 @@ MAIN_TREE_NAME = "ECAD"
 
 
 class InternalPin(InternalElementBase):
+    """
+    Represents a pin as Internal Element in an AML hierarchy.
+
+    Wraps a Pin object and provides an associated ExternalInterface
+    for connection points.
+
+    :param pin: The Pin object to wrap.
+    """
     pin: Pin
     external: ExternalInterface  # ExternalInterface requires unique ID also
 
@@ -53,7 +61,14 @@ class InternalPin(InternalElementBase):
 
 
 class InternalConnection(InternalElementBase):
-    # do not mix with InternalLink!
+    """
+    Represents a connection between two pins as Internal Element in AML.
+    do not mix it with InternalLink concept!
+
+    Wraps a Link object and provides two ExternalInterfaces (SideA and SideB).
+
+    :param link: The Link object to wrap.
+    """
     external_a: ExternalInterface
     external_b: ExternalInterface
     link: Link
@@ -82,9 +97,18 @@ class InternalConnection(InternalElementBase):
         return root
 
 class InternalAspect(InternalElementBase):
-    # it is also an aspect but for the selected InstanceHierarchy.
-    # For ECAD it is "ECAD". This is also to make diamondID distinct from ID
-    # (for DiamondID it is empty and thus consistent over trees; other Internal elements do not appear in not ECAD InstanceHierarchies)
+    """
+    Represents an Aspect in an AML hierarchy (which is Internal Element).
+
+    An aspect is a hierarchical element with 
+    an accumulated unique ID (which is unique per AML file), 
+    accumulated BMK,
+    and diamondId (which is unique per aspect)
+
+    :param perspective: Tree name to ensure unique IDs.
+    :param aspect: The associated Aspect object.
+    :param base: Optional parent InternalAspect for hierarchy accumulation.
+    """
     prefix: str  # = separator
     bmk: str     # accumulated separators and levels
     name: str    # name of current level aspect
@@ -101,7 +125,7 @@ class InternalAspect(InternalElementBase):
         self.base = base
         # accumulate bmk
         self.bmk = (base.bmk if base else "") + str(aspect)
-        # accumulate guid (can not use aspect GUID as it is non unique)
+        # accumulate guid (can not use aspect GUID as it is non unique in the tree - aspects are repeated)
         self.id = self._create_guid({
             "prefix": self.prefix,
             "name": self.name,
@@ -149,6 +173,15 @@ class InternalAspect(InternalElementBase):
 
 
 class InternalXTarget(InternalElementBase):
+    """
+    Represents an XTarget as Internal Element in an AML hierarchy.
+
+    Stores connections, connection points, and aspect-based reference designations.
+    Requires a base `InternalAspect` for serialization.
+
+    :param xtarget: The associated XTarget object.
+    :param levels: Dictionary mapping separators to LevelConfig for aspect accumulation.
+    """
     xtarget: XTarget
     connections: list[InternalConnection]
     connPoints: list[InternalPin]
@@ -208,6 +241,20 @@ class InternalXTarget(InternalElementBase):
 
 
 def build_tree(name: str, levels: list[str], targets: list[InternalXTarget]) -> TreeNode:
+    """
+    Build an AML instance hierarchy tree based on aspects and levels.
+
+    Levels define which separators are goint to appear in the tree.
+    Order of level in `levels` defines the separator priority in the tree. 
+    Leaf nodes are promoted to `InternalXTarget` elements (for ECAD tree).
+
+    :param name: Name of the tree or perspective (e.g. "ECAD" for ECAD tree).
+    :param levels: Ordered list of aspect separators defining hierarchy levels.
+    :param targets: List of `InternalXTarget` objects to organize in the tree.
+    :return: Root node of the constructed tree.
+    :rtype: TreeNode
+    :raises ValueError: If tree construction encounters invalid element types.
+    """
     # form tree of objects by aspects. Level of the tree is aspect priority
     root = TreeNode()
     for t in targets:
@@ -224,7 +271,7 @@ def build_tree(name: str, levels: list[str], targets: list[InternalXTarget]) -> 
                     if key not in current.children:
                         # TODO or make InternalXTarget inherit InternalAspect
                         item = current.item 
-                        # can be only InternalXTarget, InternalAspect or None
+                        # item can be only InternalXTarget, InternalAspect or None - validate
                         if isinstance(item, InternalXTarget):
                             item = item.base  # If it was a leaf, but some element is located even below - take base as an aspect
                         elif item and not isinstance(item, InternalAspect):
@@ -248,6 +295,16 @@ def build_tree(name: str, levels: list[str], targets: list[InternalXTarget]) -> 
     return root
 
 class AMLBuilder():
+    """
+    Builds an AutomationML (AML) document from God model and aspect configurations.
+
+    Handles preprocessing of targets, connections, and links, 
+    builds instance hierarchies, 
+    and serializes the AML structure to XML.
+
+    :param god: The God model containing XTargets, connections, and links.
+    :param configs: Aspect configuration defining hierarchy levels.
+    """
 
     def __init__(self, god: God, configs: AspectsConfig) -> None:
         self.god = god
@@ -255,6 +312,22 @@ class AMLBuilder():
         self.tree: et._ElementTree | None = None
 
     def process(self) -> None:
+        """
+        Preprocess targets and connections, 
+        build instance hierarchies,
+        and generate the internal AML tree.
+
+        To receive result:
+        - call `output_str` to get str
+        - call `output_file` to store in a file
+
+        This includes:
+        - Creating InternalXTarget objects
+        - Mapping connections and pins
+        - Building ECAD and aspect-based trees
+        - Populating InstanceHierarchy objects
+        - Storing the serialized AML as an ElementTree in self.tree
+        """
         # Do preprocessing:
 
         # Initialize a lookup map of InternalXTarget 
@@ -286,7 +359,7 @@ class AMLBuilder():
                 if through:
                     through_conn = InternalConnection(link)
                     through.connections.append(through_conn)
-                    # add InternalLinks src -> through; through -> dst
+                    # Add InternalLinks src -> through; through -> dst
                     internal_links.append(InternalLink(
                         src_pin.external, through_conn.external_a))
                     internal_links.append(InternalLink(
@@ -302,7 +375,7 @@ class AMLBuilder():
         aml = CAEXFile("test.aml")
 
         # ECAD tree InstanceHierarchy
-        # Can create any type of InstanceHierarchy by making your own behavior of build_tree
+        # Tip: You can create any type of InstanceHierarchy by making your own behavior of build_tree
         ecad_tree_root = build_tree("ECAD", list(self.configs.levels.keys()), targets)
         aml.hierarchies.append(InstanceHierarchy("ECAD", "0.0.1", ecad_tree_root, internal_links))
 
@@ -323,7 +396,13 @@ class AMLBuilder():
 
 
     def output_str(self) -> str:
-        # 
+        """
+        Return the serialized AML document as a UTF-8 string.
+
+        :return: Serialized AML XML string.
+        :rtype: str
+        :raises ValueError: If process() has not been called.
+        """
         if self.tree is None:
             raise ValueError("Nothing to output. Process first")
         # Serialize to string
@@ -337,6 +416,12 @@ class AMLBuilder():
     
 
     def output_file(self, file_name):
+        """
+        Write the serialized AML document to a file.
+
+        :param file_name: Path to output AML file.
+        :raises ValueError: If process() has not been called.
+        """
         if self.tree is None:
             raise ValueError("Nothing to output. Process first")
         self.tree.write(
