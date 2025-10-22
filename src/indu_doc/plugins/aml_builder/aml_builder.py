@@ -1,104 +1,31 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import TypeAlias
 from collections import defaultdict
+from typing import cast
 
-from .god import God
-from .xtarget import XTarget
-from .attributes import Attribute, SimpleAttribute, RoutingTracksAttribute, PLCAddressAttribute
-from .configs import AspectsConfig, LevelConfig
-from .connection import Connection, Link, Pin
-from .tag import Tag, Aspect
+from indu_doc.god import God
+from indu_doc.xtarget import XTarget
+from indu_doc.attributes import Attribute, SimpleAttribute
+from indu_doc.configs import AspectsConfig, LevelConfig
+from indu_doc.connection import Connection, Link, Pin
+from indu_doc.tag import Tag, Aspect
 
-import lxml.objectify as ob
+from indu_doc.plugins.aml_builder.aml_abstractions import (
+    InternalElementBase,
+    ExternalInterface,
+    InternalAttribute,
+    InternalLink,
+    InstanceHierarchy,
+    CAEXFile,
+    GUID,
+    TreeNode
+)
+
 import lxml.etree as et
-
-import hashlib
-import uuid
-import json
-from datetime import datetime
 
 import logging
 logger = logging.getLogger(__name__)
 
 ###################
-
-GUID: TypeAlias = str
-
-
-class ISerializeable(ABC):
-    @abstractmethod
-    def serialize(self) -> et._Element:
-        raise NotImplementedError("Serialize is not implemented")
-
-
-@dataclass
-class InternalAttribute(ISerializeable):
-    attr: Attribute
-
-    def serialize(self) -> et._Element:
-        item = et.Element("Attribute")
-        item.set("Name", self.attr.name)
-        item.set("AttributeDataType", "xs:string")  # TODO: for now all strings
-        value = et.SubElement(item, "Value")
-        match self.attr:
-            case SimpleAttribute():
-                value.text = str(self.attr.value)
-            case RoutingTracksAttribute():
-                value.text = str(self.attr.tracks)
-            case PLCAddressAttribute():
-                value.text = str(self.attr.meta)
-            case _:
-                raise ValueError(f"Unsupported attribute type")
-        return item
-
-class InternalLink(ISerializeable):
-    name: str
-    refA: GUID
-    refB: GUID
-
-    def __init__(self, refA: "ExternalInterface", refB: "ExternalInterface"):
-        # IDK what is name
-        self.refA = refA.id
-        self.refB = refB.id
-        self.name = "ImALink"
-
-    def serialize(self) -> et._Element:
-        root = et.Element("InternalLink")
-        root.set("RefPartnerSideA", self.refA)
-        root.set("RefPartnerSideB", self.refB)
-        root.set("Name", self.name)
-        return root
-
-class InternalElementBase(ISerializeable):
-    name: str
-    id: GUID
-
-    guids: set[GUID] = set()
-
-    def _create_guid(self, unq: dict[str, str]) -> GUID:
-        data_str = json.dumps(unq, sort_keys=True)  # ensure consistent order
-        hash = hashlib.md5(data_str.encode("utf-8")).digest()
-        guid = str(uuid.UUID(bytes=hash))
-        return guid
-
-    def _set_guid(self, guid: GUID):
-        self.id = guid
-        if self.id in InternalElementBase.guids:
-            logger.warning(f"Non-unique ID detected: '{self.__class__}' '{self.id}'")
-        InternalElementBase.guids.add(self.id)
-
-
-class ExternalInterface(InternalElementBase):
-    def __init__(self, owner_guid: GUID, role: str):
-        self.role = role
-        self._set_guid(f"{owner_guid}:{role}")
-
-    def serialize(self) -> et._Element:
-        ext = et.Element("ExternalInterface")
-        ext.set("Name", self.role)  # TODO IDK what name
-        ext.set("ID", self.id)
-        return ext
+MAIN_TREE_NAME = "ECAD"
 
 
 class InternalPin(InternalElementBase):
@@ -118,7 +45,7 @@ class InternalPin(InternalElementBase):
         root.set("ID", self.id)
         # Add all atributes
         for attr in self.pin.attributes:
-            item = InternalAttribute(attr).serialize()
+            item = InternalAttribute(attr.name, str(attr)).serialize()
             root.append(item)
         # Add external interface
         root.append(self.external.serialize())
@@ -129,6 +56,7 @@ class InternalConnection(InternalElementBase):
     # do not mix with InternalLink!
     external_a: ExternalInterface
     external_b: ExternalInterface
+    link: Link
 
     def __init__(self, link: Link):
         self.link = link
@@ -144,7 +72,7 @@ class InternalConnection(InternalElementBase):
         root.set("ID", self.id)
         # Add all atributes
         for attr in self.link.attributes:
-            item = InternalAttribute(attr).serialize()
+            item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
             root.append(item)
 
         # Add external interfaces
@@ -152,8 +80,6 @@ class InternalConnection(InternalElementBase):
         root.append(self.external_b.serialize())
 
         return root
-
-# TODO might not need it if BMK for XTargets is allowed (currently as a bug theyre allowed)
 
 class InternalAspect(InternalElementBase):
     # it is also an aspect but for the selected InstanceHierarchy.
@@ -185,7 +111,7 @@ class InternalAspect(InternalElementBase):
         self.diamondID = aspect.get_guid()
         # Update ID based on perspective (make unq across trees)
         self.perspective = perspective
-        unq = {  # do not copy to reuse!
+        unq = {  # do not copy to reuse! - positional
             "base": self.id,
             "salt": self.perspective
         }
@@ -213,10 +139,11 @@ class InternalAspect(InternalElementBase):
         item.set("AttributeDataType", "xs:string")  # TODO: for now all strings
         et.SubElement(item, "Value").text = self.bmk
 
-        # Add all atributes
-        for attr in self.aspect.attributes:
-            item = InternalAttribute(attr).serialize()
-            root.append(item)
+        # Add all atributes (if ECAD)
+        if self.perspective == MAIN_TREE_NAME:
+            for attr in self.aspect.attributes:
+                item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
+                root.append(item)
         #
         return root
 
@@ -263,10 +190,9 @@ class InternalXTarget(InternalElementBase):
 
         # Add all attributes
         for attr in self.xtarget.attributes:
-            item = InternalAttribute(attr).serialize()
+            item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
             root.append(item)
-        # TODO now I assume cant have both connections and points
-        # Add pins TODO IDK what are two elements called Function
+        # TODO IDK what are two elements called Function
         # item = et.SubElement(root, "InternalElement")
         # item.set("Name", "Function")
         for cn in self.connections:
@@ -281,135 +207,62 @@ class InternalXTarget(InternalElementBase):
         return root
 
 
-@dataclass
-class TreeNode():
-    item: InternalAspect | None = None
-    leaf: InternalXTarget | None = None
-    children: dict[str, "TreeNode"] = field(default_factory=dict)
-
-class InstanceHierarchy(ISerializeable):
-    version: str
-    name: str
-    targets: list[InternalXTarget]
-    links: list[InternalLink] = []
-    levels: list[str]
-
-    def __init__(self, name: str, version: str, levels: list[str], targets: list[InternalXTarget], links: list[InternalLink] = []):
-        self.name = name
-        self.version = version
-        self.targets = targets
-        self.links = links
-        self.levels = levels
-        #
-        # form tree of objects by aspects. Level of the tree is aspect priority
-        root = TreeNode()
-        for t in self.targets:
-            parts = t.xtarget.tag.get_aspects()
-            # build tree
-            current = root
-            for sep in self.levels:
-                if sep in parts:
-                    for aspect in parts[sep]: # composite tag (multiple instances of same sep)
-                        key = str(aspect)
-                        if key not in current.children:
-                            current.children[key] = TreeNode(
-                                InternalAspect(
-                                    self.name,
-                                    aspect,
-                                    current.item
-                                )
+def build_tree(name: str, levels: list[str], targets: list[InternalXTarget]) -> TreeNode:
+    # form tree of objects by aspects. Level of the tree is aspect priority
+    root = TreeNode()
+    for t in targets:
+        parts = t.xtarget.tag.get_aspects()
+        # some tags do not have anything
+        if not parts:
+            continue
+        # build tree
+        current = root
+        for sep in levels:
+            if sep in parts:
+                for aspect in parts[sep]: # composite tag (multiple instances of same sep)
+                    key = str(aspect)
+                    if key not in current.children:
+                        # TODO or make InternalXTarget inherit InternalAspect
+                        item = current.item 
+                        # can be only InternalXTarget, InternalAspect or None
+                        if isinstance(item, InternalXTarget):
+                            item = item.base  # If it was a leaf, but some element is located even below - take base as an aspect
+                        elif item and not isinstance(item, InternalAspect):
+                            raise ValueError("This must not happen")
+                        current.children[key] = TreeNode(
+                            InternalAspect(
+                                name,
+                                aspect,
+                                item  # type: ignore
                             )
-                        current = current.children[key]
+                        )
+                    current = current.children[key]
 
-            # at the leaf, promote aspect to target (only for ECAD)
-            if self.name == "ECAD" and current.item:
-                t.set_base(current.item)
-                current.leaf = t
+        # at the leaf, promote aspect to target (only for ECAD)
+        if name == MAIN_TREE_NAME and current.item:
+            if not current.item or not isinstance(current.item, InternalAspect):
+                raise ValueError("This must not happen")
+            t.set_base(cast(InternalAspect, current.item))
+            current.item = t
 
-        self.root = root
-
-    def serialize(self) -> et._Element:
-        root = et.Element("InstanceHierarchy")
-        root.set("Name", self.name)
-        version = et.SubElement(root, "Version")
-        version.text = self.version
-        # traverse tree
-
-        def traverse_tree(el: et._Element, node: TreeNode):
-            # el and node are same level
-            for n in node.children.values():
-                if n.leaf:
-                    el.append(n.leaf.serialize())
-                elif n.item:
-                    el.append(n.item.serialize())
-                else:
-                    raise ValueError("InternlNode is None")
-                traverse_tree(el[-1], n)
-
-        traverse_tree(root, self.root)
-        #
-        for l in self.links:
-            root.append(l.serialize())
-
-        return root
-
-class CAEXFile(ISerializeable):
-    hierarchies: list[InstanceHierarchy]
-    name: str
-
-    def __init__(self, name: str):
-        self.name = name
-        self.hierarchies = []
-
-    def serialize(self) -> et._Element:
-        root = self._create_root()
-        for h in self.hierarchies:
-            root.append(h.serialize())
-        return root
-
-    def _create_root(self) -> et._Element:
-        XSI = "http://www.w3.org/2001/XMLSchema-instance"
-        nsmap = {"xsi": XSI, None: "http://www.dke.de/CAEX"}
-        root = et.Element("CAEXFile", nsmap=nsmap)
-        # Just now are copy - allow to vary in the future if required
-        root.set("SchemaVersion", "3.0")
-        root.set("FileName", self.name)
-        root.set(f"{{{XSI}}}schemaLocation",
-                 "http://www.dke.de/CAEX CAEX_ClassModel_V.3.0.xsd")
-        #
-        version = et.SubElement(root, "SuperiorStandardVersion")
-        version.text = "AutomationML 2.10"
-        #
-        src_info = et.SubElement(root, "SourceDocumentInformation")
-        src_info.set("OriginName", "InduDoc Transformer")
-        src_info.set("OriginVersion", "0.0.0")
-        src_info.set(
-            "OriginURL", "https://github.com/EPDF-Extractor/indu-doc-transformer")
-        src_info.set("LastWritingDateTime", self._get_datetime())
-        return root
-
-    def _get_datetime(self) -> str:
-        now = datetime.now().astimezone()
-        return now.isoformat()
-
+    return root
 
 class AMLBuilder():
 
     def __init__(self, god: God, configs: AspectsConfig) -> None:
         self.god = god
         self.configs = configs
-        self.tree = None
+        self.tree: et._ElementTree | None = None
 
     def process(self) -> None:
-        file = CAEXFile("test.xml")
-        # TODO may be move to CAEXfile
+        # Do preprocessing:
 
-        # Create a lookup map of xtargets
+        # Initialize a lookup map of InternalXTarget 
         xtarget_lookup = {xtarget.get_guid(): InternalXTarget(
             xtarget, self.configs.levels) for xtarget in self.god.xtargets.values()}
         internal_links: list[InternalLink] = []
 
-        # unpack connections and links
+        # Unpack connections and links into InternalXTarget map
         for connection in self.god.connections.values():
             src = xtarget_lookup.get(
                 connection.src.get_guid()) if connection.src else None
@@ -419,15 +272,18 @@ class AMLBuilder():
                 connection.through.get_guid()) if connection.through else None
             #
             for link in connection.links:
-                src_pin = InternalPin(link.src_pin) if src else None
-                dst_pin = InternalPin(link.dest_pin) if dst else None
+                src_pin = InternalPin(link.src_pin) if link.src_pin else None
+                dst_pin = InternalPin(link.dest_pin) if link.dest_pin else None
 
-                if dst_pin is not None:
+                if dst is not None and dst_pin is not None:
                     dst.connPoints.append(dst_pin)
-                if src_pin is not None:
+                if src is not None and src_pin is not None:
                     src.connPoints.append(src_pin)
 
-                if through is not None:
+                if not (src_pin and dst_pin):
+                    continue
+
+                if through:
                     through_conn = InternalConnection(link)
                     through.connections.append(through_conn)
                     # add InternalLinks src -> through; through -> dst
@@ -441,24 +297,30 @@ class AMLBuilder():
                         src_pin.external, dst_pin.external))
 
         targets = list(xtarget_lookup.values())
-        # ECAD tree InstanceHierarchy
-        file.hierarchies.append(InstanceHierarchy("ECAD", "0.0.1", list(
-            self.configs.levels.keys()), targets, internal_links))
 
-        # For all aspects build trees
+        # Build AML
+        aml = CAEXFile("test.aml")
+
+        # ECAD tree InstanceHierarchy
+        # Can create any type of InstanceHierarchy by making your own behavior of build_tree
+        ecad_tree_root = build_tree("ECAD", list(self.configs.levels.keys()), targets)
+        aml.hierarchies.append(InstanceHierarchy("ECAD", "0.0.1", ecad_tree_root, internal_links))
+
+        # For all unique aspects build trees 
         aspects: dict[str, list[str]] = defaultdict(list)
         for sep, config in self.configs.levels.items():
             aspects[config.Aspect.lower()].append(sep)
         for aspect, levels in aspects.items():
-            file.hierarchies.append(InstanceHierarchy(
-                aspect.capitalize(), "0.0.1", levels, targets))
+            tree_root = build_tree(aspect.capitalize(), levels, targets)
+            aml.hierarchies.append(InstanceHierarchy(aspect.capitalize(), "0.0.1", tree_root))
 
         # Save to file with 2-space indentation
-        self.tree = et.ElementTree(file.serialize())
+        self.tree = et.ElementTree(aml.serialize())
         # Do some error handling
         for t in targets:
             if not t.serialized:
                 logger.warning(f"Target not serialized! '{t.xtarget}'")
+
 
     def output_str(self) -> str:
         # 
@@ -526,7 +388,7 @@ if __name__ == "__main__":
     ]
     
     # Tests
-    item = InternalAttribute(SimpleAttribute("test", "test value")).serialize()
+    item = InternalAttribute("test", "test value").serialize()
     print(et.tostring(item, pretty_print=True))
 
     item = InternalLink(
@@ -555,12 +417,18 @@ if __name__ == "__main__":
     #
 
     # Do a fullscale test now
-    from .manager import Manager
+    from indu_doc.plugins.eplan_pdfs.page_settings import PageSettings
+    from indu_doc.plugins.eplan_pdfs.eplan_pdf_plugin import EplanPDFPlugin
+    from ...manager import Manager
     import logging
     logging.basicConfig(
         filename="myapp.log", encoding="utf-8", filemode="w", level=logging.INFO
     )
-    manager = Manager.from_config_files("config.json", "page_settings.json")
+    ps = PageSettings.init_from_file("page_settings.json")
+    cs = AspectsConfig.init_from_file("config.json")
+    pdfPlugin = EplanPDFPlugin(cs, ps)
+    manager: Manager = Manager(cs)
+    manager.register_plugin(pdfPlugin)
 
     # TEST
     # from .tag import Tag
@@ -571,34 +439,56 @@ if __name__ == "__main__":
     # exit(0)
 
     #
-    manager.process_pdfs("./pdfs/sample.pdf")
+    manager.process_files("./pdfs/sample.pdf")
 
     import time
-    from pathlib import Path
 
     def monitor_processing(manager: Manager) -> bool:
-        last_progress = -1
-
         while True:
-            state_info = manager.get_processing_state()
-            state = state_info["state"]
-            progress = state_info["progress"]
+            states = manager.get_processing_state()
+            processing = manager.is_processing()
+            
+            # Check if processing completed successfully or with errors
+            if states:
+                if not processing:
+                    # Check for errors
+                    has_errors = any(s['state'] == 'error' for s in states)
+                    all_done = all(s['progress']['is_done'] for s in states)
+                    
+                    if has_errors:
+                        error_messages = [s.get('error_message', 'Unknown error') 
+                                        for s in states if s['state'] == 'error']
+                        print(f'Processing failed: {"; ".join(error_messages)}')
+                        return False
+                    elif all_done:
+                        print('Processing completed successfully')
+                        return True
+                else:
+                    # Aggregate progress from all plugins
+                    total_current = 0
+                    total_pages = 0
+                    current_files = []
+                    
+                    for state_info in states:
+                        if state_info['state'] == 'processing':
+                            progress = state_info['progress']
+                            total_current += progress['current_page']
+                            total_pages += progress['total_pages']
+                            if progress['current_file']:
+                                current_files.append(progress['current_file'])
+                    
+                    # Update progress text
+                    if current_files:
+                        # Show first file being processed
+                        filename = current_files[0].split('\\')[-1]  # Get just filename
+                        if len(current_files) > 1:
+                            print(f"Processing: {filename} and {len(current_files)-1} more... ({total_current}/{total_pages})")
+                        else:
+                            print(f"Processing: {filename} ({total_current}/{total_pages})")
+                    else:
+                        print(f"Page {total_current} of {total_pages}")
 
-            if state == "idle":
-                return True
-            elif state == "error":
-                print(
-                    f"\nProcessing failed: {state_info['error_message']}")
-                return False
-            elif state in ["processing", "stopping"]:
-                if progress["total_pages"] > 0:
-                    current_progress = int(progress["percentage"] * 100)
-                    if current_progress != last_progress:
-                        print(
-                            f"\rProgress: {current_progress:3d}% ({progress['current_page']}/{progress['total_pages']})")
-                        last_progress = current_progress
-
-                time.sleep(10)
+            time.sleep(10)
 
     success = monitor_processing(manager)
     if success:
