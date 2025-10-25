@@ -252,40 +252,34 @@ def create_connections_page(state: ClientState):
                         ui.label('Connection Details').classes(
                             'text-xl font-bold mb-4 text-white')
 
-                        # Source
-                        with create_collapsible_section('input', 'Source', default_open=True):
-                            if conn.src:
+                        # Source - only show if exists
+                        if conn.src:
+                            with create_collapsible_section('input', 'Source', default_open=True):
                                 with ui.column().classes('gap-2 p-3'):
                                     create_info_card(
                                         'Tag', conn.src.tag.tag_str, 'font-mono text-sm')
                                     ui.label(f'Type: {conn.src.target_type.value}').classes(
                                         'text-sm text-gray-300')
-                            else:
-                                ui.label(
-                                    'N/A').classes('text-sm text-gray-400 p-3')
 
-                        # Destination
-                        with create_collapsible_section('output', 'Destination', default_open=True):
-                            if conn.dest:
+                        # Destination - only show if exists
+                        if conn.dest:
+                            with create_collapsible_section('output', 'Destination', default_open=True):
                                 with ui.column().classes('gap-2 p-3'):
                                     create_info_card(
                                         'Tag', conn.dest.tag.tag_str, 'font-mono text-sm')
                                     ui.label(f'Type: {conn.dest.target_type.value}').classes(
                                         'text-sm text-gray-300')
-                            else:
-                                ui.label(
-                                    'N/A').classes('text-sm text-gray-400 p-3')
 
-                        # Through (cable/medium)
-                        with create_collapsible_section('cable', 'Through', default_open=True):
-                            if conn.through:
+                        # Through (cable/medium) - only show if exists
+                        if conn.through:
+                            with create_collapsible_section('cable', 'Through', default_open=True):
                                 with ui.column().classes('gap-2 p-3'):
                                     create_info_card(
                                         'Tag', conn.through.tag.tag_str, 'font-mono text-sm')
                                     ui.label(f'Type: {conn.through.target_type.value}').classes(
                                         'text-sm text-gray-300')
 
-                                    # Through object attributes
+                                    # Through object attributes - only if they exist
                                     if conn.through.attributes:
                                         used_attrs = [attr for attr in conn.through.attributes if not isinstance(attr, PDFLocationAttribute)]
                                         if used_attrs:
@@ -296,11 +290,8 @@ def create_connections_page(state: ClientState):
                                                     with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-2'):
                                                         ui.label(f'{attr}').classes(
                                                             'text-xs text-gray-200')
-                            else:
-                                ui.label('Direct connection').classes(
-                                    'text-sm text-gray-400 p-3')
 
-                        # Links
+                        # Links - only show if exists
                         if conn.links:
                             with create_collapsible_section('link', f'Links ({len(conn.links)})', default_open=True):
                                 with ui.column().classes('gap-2 p-3'):
@@ -320,7 +311,7 @@ def create_connections_page(state: ClientState):
                                                 if link.get_guid():
                                                     ui.label(f'GUID: {link.get_guid()}').classes(
                                                         'text-xs text-gray-400')
-                                                # Link attributes
+                                                # Link attributes - only if they exist
                                                 if link.attributes:
                                                     used_attrs = [attr for attr in link.attributes if not isinstance(attr, PDFLocationAttribute)]
                                                     if used_attrs:
@@ -332,14 +323,14 @@ def create_connections_page(state: ClientState):
                                                                     ui.label(f'{attr}').classes(
                                                                         'text-xs text-gray-200')
 
-                        # GUID
+                        # GUID - always show
                         with create_collapsible_section('fingerprint', 'GUID', default_open=False):
                             with ui.column().classes('p-3'):
                                 with ui.card().classes('w-full bg-gray-600 border border-gray-500 p-3'):
                                     ui.label(conn.get_guid()).classes(
                                         'font-mono text-xs break-all text-gray-100')
 
-                        # Occurrences
+                        # Occurrences - only show if there are pages
                         if pages:
                             with create_collapsible_section('description', f'Occurrences ({len(pages)})', default_open=False):
                                 with ui.column().classes('gap-2 p-3'):
