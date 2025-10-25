@@ -363,9 +363,9 @@ def create_tree_page(state: ClientState):
                                 create_info_card(
                                     'GUID', target.get_guid(), 'font-mono text-xs')
 
-                        # Attributes
-                        if target.attributes:
-                            used_attributes = set([attr for attr in target.attributes if attr is not None and not isinstance(attr, PDFLocationAttribute)])
+                        # Attributes - only show if there are non-location attributes
+                        used_attributes = set([attr for attr in target.attributes if attr is not None and not isinstance(attr, PDFLocationAttribute)]) if target.attributes else set()
+                        if used_attributes:
                             with create_collapsible_section('settings', f'Attributes ({len(used_attributes)})', default_open=True):
                                 with ui.column().classes('gap-2 p-3'):
                                     for attr in used_attributes:
@@ -373,7 +373,7 @@ def create_tree_page(state: ClientState):
                                             ui.label(f'{attr}').classes(
                                                 'text-sm text-gray-200')
 
-                        # Occurrences
+                        # Occurrences - only show if there are pages
                         if pages:
                             with create_collapsible_section('description', f'Occurrences ({len(pages)})', default_open=False):
                                 with ui.column().classes('gap-2 p-3'):
