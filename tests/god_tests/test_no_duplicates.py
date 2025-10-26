@@ -279,7 +279,8 @@ class TestNoDuplicatePins:
         pin2 = god_instance.create_pin("=DEV:PIN1:PIN2:PIN3", "src", link)
 
         assert pin1 is pin2
-        assert len(god_instance.pins) == 1
+        # All pins in the chain (PIN1, PIN2, PIN3) are stored in god.pins
+        assert len(god_instance.pins) == 3
 
         # Verify the chain structure is correct
         assert pin1.name == "PIN1"

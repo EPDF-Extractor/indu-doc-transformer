@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import cache
 from typing import Any, List, Optional
 import uuid
 
@@ -46,6 +45,24 @@ class Pin(AttributedBase):
 
     def get_recursive_name(self) -> str:
         return self.name + (f"{self.child.get_recursive_name()}" if self.child else "")
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Pin):
+            return False
+        # Compare by GUID to avoid circular reference issues with parentLink
+        if self.get_guid() != other.get_guid():
+            print(f"Pin equality check failed: {self} != {other}")
+            print(f"Types: {type(self)} != {type(other)}")
+            print(f"GUIDs: {self.get_guid()} != {other.get_guid()}")
+            print(f"Names: {self.name} != {other.name}")
+            print(f"Roles: {self.role} != {other.role}")
+            print(f"Children: {self.child} != {other.child}")
+            print(f"ParentLinks: {self.parentLink.get_guid() if self.parentLink else 'None'} != {other.parentLink.get_guid() if other.parentLink else 'None'}")
+        
+        return self.get_guid() == other.get_guid()
+    
+    def __hash__(self) -> int:
+        return hash(self.get_guid())
 
     def to_dict(self) -> dict[str, Any]:
         attrs = {}
@@ -94,6 +111,25 @@ class Link(AttributedBase):
         e += self.parent.get_guid() if self.parent else ["PARENT:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"LINK:{':'.join(e)}".encode()).digest()))
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Link):
+         
+            return False
+        # Compare by GUID to avoid circular reference issues with parent
+        
+        if self.get_guid() != other.get_guid():
+            print(f"Link equality check failed: {self} != {other}")
+            print(f"Types: {type(self)} != {type(other)}")
+            print(f"GUIDs: {self.get_guid()} != {other.get_guid()}")
+            print(f"Names: {self.name} != {other.name}")
+            print(f"Src Pin: {self.src_pin_name} != {other.src_pin_name}")
+            print(f"Dest Pin: {self.dest_pin_name} != {other.dest_pin_name}")
+            print(f"Parent: {self.parent.get_guid() if self.parent else 'None'} != {other.parent.get_guid() if other.parent else 'None'}")
+        return self.get_guid() == other.get_guid()
+    
+    def __hash__(self) -> int:
+        return hash(self.get_guid())
+
     def to_dict(self) -> dict[str, Any]:
         attrs = {}
         for attr in (self.attributes if self.attributes else []):
@@ -135,6 +171,15 @@ class Connection:
         e += self.dest.get_guid() if self.dest else ["DEST:None"]
         e += self.through.get_guid() if self.through else ["THROUGH:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"CONN:{':'.join(e)}".encode()).digest()))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Connection):
+            return False
+        # Compare by GUID which is based on src, dest, and through
+        return self.get_guid() == other.get_guid()
+    
+    def __hash__(self) -> int:
+        return hash(self.get_guid())
 
     def to_dict(self) -> dict[str, Any]:
         return {

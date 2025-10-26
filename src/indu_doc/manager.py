@@ -8,7 +8,7 @@ from indu_doc.plugins.plugins_common import ProcessingState
 from indu_doc.plugins.events import EventType, PluginEvent, ProcessingProgressEvent
 from indu_doc.xtarget import XTarget
 import os
-
+from indu_doc.db import save_to_db
 logger = logging.getLogger(__name__)
 
 
@@ -160,22 +160,28 @@ class Manager:
         missing_files = [f for f in file_paths if not os.path.exists(f)]
         if missing_files:
             raise FileNotFoundError(f"The following files do not exist: {missing_files}")
+        
         # convert all paths to absolute paths
         file_paths = tuple(os.path.abspath(f) for f in file_paths)
 
-        # Initialize file progress
-        self._file_progress = {file: 0.0 for file in file_paths}
+        # add to file progress
+        self._file_progress.update({file: 0.0 for file in file_paths})
 
         file_distribution = self._distribute_files_to_plugins(file_paths)
 
         # Reset completion event
         self.__completion_event.clear()
 
-        # Start all plugins
+        # Start all plugins in parallel
+        tasks = []
         for plugin, plugin_files in file_distribution.items():
             logger.info(f"Starting processing with plugin {plugin.__class__.__name__} for files: {plugin_files}")
-            await plugin.start(plugin_files)
             self.__active_plugins.add(plugin)
+            tasks.append(plugin.start(plugin_files))
+        
+        # Await all plugin tasks to complete
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     def process_files(self, file_paths: str | tuple[str, ...], blocking: bool = False) -> None:
         """
@@ -190,17 +196,10 @@ class Manager:
         :type blocking: bool
         :raises FileNotFoundError: If any of the specified files do not exist
         """
-        try:
-            # Try to get current running loop
-            asyncio.get_running_loop()
-            # If we have a running loop, create task
-            asyncio.create_task(self.process_files_async(file_paths))
-        except RuntimeError:
-            # No running loop, run synchronously
-            asyncio.run(self.process_files_async(file_paths))
-
+        asyncio.run(self.process_files_async(file_paths))
+        
         if blocking:
-            asyncio.run(self.wait_for_completion_async())
+            self.wait_for_completion()
 
     async def wait_for_completion_async(self, timeout: float | None = None) -> bool:
         """
@@ -224,15 +223,7 @@ class Manager:
         :param timeout: Maximum time to wait in seconds, None for no timeout
         :return: True if all processing completed, False if timeout occurred
         """
-        try:
-            # Try to get current running loop
-            asyncio.get_running_loop()
-            # If we have a running loop, this might be problematic
-            # For backward compatibility, we'll run it in a new loop if needed
-            return asyncio.run(self.wait_for_completion_async(timeout))
-        except RuntimeError:
-            # No running loop
-            return asyncio.run(self.wait_for_completion_async(timeout))
+        return asyncio.run(self.wait_for_completion_async(timeout))
 
     def get_active_plugins(self) -> tuple[InduDocPlugin,...]:
         """
@@ -286,12 +277,20 @@ class Manager:
         """
         return any(p._processing_state == ProcessingState.PROCESSING or p._processing_state == ProcessingState.STOPPING for p in self.plugins)
     
+    async def stop_processing_async(self) -> None:
+        """
+        Stop all currently processing plugins asynchronously.
+        """
+        tasks = [p.stop() for p in self.plugins]
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+    
     def stop_processing(self) -> None:
         """
         Stop all currently processing plugins.
         """
-        for p in self.plugins:
-            p.stop()
+        asyncio.run(self.stop_processing_async())
+    
     def update_configs(self, configs: AspectsConfig) -> None:
         """
         Update the manager's configuration.
@@ -450,7 +449,7 @@ if __name__ == "__main__":
     import os
     
     logging.basicConfig(
-        level=logging.INFO,  
+        level=logging.DEBUG,  
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
@@ -502,13 +501,34 @@ if __name__ == "__main__":
             print("Extracted Data Statistics:")
             for key, value in stats.items():
                 print(f"  - {key}: {value}")
-            # Show final progress
-            final_progress = manager.get_file_progress()
-            if final_progress:
-                print("Final file progress:")
-                for file_path, pct in final_progress.items():
-                    print(f"  {os.path.basename(file_path)}: {pct:.1f}%")
-            
+                
+            db_file = "indu_doc_data.db"
+            print(f"Saving extracted data to database: {db_file}")
+
+            save_to_db(manager.god, db_file)    
+            print("Data saved to database successfully.")
+            # try re-opening the DB to verify it works
+            from indu_doc.db import load_from_db
+            loaded_god = load_from_db(db_file)
+            print(f"Re-loaded God from DB: {loaded_god}")
+            print(loaded_god == manager.god)
+            # check equivalence
+            all_checks = [
+                (len(loaded_god.xtargets) == len(manager.god.xtargets), "XTarget count mismatch"),
+                (len(loaded_god.connections) == len(manager.god.connections), "Connection count mismatch"),
+                (len(loaded_god.attributes) == len(manager.god.attributes), "Attribute count mismatch"),
+                (len(loaded_god.links) == len(manager.god.links), "Link count mismatch"),
+                (len(loaded_god.pins) == len(manager.god.pins), "Pin count mismatch"),
+            ]
+            all_passed = True
+            for passed, message in all_checks:
+                if not passed:
+                    print(f"Verification failed: {message}")
+                    all_passed = False
+            if all_passed:
+                print("Verification passed: Loaded data matches original data.")
+            else:
+                print("Verification failed: Loaded data does not match original data.")
     except Exception as e:
         print(f"Error running manager: {e}")
         import traceback

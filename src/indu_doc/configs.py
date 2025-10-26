@@ -108,6 +108,13 @@ class AspectsConfig:
             return False
         return self.levels == value.levels
 
+    def get_db_representation(self) -> List[dict]:
+        """
+        Converts the configuration to a list of dictionaries for database storage.
+        Each dictionary corresponds to a LevelConfig.
+        """
+        return [ {"Separator": level.Separator, "Aspect": level.Aspect} for level in self.levels.values() ]
+    
     def __repr__(self) -> str:
         return f"AspectsConfig(levels={self.levels})"
 
