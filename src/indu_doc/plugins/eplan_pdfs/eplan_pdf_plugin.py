@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any
 from indu_doc.configs import AspectsConfig
+from indu_doc.god import God
 from indu_doc.plugins.eplan_pdfs.page_settings import PageSettings
 from indu_doc.plugins.eplan_pdfs.page_processor import PageProcessor
 from indu_doc.plugins.plugin import InduDocPlugin
@@ -24,7 +25,7 @@ class EplanPDFPlugin(InduDocPlugin):
         configs = AspectsConfig.init_from_file(config_path)
         return cls(configs, page_settings)
 
-    async def process_files_async(self, paths: tuple[str, ...]) -> Any:
+    async def process_files_async(self, paths: tuple[str, ...]) -> God:
         """Async method to process PDF files and emit progress events."""
         if not isinstance(paths, tuple):
             paths = (paths,)

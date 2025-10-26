@@ -293,3 +293,5 @@ __marimo__/
 # Custom entries
 *.pdf
 *.aml
+*.db
+*.sqlite

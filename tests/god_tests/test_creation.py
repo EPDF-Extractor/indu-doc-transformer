@@ -351,24 +351,24 @@ class TestCreatePin:
 
     def test_is_pin_tag_method(self):
         """Test the _is_pin_tag helper function."""
-        from indu_doc.god import _is_pin_tag
-        assert _is_pin_tag("=DEVICE:PIN1") == True
-        assert _is_pin_tag("=DEVICE") == False
-        assert _is_pin_tag(":PIN1") == True
-        assert _is_pin_tag("") == False
+        from indu_doc.god import is_pin_tag
+        assert is_pin_tag("=DEVICE:PIN1") == True
+        assert is_pin_tag("=DEVICE") == False
+        assert is_pin_tag(":PIN1") == True
+        assert is_pin_tag("") == False
 
     def test_split_pin_tag_method(self):
         """Test the _split_pin_tag helper function."""
-        from indu_doc.god import _split_pin_tag
-        tag, pin = _split_pin_tag("=DEVICE:PIN1")
+        from indu_doc.god import split_pin_tag
+        tag, pin = split_pin_tag("=DEVICE:PIN1")
         assert tag == "=DEVICE"
         assert pin == ":PIN1"
 
-        tag, pin = _split_pin_tag("=DEVICE")
+        tag, pin = split_pin_tag("=DEVICE")
         assert tag == "=DEVICE"
         assert pin is None
 
-        tag, pin = _split_pin_tag("=DEVICE:PIN1:PIN2")
+        tag, pin = split_pin_tag("=DEVICE:PIN1:PIN2")
         assert tag == "=DEVICE"
         assert pin == ":PIN1:PIN2"
 

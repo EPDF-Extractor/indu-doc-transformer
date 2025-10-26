@@ -9,7 +9,7 @@ from collections import defaultdict
 import threading
 
 from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
-from indu_doc.common_utils import _is_pin_tag, _split_pin_tag
+from indu_doc.common_utils import is_pin_tag, split_pin_tag
 from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageError, ErrorType
 from indu_doc.configs import AspectsConfig
 from indu_doc.connection import Connection, Link, Pin
@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PageMapperEntry:
+    """ Represents a unique page in a document by its number and file path. """
+    # 1-based page number
     page_number: int
-    # page_type: PageType
+    # absolute path to the file
     file_path: str
 
     def __hash__(self) -> int:
@@ -113,7 +115,10 @@ class God:
         #     )
         attribute = attribute_cls(name, value)  # type: ignore
         with self._attributes_lock:
-            self.attributes[str(attribute)] = attribute
+            guid = attribute.get_guid()
+            if guid in self.attributes:
+                return self.attributes[guid]
+            self.attributes[guid] = attribute
         return attribute
 
     def create_tag(self, tag_str: str, page_info: PageInfo):
@@ -213,7 +218,7 @@ class God:
     ) -> Optional[XTarget]:
         ''' please provide location in the attributes '''
         # prohibit creation of xtargets with unparsed pins
-        if _is_pin_tag(tag_str):
+        if is_pin_tag(tag_str):
             logger.warning(f"XTarget tag has pins: {tag_str}")
             return None
 
@@ -277,7 +282,13 @@ class God:
             return None
 
         with self._pins_lock:
-            return self.pins.setdefault(current_pin.get_guid(), current_pin)
+            # Add all pins in the chain to god.pins (including child pins)
+            pin_iter = current_pin
+            while pin_iter:
+                self.pins.setdefault(pin_iter.get_guid(), pin_iter)
+                pin_iter = pin_iter.child
+            
+            return self.pins.get(current_pin.get_guid())
 
     def create_link(
         self,
@@ -376,9 +387,9 @@ class God:
             f"create_connection_with_link at {tag}: '{pin_tag_from}' -> '{pin_tag_to}' {attributes}"
         )
         # Split pin_tag into tag & pin
-        tag_from, pin_from = _split_pin_tag(pin_tag_from)
-        tag_to, pin_to = _split_pin_tag(pin_tag_to)
-        #
+        tag_from, pin_from = split_pin_tag(pin_tag_from)
+        tag_to, pin_to = split_pin_tag(pin_tag_to)
+        
         if not (pin_from and pin_to):
             msg = f"Linked connection where one/no pins specified: `{pin_from}` `{pin_to}`"
             self.create_error(page_info, msg, error_type=ErrorType.WARNING)
@@ -457,6 +468,8 @@ class God:
         return f"God(configs={self.configs},\n xtargets={len(self.xtargets)},\n connections={len(self.connections)},\n attributes={len(self.attributes)},\n links={len(self.links)},\n pins={len(self.pins)},\n aspects={len(self.aspects)})"
     
     def __iadd__(self, other: 'God') -> 'God':
+        if self.configs != other.configs:
+            raise ValueError("Cannot merge Gods with different configurations.")
         # Merge xtargets
         with self._xtargets_lock:
             self.xtargets.update(other.xtargets)
@@ -481,6 +494,27 @@ class God:
         self.pages_mapper += other.pages_mapper
         return self
     
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, God):
+            return False
+        
+        checks = [
+            ("configs", self.configs == value.configs),
+            ("xtargets", self.xtargets == value.xtargets),
+            ("connections", self.connections == value.connections),
+            ("attributes", self.attributes == value.attributes),
+            ("links", self.links == value.links),
+            ("pins", self.pins == value.pins),
+            ("aspects", self.aspects == value.aspects),
+            ("tags", self.tags == value.tags)
+        ]
+        
+        for name, result in checks:
+            if not result:
+                logger.debug(f"God equality check failed at: {name}")
+                return False
+        
+        return True
     
     def reset(self):
         with self._xtargets_lock:

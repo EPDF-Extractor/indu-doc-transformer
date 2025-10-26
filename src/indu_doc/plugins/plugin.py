@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import asyncio
-from typing import Optional, Any, Callable
+from typing import Optional, Any
 from indu_doc.configs import AspectsConfig
 from indu_doc.god import God
 from indu_doc.plugins.plugins_common import ProcessingState
@@ -23,7 +23,6 @@ class InduDocPlugin(ABC):
     :ivar sub_god: A temporary God only local to this plugin.
     :ivar _processing_state: Current processing state from ProcessingState enum.
     :ivar _event_emitter: Event emitter for async event handling.
-    :ivar _processing_task: Current processing task if running.
     """
 
     def __init__(self, configs: AspectsConfig, **kwargs):
@@ -36,7 +35,6 @@ class InduDocPlugin(ABC):
         self.sub_god = God(configs)
         self._processing_state = ProcessingState.IDLE
         self._event_emitter = EventEmitter()
-        self._processing_task: Optional[asyncio.Task] = None
         
         # Progress tracking
         self._current_page = 0
@@ -50,7 +48,7 @@ class InduDocPlugin(ABC):
         return self._event_emitter
 
     @abstractmethod
-    async def process_files_async(self, paths: tuple[str, ...]) -> Any:
+    async def process_files_async(self, paths: tuple[str, ...]) -> God:
         """
         Async method to process the given file paths.
 
@@ -60,13 +58,13 @@ class InduDocPlugin(ABC):
 
         :param paths: Tuple of file paths to process.
         :type paths: tuple[str, ...]
-        :returns: Extracted data from processing.
-        :rtype: Any
+        :returns: Extracted data from processing populated into a God instance. 
+        :rtype: God
         :raises NotImplementedError: If not implemented by subclass.
         """
         raise NotImplementedError("Plugin subclasses must implement the process_files_async method.")
 
-    async def __start_async(self, paths: tuple[str, ...]) -> None:
+    async def start(self, paths: tuple[str, ...]) -> None:
         """
         Start processing the given file paths asynchronously.
 
@@ -93,9 +91,8 @@ class InduDocPlugin(ABC):
         )
 
         try:
-            # Create and start processing task
-            self._processing_task = asyncio.create_task(self.process_files_async(paths))
-            extracted_data = await self._processing_task
+            # Process files directly - no need for extra task wrapping
+            extracted_data = await self.process_files_async(paths)
 
             # Processing completed successfully
             self._processing_state = ProcessingState.IDLE
@@ -122,50 +119,16 @@ class InduDocPlugin(ABC):
             )
             raise
 
-        finally:
-            self._processing_task = None
-
-    async def start(self, paths: tuple[str, ...]):
+    async def stop(self) -> bool:
         """
-        Start processing the given file paths.
+        Stop the current processing operation by marking it for cancellation.
+        The actual cancellation happens when the running task checks the state.
 
-        :param paths: Tuple of file paths to process.
-        :type paths: tuple[str, ...]
-        :param on_complete: Optional callback (deprecated - use event listeners).
-        :type on_complete: Optional[Callable[[], None]]
-        """
-        await self.__start_async(paths)
-
-    async def stop_async(self) -> bool:
-        """
-        Stop the current processing operation asynchronously.
-
-        :returns: True if processing was stopped, False if not running.
+        :returns: True if processing was marked for stop, False if not running.
         :rtype: bool
         """
-        if self._processing_state == ProcessingState.PROCESSING and self._processing_task:
+        if self._processing_state == ProcessingState.PROCESSING:
             self._processing_state = ProcessingState.STOPPING
-            self._processing_task.cancel()
-
-            try:
-                await self._processing_task
-            except asyncio.CancelledError:
-                pass
-
-            self._processing_state = ProcessingState.IDLE
-            return True
-        return False
-
-    def stop(self) -> bool:
-        """
-        Stop the current processing operation.
-
-        :returns: True if processing was stopped, False if not running.
-        :rtype: bool
-        """
-        if self._processing_task and not self._processing_task.done():
-            self._processing_task.cancel()
-            self._processing_state = ProcessingState.IDLE
             return True
         return False
 
@@ -222,8 +185,6 @@ class InduDocPlugin(ABC):
         """
         Reset the plugin's internal state and temporary God instance.
         """
-        if self._processing_task and not self._processing_task.done():
-            self._processing_task.cancel()
         self.sub_god.reset()
         self._processing_state = ProcessingState.IDLE
         self._current_page = 0
