@@ -39,6 +39,14 @@ class Aspect(AttributedBase):
 
     def __repr__(self) -> str:
         return f"Aspect({str(self)}, attributes={self.attributes})"
+    
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Aspect):
+            return False
+        return self.separator == other.separator and self.value == other.value and self.attributes == other.attributes
+    
+    def __hash__(self) -> int:
+        return hash(self.get_guid())
 
 
 class Tag:
@@ -126,7 +134,11 @@ class Tag:
                 logger.warning(f"Failed to parse tag string: {self.tag_str} ")
                 return {}
         
-    def get_aspects(self):
+    def get_aspects(self) -> dict[str, tuple[Aspect, ...]] | None:
+        """
+        Returns the aspects of the tag as a dictionary mapping separators to their corresponding Aspect objects.
+        If no aspects are set, returns None.
+        """
         if not self.aspects:
             return None
         configured_aspects = {sep.Separator: self.aspects[sep.Separator] for sep in self.config.to_list() if sep.Separator in self.aspects}
