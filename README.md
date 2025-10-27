@@ -1,6 +1,8 @@
 # InduDoc Transformer
 This is the core repository of the project.
 
+## Deployment 
+the deployment of the system with GUI is available [here](https://indudoc.dev/)
 
 ## Resources for developers:
 - [Team Roles](https://github.com/EPDF-Extractor/indu-doc-transformer/wiki/Team-Roles)
