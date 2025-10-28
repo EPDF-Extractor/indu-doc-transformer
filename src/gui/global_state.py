@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 class ClientState:
     def __init__(self) -> None:
         self.uploaded_pdfs: list[str] = []
+        self.processed_files: set[str] = set()  # Track files that have been processed
         self.aspects: list[LevelConfig] = load_default_aspects()
         logger.debug(f"Loaded aspects: {self.aspects}")
         ps = PageSettings(os.path.join(os.getcwd(), "page_settings.json"))
