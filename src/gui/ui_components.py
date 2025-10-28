@@ -389,6 +389,7 @@ def create_gui(state: ClientState):
     progress_bar = None
     cancel_button = None
     was_processing = False  # Track previous processing state
+    currently_processing_files = []  # Track files being processed in current session
 
     def show_progress_dialog():
         """Show the progress monitoring dialog."""
@@ -420,7 +421,7 @@ def create_gui(state: ClientState):
 
     def check_and_update_progress():
         """Automatically check if processing is active and update progress."""
-        nonlocal was_processing
+        nonlocal was_processing, currently_processing_files
         
         is_processing = state.manager.is_processing()
         
@@ -445,10 +446,12 @@ def create_gui(state: ClientState):
                                     for s in states if s['state'] == 'error']
                     ui.notify(f'Processing failed: {"; ".join(error_messages)}', color='negative')
                 elif all_done:
-                    # Mark all uploaded files as processed
-                    for file_path in state.uploaded_pdfs:
+                    # Mark only the files that were just processed
+                    for file_path in currently_processing_files:
                         state.processed_files.add(file_path)
                     ui.notify('Processing completed successfully', color='positive')
+                    # Clear the list for next processing session
+                    currently_processing_files.clear()
         
         # Update progress if currently processing
         if is_processing:
@@ -492,10 +495,19 @@ def create_gui(state: ClientState):
 
     async def extract_pdfs():
         """Extract data from uploaded PDFs and update tree."""
+        nonlocal currently_processing_files
+        
         if not state.uploaded_pdfs:
             ui.notify('No PDFs uploaded', color='negative')
             return
 
+        # Filter out already processed files
+        pending_files = [f for f in state.uploaded_pdfs if f not in state.processed_files]
+        
+        if not pending_files:
+            ui.notify('No pending files to extract. All files are already processed.', color='info')
+            return
+        
         # Check if already processing
         if state.manager.is_processing():
             ui.notify('Processing already in progress', color='warning')
@@ -509,14 +521,19 @@ def create_gui(state: ClientState):
             ])
             state.manager.update_configs(current_aspects_config)
 
-            # Start processing (non-blocking)
-            ui.notify('Starting PDF processing...', color='info')
+            # Store which files we're about to process
+            currently_processing_files.clear()
+            currently_processing_files.extend(pending_files)
+            
+            # Start processing only pending files (non-blocking)
+            ui.notify(f'Starting PDF processing for {len(pending_files)} file(s)...', color='info')
             # Run it as blocking in another thread to avoid blocking the UI
-            await run.io_bound(state.manager.process_files, tuple(state.uploaded_pdfs), True)
+            await run.io_bound(state.manager.process_files, tuple(pending_files), True)
 
         except Exception as e:
             logger.error(f"Error starting extraction: {e}")
             ui.notify(f'Error starting extraction: {str(e)}', color='negative')
+            currently_processing_files.clear()
 
     # Start automatic progress monitoring timer that runs continuously
     # Check every 500ms if processing state has changed
