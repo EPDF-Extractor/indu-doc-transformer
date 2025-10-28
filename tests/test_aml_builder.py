@@ -239,7 +239,7 @@ class TestCAEXFile:
 
     def test_serialize_with_hierarchies(self, monkeypatch):
         # Patch datetime for deterministic result
-        monkeypatch.setattr("indu_doc.plugins.aml_builder.aml_abstractions.CAEXFile._get_datetime", lambda self: "2025-01-01T00:00:00Z")
+        monkeypatch.setattr("indu_doc.exporters.aml_builder.aml_abstractions.CAEXFile._get_datetime", lambda self: "2025-01-01T00:00:00Z")
 
         # Prepare a mock hierarchy
         root_node = TreeNode(item=DummyElement("R"))
@@ -520,7 +520,7 @@ class TestBuildTree:
 
     def test_builds_tree_and_promotes_main_tree(self):
         target = make_xtarget_with_aspects({"-": [DummyAspect("X")]})
-        with patch("indu_doc.plugins.aml_builder.aml_builder.MAIN_TREE_NAME", "ECAD"):
+        with patch("indu_doc.exporters.aml_builder.aml_builder.MAIN_TREE_NAME", "ECAD"):
             root = build_tree("ECAD", ["-"], [target])
         assert "-X" in root.children
         node = root.children["-X"]
@@ -531,7 +531,7 @@ class TestBuildTree:
         node = TreeNode()
         node.item = object()  # simulate invalid item
         node.children = {}
-        with patch("indu_doc.plugins.aml_builder.aml_builder.TreeNode", return_value=node):
+        with patch("indu_doc.exporters.aml_builder.aml_builder.TreeNode", return_value=node):
             with pytest.raises(ValueError, match="This must not happen"):
                 build_tree("X", ["-"], [target])
 
@@ -547,11 +547,12 @@ class TestAMLBuilder:
         self.god.xtargets = {"1": x1, "2": x2}
         self.god.connections = {}
         self.configs = make_config({"-": MagicMock(Aspect="ECAD")})
-        self.builder = AMLBuilder(self.god, self.configs)
+        self.god.configs = self.configs
+        self.builder = AMLBuilder(self.god)
 
     def test_process_creates_hierarchies_and_serializes(self, tmp_path):
-        with patch("indu_doc.plugins.aml_builder.aml_builder.CAEXFile") as caex_mock, \
-             patch("indu_doc.plugins.aml_builder.aml_builder.build_tree", return_value=TreeNode()):
+        with patch("indu_doc.exporters.aml_builder.aml_builder.CAEXFile") as caex_mock, \
+             patch("indu_doc.exporters.aml_builder.aml_builder.build_tree", return_value=TreeNode()):
             caex_mock.return_value.serialize.return_value = et.Element("root")
             self.builder.process()
             caex_mock.return_value.hierarchies.append.assert_called()
@@ -584,16 +585,16 @@ class TestAMLBuilder:
         self.god.connections = {"c": conn}
         self.god.xtargets = {x.id: x.xtarget for x in [src, dst, through]}
 
-        with patch("indu_doc.plugins.aml_builder.aml_builder.build_tree", return_value=MagicMock()), \
-             patch("indu_doc.plugins.aml_builder.aml_builder.InternalXTarget", wraps=InternalXTarget), \
-             patch("indu_doc.plugins.aml_builder.aml_builder.InternalLink", wraps=InternalLink), \
-             patch("indu_doc.plugins.aml_builder.aml_builder.InternalPin", wraps=InternalPin), \
-             patch("indu_doc.plugins.aml_builder.aml_builder.InternalConnection", wraps=InternalConnection):
+        with patch("indu_doc.exporters.aml_builder.aml_builder.build_tree", return_value=MagicMock()), \
+             patch("indu_doc.exporters.aml_builder.aml_builder.InternalXTarget", wraps=InternalXTarget), \
+             patch("indu_doc.exporters.aml_builder.aml_builder.InternalLink", wraps=InternalLink), \
+             patch("indu_doc.exporters.aml_builder.aml_builder.InternalPin", wraps=InternalPin), \
+             patch("indu_doc.exporters.aml_builder.aml_builder.InternalConnection", wraps=InternalConnection):
             self.builder.process()
             assert "Target not serialized!" in caplog.text
 
     def test_output_methods_raise_if_not_processed(self, tmp_path):
-        builder = AMLBuilder(self.god, self.configs)
+        builder = AMLBuilder(self.god)
         with pytest.raises(ValueError):
             builder.output_str()
         with pytest.raises(ValueError):

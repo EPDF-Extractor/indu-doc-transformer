@@ -56,12 +56,10 @@ class PagesObjectsMapper:
         self._lock = threading.Lock()
 
     def add_mapping(self, page_info: PageInfo, obj: SupportedMapObjects):
-        if not page_info.page.parent or page_info.page.number is None:
-            logger.debug("PageInfo has no valid parent document.")
-            return
-        page_num = page_info.page.number + 1
-        file_path = os.path.abspath(page_info.page.parent.name)
-        self._file_paths.add(file_path)
+        page_num = (page_info.page.number + 1) if page_info.page.number is not None else -1
+        file_path = os.path.abspath(page_info.page.parent.name) if page_info.page.parent else "unknown"
+        if file_path != "unknown":
+            self._file_paths.add(file_path)
         entry = PageMapperEntry(page_num, file_path)
 
         with self._lock:
