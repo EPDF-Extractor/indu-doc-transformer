@@ -100,15 +100,14 @@ class TestCreateAttribute:
         assert isinstance(attr, SimpleAttribute)
         assert attr.name == "color"
         assert attr.value == "red"
-        assert str(attr) in god_instance.attributes
-        assert god_instance.attributes[str(attr)] == attr
+        assert attr.get_guid() in god_instance.attributes
+        assert god_instance.attributes[attr.get_guid()] == attr
 
     def test_create_routing_tracks_attribute_valid(self, god_instance):
         """Test creating a valid RoutingTracksAttribute."""
         tracks = ["track1", "track2", "track3"]
         # Note: The @cache decorator can't handle list arguments because they're unhashable
         # We'll create a tuple instead for this test
-        tracks_tuple = tuple(tracks)
 
         # Create attribute directly to test the concept since the caching doesn't work with lists
         attr = RoutingTracksAttribute("routing", tracks)
@@ -352,10 +351,10 @@ class TestCreatePin:
     def test_is_pin_tag_method(self):
         """Test the _is_pin_tag helper function."""
         from indu_doc.god import is_pin_tag
-        assert is_pin_tag("=DEVICE:PIN1") == True
-        assert is_pin_tag("=DEVICE") == False
-        assert is_pin_tag(":PIN1") == True
-        assert is_pin_tag("") == False
+        assert is_pin_tag("=DEVICE:PIN1")
+        assert not is_pin_tag("=DEVICE")
+        assert is_pin_tag(":PIN1")
+        assert not is_pin_tag("")
 
     def test_split_pin_tag_method(self):
         """Test the _split_pin_tag helper function."""
@@ -566,7 +565,6 @@ class TestGodIntegration:
         color_attr = god_instance.create_attribute(
             AttributeType.SIMPLE, "color", "red")
         # Create RoutingTracksAttribute directly since caching doesn't work with lists
-        tracks_attr = RoutingTracksAttribute("tracks", ["T1", "T2"])
 
         # Create XTargets with attributes
         device1 = god_instance.create_xtarget(
