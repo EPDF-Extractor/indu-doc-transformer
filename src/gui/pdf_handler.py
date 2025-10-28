@@ -93,9 +93,10 @@ def create_pdf_picker(state):
         ui.notify(
             f'Restored {file_count} existing file(s): {", ".join(filenames)}', color='info')
 
-    with ui.card().classes('flex-grow min-w-0 flex margin-0 p-0 bg-gray-800 border-2 border-gray-600'):
+    container = ui.card().classes('flex-grow min-w-0 flex margin-0 p-0 bg-gray-800 border-2 border-gray-600')
+    with container:
         upload_component = ui.upload(
-            on_upload=lambda e: handle_pdf_upload(e, state),
+            on_upload=lambda e: handle_pdf_upload(e, state, upload_component),
             auto_upload=True,
             multiple=False,
         ).props('dark accept=.pdf color=blue-5 label="Upload PDF" style="height:12rem; overflow:auto;"').classes('w-full')
@@ -103,12 +104,32 @@ def create_pdf_picker(state):
         upload_component.on('removed', lambda e: handle_pdf_removal(e, state))
 
         # Add existing files to the upload component's display
-        for file_path in state.uploaded_pdfs:
-            if os.path.exists(file_path):
-                filename = os.path.basename(file_path)
-                # Simulate an upload event to display the file in the component
-                upload_component.props(
-                    f'model-value=[{{"name": "{filename}", "size": {os.path.getsize(file_path)}, "__status": "uploaded"}}]')
+        refresh_upload_display(upload_component, state.uploaded_pdfs)
+    
+    return container, upload_component
+
+
+def refresh_upload_display(upload_component, uploaded_pdfs: list[str]):
+    """Refresh the upload component to display all uploaded files."""
+    if not uploaded_pdfs:
+        return
+    
+    # Build model-value array for all files
+    files_data = []
+    for file_path in uploaded_pdfs:
+        if os.path.exists(file_path):
+            filename = os.path.basename(file_path)
+            files_data.append({
+                "name": filename,
+                "size": os.path.getsize(file_path),
+                "__status": "uploaded"
+            })
+    
+    if files_data:
+        # Update the component to show all files
+        import json
+        files_json = json.dumps(files_data)
+        upload_component.props(f'model-value={files_json}')
 
 
 def handle_pdf_removal(e, state):
@@ -167,7 +188,7 @@ def handle_pdf_removal(e, state):
         ui.notify(f'Error deleting {filename}', color='negative')
 
 
-def handle_pdf_upload(e, state):
+def handle_pdf_upload(e, state, upload_component=None):
     """Handle PDF file upload event."""
     from gui.global_state import ClientState
 
@@ -200,6 +221,10 @@ def handle_pdf_upload(e, state):
             ui.notify(f'Uploaded {filename}', color='positive')
         else:
             ui.notify(f'{filename} already exists', color='info')
+        
+        # Refresh display if upload component is provided
+        if upload_component:
+            refresh_upload_display(upload_component, state.uploaded_pdfs)
 
     except Exception as ex:
         ui.notify(f'Error uploading {filename}: {str(ex)}', color='negative')
