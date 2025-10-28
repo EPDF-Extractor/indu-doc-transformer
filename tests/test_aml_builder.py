@@ -6,7 +6,7 @@ import logging
 
 from datetime import datetime
 
-from indu_doc.plugins.aml_builder.aml_abstractions import (
+from indu_doc.exporters.aml_builder.aml_abstractions import (
     ISerializeable,
     InternalAttribute,
     InternalLink,
@@ -18,7 +18,7 @@ from indu_doc.plugins.aml_builder.aml_abstractions import (
 )
 
 # === import your actual code ===
-from indu_doc.plugins.aml_builder.aml_builder import (
+from indu_doc.exporters.aml_builder.aml_builder import (
     InternalPin,
     InternalConnection,
     InternalAspect,
