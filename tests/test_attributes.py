@@ -31,17 +31,18 @@ class TestSimpleAttribute:
     def test_db_representation(self):
         """Test database representation serialization."""
         attr = SimpleAttribute("color", "red")
-        db_str = attr.get_db_representation()
+        data = attr.get_db_representation()
 
-        # Should be valid JSON
-        data = json.loads(db_str)
-        assert data["name"] == "color"
-        assert data["value"] == "red"
+        # Should be a dict that can be JSON serialized
+        assert data == {"name": "color", "value": "red"}
+        # Ensure it's JSON serializable
+        json_str = json.dumps(data)
+        assert json.loads(json_str) == data
 
     def test_from_db_representation(self):
         """Test creating attribute from database representation."""
-        db_str = json.dumps({"name": "color", "value": "red"})
-        attr = SimpleAttribute.from_db_representation(db_str)
+        data = {"name": "color", "value": "red"}
+        attr = SimpleAttribute.from_db_representation(data)
 
         assert isinstance(attr, SimpleAttribute)
         assert attr.name == "color"
@@ -184,16 +185,17 @@ class TestRoutingTracksAttribute:
     def test_db_representation(self):
         """Test database representation."""
         attr = RoutingTracksAttribute("route", ["R1", "R2"])
-        db_str = attr.get_db_representation()
+        data = attr.get_db_representation()
 
-        data = json.loads(db_str)
-        assert data["name"] == "route"
-        assert data["tracks"] == ["R1", "R2"]
+        assert data == {"name": "route", "tracks": ["R1", "R2"]}
+        # Ensure JSON serializable
+        json_str = json.dumps(data)
+        assert json.loads(json_str) == data
 
     def test_from_db_representation(self):
         """Test creating from database representation."""
-        db_str = json.dumps({"name": "route", "tracks": ["R1", "R2", "R3"]})
-        attr = RoutingTracksAttribute.from_db_representation(db_str)
+        data = {"name": "route", "tracks": ["R1", "R2", "R3"]}
+        attr = RoutingTracksAttribute.from_db_representation(data)
 
         assert isinstance(attr, RoutingTracksAttribute)
         assert attr.name == "route"
