@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import logging
 from typing import Any, Callable
 import magic
 
@@ -11,8 +12,39 @@ from enum import Enum
 from peewee import CharField, IntegerField, ForeignKeyField, BlobField
 from playhouse.sqlite_ext import JSONField
 
+logger = logging.getLogger(__name__)
+
 def get_db(db_file):
     return SqliteDatabase(db_file)
+
+
+def batch_insert(model, data, batch_size=100):
+    """
+    Insert data in batches to avoid SQLite variable limit (999 variables).
+    
+    Args:
+        model: The Peewee model to insert into
+        data: List of dictionaries to insert
+        batch_size: Number of records per batch (default 100)
+    """
+    if not data:
+        return
+    
+    # Calculate safe batch size based on number of fields
+    # SQLite has a limit of 999 variables, so we need to ensure:
+    # batch_size * num_fields < 999
+    if data:
+        num_fields = len(data[0])
+        safe_batch_size = min(batch_size, 999 // num_fields - 1)
+        if safe_batch_size < 1:
+            safe_batch_size = 1
+    else:
+        safe_batch_size = batch_size
+    
+    for i in range(0, len(data), safe_batch_size):
+        batch = data[i:i + safe_batch_size]
+        model.insert_many(batch).execute()
+
 
 class BaseModel(Model):
     class Meta:
@@ -114,8 +146,18 @@ class MetaDataModel(BaseModel):
     configs = JSONField()
 
 # main functions
-def save_to_db(god: God, filename: str):
-    db = get_db(filename)
+def save_to_db(god: God, db_file: str = ':memory:') -> str:
+    """
+    Save a God instance to a SQLite database.
+    
+    Args:
+        god: The God instance to save
+        db_file: Path to the database file, or ':memory:' for in-memory database
+        
+    Returns:
+        The database file path or ':memory:'
+    """
+    db = get_db(db_file)
     all_models = [
         XTargetModel,
         AspectModel,
@@ -147,8 +189,9 @@ def save_to_db(god: God, filename: str):
             "target_type": xtarget.target_type,
             "tag": str(xtarget.tag.tag_str)
         })
-    with db.atomic():
-        XTargetModel.insert_many(xtarget_insert_data).execute()
+    if xtarget_insert_data:
+        with db.atomic():
+            batch_insert(XTargetModel, xtarget_insert_data)
 
     # aspects
     aspect_insert_data = []
@@ -158,8 +201,9 @@ def save_to_db(god: God, filename: str):
             "separator": aspect.separator,
             "value": aspect.value,
         })
-    with db.atomic():
-        AspectModel.insert_many(aspect_insert_data).execute()
+    if aspect_insert_data:
+        with db.atomic():
+            batch_insert(AspectModel, aspect_insert_data)
 
     # xtarget-aspect through
     xtarget_aspect_through_insert_data = []
@@ -177,9 +221,9 @@ def save_to_db(god: God, filename: str):
                 })
                 sort_order += 1
 
-
-    with db.atomic():
-        XTargetAspectThroughModel.insert_many(xtarget_aspect_through_insert_data).execute()
+    if xtarget_aspect_through_insert_data:
+        with db.atomic():
+            batch_insert(XTargetAspectThroughModel, xtarget_aspect_through_insert_data)
 
     # connections
     connection_insert_data = []
@@ -190,8 +234,9 @@ def save_to_db(god: God, filename: str):
             "dst": connection.dest.get_guid() if connection.dest else None,
             "through": connection.through.get_guid() if connection.through else None,
         })
-    with db.atomic():
-        ConnectionModel.insert_many(connection_insert_data).execute()
+    if connection_insert_data:
+        with db.atomic():
+            batch_insert(ConnectionModel, connection_insert_data)
 
     # links (create without pins, filled later)
     link_insert_data = []
@@ -205,8 +250,9 @@ def save_to_db(god: God, filename: str):
             "src_pin_name": link.src_pin_name if hasattr(link, 'src_pin_name') else None,
             "dest_pin_name": link.dest_pin_name if hasattr(link, 'dest_pin_name') else None
         })
-    with db.atomic():
-        LinkModel.insert_many(link_insert_data).execute()
+    if link_insert_data:
+        with db.atomic():
+            batch_insert(LinkModel, link_insert_data)
 
     # pins - now god.pins contains all pins including child pins
     pin_insert_data = []
@@ -217,8 +263,9 @@ def save_to_db(god: God, filename: str):
             "role": pin.role,
             "parentLink": pin.parentLink.get_guid() if pin.parentLink else None
         })
-    with db.atomic():
-        PinModel.insert_many(pin_insert_data).execute()
+    if pin_insert_data:
+        with db.atomic():
+            batch_insert(PinModel, pin_insert_data)
     # attach childPin
     with db.atomic():
         for guid, pin in god.pins.items():
@@ -246,8 +293,9 @@ def save_to_db(god: God, filename: str):
             "value": attr.get_db_representation(),
             "type": get_attribute_type(attr.__class__)
         })   
-    with db.atomic():
-        AttributeModel.insert_many(attr_insert_data).execute()
+    if attr_insert_data:
+        with db.atomic():
+            batch_insert(AttributeModel, attr_insert_data)
 
     
     # attributed obj - attribute through
@@ -282,29 +330,36 @@ def save_to_db(god: God, filename: str):
                 "attributed_obj_id": aspect.get_guid(),
                 "attribute": attr.get_guid()
             })
-    with db.atomic():
-        AttributedObjAttributeThroughModel.insert_many(attributed_obj_attr_through_insert_data).execute()
+    if attributed_obj_attr_through_insert_data:
+        with db.atomic():
+            batch_insert(AttributedObjAttributeThroughModel, attributed_obj_attr_through_insert_data)
 
     # page_mapper
     pm: PagesObjectsMapper = god.pages_mapper
-    documents_seen_set = set()
+    
+    # Validate that all paths in the mapper are absolute before saving
+    for file_path in pm.file_paths:
+        if not os.path.isabs(file_path):
+            logger.error(f"Non-absolute path found in mapper before save: {file_path}")
+            raise ValueError(f"PageMapper contains non-absolute path: {file_path}. All paths must be absolute.")
+    
     documents_insert_data = []
     
     # first gather unique documents to insert
-    for page_entry in pm.page_to_objects.keys():
-        if page_entry.file_path not in documents_seen_set:
-            documents_seen_set.add(page_entry.file_path)
-            # get blob data from the path
-            with open(page_entry.file_path, 'rb') as f:
-                file_blob = f.read()
-            file_name = os.path.basename(os.path.abspath(page_entry.file_path))
-            documents_insert_data.append({
-                "fileName": file_name,
-                "mime": magic.from_buffer(file_blob, mime=True),
-                "file": file_blob
-            })
-    with db.atomic():
-        DocumentModel.insert_many(documents_insert_data).execute()
+    for file_p in pm.file_paths:
+        # get blob data from the path
+        with open(file_p, 'rb') as f:
+            file_blob = f.read()
+        file_name = os.path.basename(os.path.abspath(file_p))
+        documents_insert_data.append({
+            "fileName": file_name,
+            "mime": magic.from_buffer(file_blob, mime=True),
+            "file": file_blob
+        })
+    
+    if documents_insert_data:
+        with db.atomic():
+            batch_insert(DocumentModel, documents_insert_data)
         
     # now insert pages
     page_insert_data = []
@@ -315,9 +370,10 @@ def save_to_db(god: God, filename: str):
             "number": page_entry.page_number,
             "document": document.id
         })
-        
-    with db.atomic():
-        PageModel.insert_many(page_insert_data).execute()
+    
+    if page_insert_data:
+        with db.atomic():
+            batch_insert(PageModel, page_insert_data)
     # now insert page-object throughs
     page_object_through_insert_data = []
     for page_entry, objects in pm.page_to_objects.items():
@@ -334,9 +390,10 @@ def save_to_db(god: God, filename: str):
                 "object_type": obj.__class__.__name__.lower(),
                 "object_id": getattr(obj, 'get_guid')()  # type: ignore
             })
-        
-    with db.atomic():
-        PageObjectThroughModel.insert_many(page_object_through_insert_data).execute()    
+    
+    if page_object_through_insert_data:
+        with db.atomic():
+            batch_insert(PageObjectThroughModel, page_object_through_insert_data)
     
     # save configs into metadata
     meta_insert_data = {
@@ -345,14 +402,63 @@ def save_to_db(god: God, filename: str):
     MetaDataModel.create(**meta_insert_data)
     
     db.close()
+    return db_file
+
+def extract_documents_from_db(db_filename: str, output_dir: str) -> dict[str, str]:
+    """
+    Extract all document blobs from the database and save them to the output directory.
+    
+    Args:
+        db_filename: Path to the database file
+        output_dir: Directory where documents will be saved
+        
+    Returns:
+        A dictionary mapping original filenames to their new absolute paths
+    """
+    db = get_db(db_filename)
+    db.bind([DocumentModel])
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    filename_to_path = {}
+    documents = DocumentModel.select()
+    
+    for doc in documents:
+        # Create the full output path
+        output_path = os.path.join(output_dir, doc.fileName)
+        
+        # Write the blob to disk
+        with open(output_path, 'wb') as f:
+            f.write(doc.file)
+        
+        # Store the mapping
+        filename_to_path[doc.fileName] = os.path.abspath(output_path)
+    
+    db.close()
+    return filename_to_path
 
 
-def load_from_db(filename: str) -> God:
+def load_from_db(filename: str, extract_docs_to: str) -> God:
+    """
+    Load a God instance from a database file.
+    
+    Args:
+        filename: Path to the database file
+        extract_docs_to: Directory path where document blobs will be extracted.
+                        Documents must be saved to disk to obtain absolute paths for the mapper.
+    
+    Returns:
+        A God instance reconstructed from the database
+    """
     from indu_doc.configs import AspectsConfig
     from indu_doc.attributes import AvailableAttributes
     from indu_doc.connection import Connection, Link, Pin
     from indu_doc.tag import Tag, Aspect
     from indu_doc.god import PageMapperEntry
+    
+    # Extract documents (required to get absolute paths)
+    filename_to_path = extract_documents_from_db(filename, extract_docs_to)
     
     db = get_db(filename)
     all_models = [
@@ -471,8 +577,8 @@ def load_from_db(filename: str) -> God:
     link_models = LinkModel.select()
     
     for link_model in link_models:
-        # Use __data__ to avoid database queries for foreign keys
-        parent_guid = link_model.__data__.get('parent')
+        # Use _id suffix to access foreign key ID without triggering database query
+        parent_guid = link_model.parent_id
         parent_conn = god.connections.get(parent_guid)
         if not parent_conn:
             continue
@@ -505,9 +611,9 @@ def load_from_db(filename: str) -> God:
             return None
         
         # Build child pin first if it exists
-        # Use __data__ to avoid triggering a database query
+        # Use _id suffix to access foreign key ID without triggering database query
         child_pin = None
-        child_pin_id = pin_model.__data__.get('childPin')
+        child_pin_id = pin_model.childPin_id
         if child_pin_id:
             child_pin = build_pin(child_pin_id, parent_link)
         
@@ -528,26 +634,49 @@ def load_from_db(filename: str) -> God:
         if not link:
             continue
         
-        # Use __data__ to avoid triggering database queries
-        src_pin_id = link_model.__data__.get('src_pin')
+        # Use _id suffix to access foreign key IDs without triggering database queries
+        src_pin_id = link_model.src_pin_id
         if src_pin_id:
             src_pin = build_pin(src_pin_id, link)
             if src_pin:
                 link.set_src_pin(src_pin)
         
-        dest_pin_id = link_model.__data__.get('dest_pin')
+        dest_pin_id = link_model.dest_pin_id
         if dest_pin_id:
             dest_pin = build_pin(dest_pin_id, link)
             if dest_pin:
                 link.set_dest_pin(dest_pin)
     
     # Step 7: Reconstruct the PagesObjectsMapper
+    # Build a mapping of document ID to filename
+    document_models = DocumentModel.select()
+    doc_id_to_filename = {doc.id: doc.fileName for doc in document_models}
+    
     page_models = PageModel.select()
     for page_model in page_models:
-        document = page_model.document
+        # Use _id suffix to access foreign key ID without triggering database query
+        document_id = page_model.document_id
+        document_filename = doc_id_to_filename.get(document_id)
+        
+        if not document_filename:
+            continue
+        
+        # Get the absolute path from extracted documents
+        # PageMapper should ONLY contain absolute paths, never just filenames
+        if document_filename not in filename_to_path:
+            # Document wasn't extracted - skip this page entry
+            logger.warning(f"Document {document_filename} not found in extracted files, skipping page {page_model.number}")
+            continue
+            
+        # Ensure the path is absolute (it should already be from extract_documents_from_db)
+        file_path = os.path.abspath(filename_to_path[document_filename])
+        
+        # Add the absolute file path to the tracked file paths
+        god.pages_mapper._file_paths.add(file_path)
+        
         page_entry = PageMapperEntry(
             page_number=page_model.number,
-            file_path=document.fileName
+            file_path=file_path
         )
         
         # Get all objects on this page

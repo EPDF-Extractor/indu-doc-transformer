@@ -7,7 +7,7 @@ import logging
 from typing import Any, Optional, Union
 from collections import defaultdict
 import threading
-
+import os
 from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
 from indu_doc.common_utils import is_pin_tag, split_pin_tag
 from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageError, ErrorType
@@ -28,8 +28,15 @@ class PageMapperEntry:
     file_path: str
 
     def __hash__(self) -> int:
-        return hash((self.page_number, self.file_path))
+        return hash((self.page_number, os.path.basename(self.file_path)))
+    
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PageMapperEntry):
+            return False
+        # we compare only basenames to avoid issues with different absolute paths when loading/saving 
+        return (self.page_number == other.page_number and
+                os.path.basename(self.file_path) == os.path.basename(other.file_path))
 
 SupportedMapObjects = Union[XTarget, Connection, Link, PageError]
 
@@ -45,11 +52,16 @@ class PagesObjectsMapper:
                                    set[SupportedMapObjects]] = defaultdict(set)
         self.object_to_pages: defaultdict[SupportedMapObjects,
                                    set[PageMapperEntry]] = defaultdict(set)
+        self._file_paths : set[str] = set()
         self._lock = threading.Lock()
 
     def add_mapping(self, page_info: PageInfo, obj: SupportedMapObjects):
-        page_num = page_info.page.number + 1 if page_info.page.number else -1
-        file_path = page_info.page.parent.name if page_info.page.parent else "unknown"
+        if not page_info.page.parent or page_info.page.number is None:
+            logger.debug("PageInfo has no valid parent document.")
+            return
+        page_num = page_info.page.number + 1
+        file_path = os.path.abspath(page_info.page.parent.name)
+        self._file_paths.add(file_path)
         entry = PageMapperEntry(page_num, file_path)
 
         with self._lock:
@@ -60,6 +72,7 @@ class PagesObjectsMapper:
         return self.object_to_pages[obj].copy()
 
     def get_objects_in_page(self, page_number: int, file_path: str) -> set[SupportedMapObjects]:
+        file_path = os.path.abspath(file_path)
         entry = PageMapperEntry(page_number, file_path)
         return self.page_to_objects[entry]
 
@@ -69,7 +82,18 @@ class PagesObjectsMapper:
                 self.page_to_objects[page_entry].update(objects)
             for obj, page_entries in other.object_to_pages.items():
                 self.object_to_pages[obj].update(page_entries)
+            self._file_paths.update(other._file_paths)
         return self
+    
+    @property
+    def file_paths(self) -> set[str]:
+        return self._file_paths.copy()
+    
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, PagesObjectsMapper):
+            return False
+        return (self.page_to_objects == value.page_to_objects and
+                self.object_to_pages == value.object_to_pages)
 
 class God:
     """
@@ -506,7 +530,8 @@ class God:
             ("links", self.links == value.links),
             ("pins", self.pins == value.pins),
             ("aspects", self.aspects == value.aspects),
-            ("tags", self.tags == value.tags)
+            ("tags", self.tags == value.tags),
+            ("pages_mapper", self.pages_mapper == value.pages_mapper),
         ]
         
         for name, result in checks:

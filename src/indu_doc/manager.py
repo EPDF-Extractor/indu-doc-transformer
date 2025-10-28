@@ -8,7 +8,7 @@ from indu_doc.plugins.plugins_common import ProcessingState
 from indu_doc.plugins.events import EventType, PluginEvent, ProcessingProgressEvent
 from indu_doc.xtarget import XTarget
 import os
-from indu_doc.db import save_to_db
+from indu_doc.exporters.db_builder.db import save_to_db
 logger = logging.getLogger(__name__)
 
 
@@ -508,8 +508,8 @@ if __name__ == "__main__":
             save_to_db(manager.god, db_file)    
             print("Data saved to database successfully.")
             # try re-opening the DB to verify it works
-            from indu_doc.db import load_from_db
-            loaded_god = load_from_db(db_file)
+            from indu_doc.exporters.db_builder.db import load_from_db
+            loaded_god = load_from_db(db_file, "loaded_docs")
             print(f"Re-loaded God from DB: {loaded_god}")
             print(loaded_god == manager.god)
             # check equivalence
