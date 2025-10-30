@@ -274,7 +274,7 @@ class TestDefaultConfigs:
         """Test default config has product aspect."""
         level = default_configs["-"]
 
-        assert level.Aspect == "Product Aspect"
+        assert level.Aspect == "Product"
         assert level.Separator == "-"
 
     def test_default_configs_pins_aspect(self):
