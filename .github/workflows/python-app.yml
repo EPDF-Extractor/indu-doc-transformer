@@ -5,35 +5,30 @@ name: Python application
 
 on:
   push:
-    branches: [ "master", "dev" ]
+    branches: ["master", "dev"]
   pull_request:
-    branches: [ "master", "dev" ]
+    branches: ["master", "dev"]
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: windows-2025
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v3
-        with:
-          python-version: "3.10"
-      - name: Install the latest version of uv and activate the environment
+      - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
         with:
-          activate-environment: true
-      - run: uv pip install pip
+          enable-cache: true
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install pyinstaller pytest-cov
+          uv pip install pyinstaller pytest-cov pytest-timeout
       - name: Test with pytest and generate coverage
         run: |
-          pytest --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing
+          uv run pytest tests/ --cov=src/indu_doc --cov-report=xml --cov-report=html -v --timeout=300 --tb=short
       - name: Upload coverage reports as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -50,7 +45,7 @@ jobs:
           echo "Download the 'coverage-reports' artifact to view detailed HTML coverage report." >> $env:GITHUB_STEP_SUMMARY
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller --onefile --console --collect-all click --name indu_doc src/indu_doc/cli.py
+          uv run pyinstaller --onefile --console --collect-all click --name indu_doc src/indu_doc/cli.py
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
