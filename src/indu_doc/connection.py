@@ -49,16 +49,6 @@ class Pin(AttributedBase):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Pin):
             return False
-        # Compare by GUID to avoid circular reference issues with parentLink
-        if self.get_guid() != other.get_guid():
-            print(f"Pin equality check failed: {self} != {other}")
-            print(f"Types: {type(self)} != {type(other)}")
-            print(f"GUIDs: {self.get_guid()} != {other.get_guid()}")
-            print(f"Names: {self.name} != {other.name}")
-            print(f"Roles: {self.role} != {other.role}")
-            print(f"Children: {self.child} != {other.child}")
-            print(f"ParentLinks: {self.parentLink.get_guid() if self.parentLink else 'None'} != {other.parentLink.get_guid() if other.parentLink else 'None'}")
-        
         return self.get_guid() == other.get_guid()
     
     def __hash__(self) -> int:
@@ -115,16 +105,6 @@ class Link(AttributedBase):
         if not isinstance(other, Link):
          
             return False
-        # Compare by GUID to avoid circular reference issues with parent
-        
-        if self.get_guid() != other.get_guid():
-            print(f"Link equality check failed: {self} != {other}")
-            print(f"Types: {type(self)} != {type(other)}")
-            print(f"GUIDs: {self.get_guid()} != {other.get_guid()}")
-            print(f"Names: {self.name} != {other.name}")
-            print(f"Src Pin: {self.src_pin_name} != {other.src_pin_name}")
-            print(f"Dest Pin: {self.dest_pin_name} != {other.dest_pin_name}")
-            print(f"Parent: {self.parent.get_guid() if self.parent else 'None'} != {other.parent.get_guid() if other.parent else 'None'}")
         return self.get_guid() == other.get_guid()
     
     def __hash__(self) -> int:
