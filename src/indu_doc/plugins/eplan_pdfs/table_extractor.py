@@ -6,7 +6,7 @@ import pymupdf  # type: ignore
 import logging
 import traceback
 from indu_doc.plugins.eplan_pdfs.common_page_utils import PageType, PageError, ErrorType
-from indu_doc.plugins.eplan_pdfs.page_settings import rect, PageSetup, TableSetup, PageSettings
+from indu_doc.plugins.eplan_pdfs.page_settings import rect, PageSetup, TableSetup
 
 logger = logging.getLogger(__name__)
 # In pt
@@ -196,10 +196,9 @@ class TableExtractor:
         try:
             # 1st: Do generalized table extraction
             dfs, msgs = extract_tables(page, setup)
+            errors += msgs
             # 2nd: Do table speciefic processing (TODO make it just stackable middleware per page type)
-            print(f"get extractor {what}")
             df, msgs = cls.get_extractor(what)(dfs)
-            # Return dfs
             errors += msgs
         except ValueError as ve:
             errors.append(PageError(f"{ve}", error_type=ErrorType.FAULT))
@@ -344,7 +343,7 @@ class TableExtractor:
         #
         strip_tag = df_name.loc[0, "strip_tag"]
         #
-        # here I have to do preprocessing to make a single df
+        # preprocessing to make a single df
         #
         def transform_dataframe(df_cables: pd.DataFrame, df_conn: pd.DataFrame, split_meta: str):
             rows = []
@@ -369,15 +368,19 @@ class TableExtractor:
                     color = row[col]
                     if pd.notna(color) and color.strip() != "":
                         # assume it is convertible to int as we did isdigit
-                        cable_index = int(col) - 1
-                        # As in the same row cable tag & info are located -> select only tag
-                        # TODO might be wrong as cable tag might have spaces (?)
-                        cable_info = df_cables.loc[cable_index, "cable_tag"]
-                        cable_loc = df_cables.loc[cable_index, "_loc"]
+                        try:
+                            cable_index = int(col) - 1
+                            # As in the same row cable tag & info are located -> select only tag
+                            cable_tag = df_cables.loc[cable_index, "cable_tag"]
+                            cable_loc = df_cables.loc[cable_index, "_loc"]
+                        except Exception:
+                            # either cable_index is invalid or cable_info is invalid =>
+                            cable_tag = ""
                         # Extract a TAG from cable_info
-                        cable_info_list.append(str(cable_info) if cable_info else "")
-                        cable_loc_list.append(cable_loc)
-                        color_list.append(color)
+                        if cable_tag:
+                            cable_info_list.append(str(cable_tag))
+                            cable_loc_list.append(cable_loc)
+                            color_list.append(color)
                 # 
                 rows.append(
                     [";".join(cable_info_list), ";".join(color_list)]
@@ -389,14 +392,15 @@ class TableExtractor:
         # Check if the number of rows in the transformed dataframes matches the number of rows in df
         left_transformed = transform_dataframe(df_l_cables, df_l_conn, "_1")
         right_transformed = transform_dataframe(df_r_cables, df_r_conn, "_2")
-        if left_transformed.shape[0] != df.shape[0]:
-            raise ValueError(
-                f"Left cable assignment table ({left_transformed.shape[0]}) does not match connections ({df.shape[0]})"
-            )
-        if right_transformed.shape[0] != df.shape[0]:
-            raise ValueError(
-                f"Right cable assignment table ({right_transformed.shape[0]}) does not match connections ({df.shape[0]})"
-            )
+        # Unfortunately, this does not work as empty rows are "eaten, and df_conn can have empty rows"
+        # if left_transformed.shape[0] != df.shape[0]:
+        #     raise ValueError(
+        #         f"Left cable assignment table ({left_transformed.shape[0]}) does not match connections ({df.shape[0]})"
+        #     )
+        # if right_transformed.shape[0] != df.shape[0]:
+        #     raise ValueError(
+        #         f"Right cable assignment table ({right_transformed.shape[0]}) does not match connections ({df.shape[0]})"
+        #     )
 
         # Prepend left_transformed, append right_transformed
         df = pd.concat(
@@ -407,7 +411,10 @@ class TableExtractor:
             ],
             axis=1,
         )
+        # concat can produce Nans
+        df.fillna("", inplace=True)
         # rename stuff (TODO awful, wish to avoid)
+        # As 1 row can create 2 links, _1 appended to columns which will go into link 1 and _2 - to link 2
         df.rename(columns={"src_tag": "_1src_tag"}, inplace=True)
         df.rename(columns={"src_pin": "_1src_pin"}, inplace=True)
         df.rename(columns={"dst_tag": "_2dst_tag"}, inplace=True)
@@ -440,7 +447,7 @@ def extract_table(page: pymupdf.Page, key: str, table_setup: TableSetup) -> tupl
     if table_setup.overlap_test_roi:
         if len(tables) > 1:
             raise ValueError(
-                f"Overlap detection does not work witn many tables")
+                "Overlap detection does not work witn many tables")
         spans = extract_spans(page, clip=table_setup.overlap_test_roi)
         overlaps = detect_overlaps(spans)
         overlap_fixes = fix_row_overlaps(tables[0], overlaps) if overlaps else []
