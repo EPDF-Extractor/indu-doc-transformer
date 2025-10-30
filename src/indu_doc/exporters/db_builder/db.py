@@ -1,8 +1,8 @@
 from __future__ import annotations
 import os
 import logging
+import mimetypes
 from typing import Any, Callable
-import magic
 
 from peewee import DeferredForeignKey, Model, SqliteDatabase
 from indu_doc.god import God, PagesObjectsMapper
@@ -13,6 +13,20 @@ from peewee import CharField, IntegerField, ForeignKeyField, BlobField
 from playhouse.sqlite_ext import JSONField
 
 logger = logging.getLogger(__name__)
+
+def get_mime_type(file_path: str, file_blob: bytes) -> str:
+    """
+    Get MIME type of a file using Python's mimetypes module.
+    
+    Args:
+        file_path: Path to the file
+        file_blob: Binary content of the file (unused, kept for compatibility)
+    
+    Returns:
+        MIME type string
+    """
+    mime_type, _ = mimetypes.guess_type(file_path)
+    return mime_type or 'application/octet-stream'
 
 def get_db(db_file):
     return SqliteDatabase(db_file)
@@ -353,7 +367,7 @@ def save_to_db(god: God, db_file: str = ':memory:') -> str:
         file_name = os.path.basename(os.path.abspath(file_p))
         documents_insert_data.append({
             "fileName": file_name,
-            "mime": magic.from_buffer(file_blob, mime=True),
+            "mime": get_mime_type(file_p, file_blob),
             "file": file_blob
         })
     
