@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 import click
 
 from indu_doc.manager import Manager
+from indu_doc.plugins.eplan_pdfs.eplan_pdf_plugin import EplanPDFPlugin
 
 
 def setup_logging(level: str = "INFO", log_file: Optional[str] = None, enable_stdout: bool = False) -> None:
@@ -96,61 +97,66 @@ def monitor_processing(manager: Manager, show_progress: bool = True) -> bool:
     Monitor the processing state and display progress.
     Returns True if processing completed successfully, False otherwise.
     """
-    last_progress = -1
+    last_progress_display = {}
 
-    while True:
-        state_info = manager.get_processing_state()
-        state = state_info["state"]
-        progress = state_info["progress"]
-
-        if state == "idle":
-            return True
-        elif state == "error":
-            click.echo(
-                f"\nProcessing failed: {state_info['error_message']}", err=True)
-            return False
-        elif state in ["processing", "stopping"]:
-            if show_progress and progress["total_pages"] > 0:
-                current_progress = int(progress["percentage"] * 100)
-                if current_progress != last_progress:
-                    current_file = progress.get("current_file", "")
-                    file_name = Path(current_file).name if current_file else ""
-                    click.echo(
-                        f"\rProgress: {current_progress:3d}% ({progress['current_page']}/{progress['total_pages']}) - {file_name}", nl=False)
-                    last_progress = current_progress
-
+    try:
+        while manager.is_processing():
+            if show_progress:
+                file_progress = manager.get_file_progress()
+                for file_path, percentage in file_progress.items():
+                    file_name = Path(file_path).name
+                    # Only update display if progress changed significantly
+                    if last_progress_display.get(file_path, -1) != int(percentage):
+                        click.echo(f"\r{file_name}: {percentage:.1f}%", nl=False)
+                        last_progress_display[file_path] = int(percentage)
+            
             time.sleep(0.1)  # Small delay to avoid excessive CPU usage
 
-        # Handle Ctrl+C gracefully
-        try:
+    except KeyboardInterrupt:
+        click.echo("\n\nStopping processing...")
+        manager.stop_processing()
+        # Wait for graceful shutdown
+        while manager.is_processing():
             time.sleep(0.1)
-        except KeyboardInterrupt:
-            click.echo("\n\nStopping processing...")
-            manager.stop_processing()
-            # Wait for graceful shutdown
-            while manager.is_processing():
-                time.sleep(0.1)
-            click.echo("Processing stopped.")
-            return False
+        click.echo("Processing stopped.")
+        return False
+
+    # Check if there were any errors
+    if manager.has_errors():
+        states = manager.get_processing_state()
+        for state in states:
+            if state.get('state') == 'error':
+                click.echo(f"\nProcessing failed: {state.get('error_message', 'Unknown error')}", err=True)
+        return False
+    
+    return True
 
 
-def process_pdf(pdf_file: Path, config: Path, setup: Path, show_stats: bool, export: Optional[str],
+def process_pdf(pdf_file: Path, config: Path, extraction_settings: Path, show_stats: bool, export: Optional[str],
                 export_format: str, show_progress: bool = True) -> None:
-    """Process a PDF file using the async manager."""
+    """Process a PDF file using the manager with blocking mode."""
     try:
-        manager = Manager.from_config_files(str(config), str(setup))
+        # Initialize manager with config file
+        manager = Manager.from_config_files(str(config))
+        
+        # Register the EplanPDFPlugin
+        plugin = EplanPDFPlugin.from_config_files(str(config), str(extraction_settings))
+        manager.register_plugin(plugin)
+        
         click.echo(f"Processing PDF: {pdf_file}")
 
-        # Start processing (this returns immediately)
-        manager.process_pdfs(str(pdf_file))
+        # Start processing in blocking mode (returns when complete)
+        manager.process_files(str(pdf_file), blocking=True)
 
-        # Monitor processing with progress display
-        success = monitor_processing(manager, show_progress)
-
-        if not success:
+        # Check for errors
+        if manager.has_errors():
+            states = manager.get_processing_state()
+            for state in states:
+                if state.get('state') == 'error':
+                    click.echo(f"\nProcessing failed: {state.get('error_message', 'Unknown error')}", err=True)
             sys.exit(1)
 
-        click.echo("\n")  # New line after progress display
+        click.echo("\n")  # New line after processing
 
         # Display statistics if requested (default: True)
         if show_stats:
@@ -174,11 +180,11 @@ def process_pdf(pdf_file: Path, config: Path, setup: Path, show_stats: bool, exp
 @click.option('-c', '--config', 'config_file', required=True,
               type=click.Path(exists=True, file_okay=True,
                               dir_okay=False, path_type=Path),
-              help='Path to levels configuration file (required)')
-@click.option('-p', '--pages_setup', 'pages_setup', required=True,
+              help='Path to aspects configuration file (required)')
+@click.option('-e', '--extraction-settings', 'extraction_settings', required=True,
               type=click.Path(exists=True, file_okay=True,
                               dir_okay=False, path_type=Path),
-              help='Path to pages configuration file (required)')
+              help='Path to extraction settings file (required)')
 @click.option('--no-stats', is_flag=True,
               help='Disable processing statistics display')
 @click.option('--no-progress', is_flag=True,
@@ -195,7 +201,7 @@ def process_pdf(pdf_file: Path, config: Path, setup: Path, show_stats: bool, exp
               help='Write logs to file')
 @click.option('--out-to-std', is_flag=True,
               help='Enable logging output to stdout (disabled by default)')
-def main(pdf_file: Path, config_file: Path, pages_setup: Path, no_stats: bool, no_progress: bool,
+def main(pdf_file: Path, config_file: Path, extraction_settings: Path, no_stats: bool, no_progress: bool,
          export: Optional[str], export_format: str, verbose: bool, log_level: str,
          log_file: Optional[str], out_to_std: bool) -> None:
     """Industrial Document Transformer CLI - Process PDF files and extract industrial documentation components."""
@@ -207,7 +213,7 @@ def main(pdf_file: Path, config_file: Path, pages_setup: Path, no_stats: bool, n
     setup_logging(actual_log_level, log_file, out_to_std)
 
     # Execute the processing (show_stats is opposite of no_stats, show_progress is opposite of no_progress)
-    process_pdf(pdf_file, config_file, pages_setup, not no_stats,
+    process_pdf(pdf_file, config_file, extraction_settings, not no_stats,
                 export, export_format, not no_progress)
 
 
