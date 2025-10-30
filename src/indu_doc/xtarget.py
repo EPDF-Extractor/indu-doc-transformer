@@ -33,7 +33,7 @@ class XTarget(AttributedBase):
         tag: Tag,
         configs: AspectsConfig,
         target_type: XTargetType = XTargetType.OTHER,
-    attributes: Optional[List[Attribute]] = None,
+        attributes: Optional[List[Attribute]] = None,
     ) -> None:
         super().__init__(attributes)
         self.tag: Tag = tag
