@@ -52,7 +52,19 @@ class ClientState:
         self.processed_files: set[str] = set()  # Track files that have been processed
         self.aspects: list[LevelConfig] = load_default_aspects()
         logger.debug(f"Loaded aspects: {self.aspects}")
-        ps = PageSettings(os.path.join(os.getcwd(), "page_settings.json"))
+        
+        # Determine the base directory for config files
+        if IS_EXE_MODE:
+            # In frozen mode, config files are extracted to sys._MEIPASS
+            base_dir = getattr(sys, '_MEIPASS', os.getcwd())
+        else:
+            # In development mode, config files are in the project root
+            base_dir = os.getcwd()
+        
+        page_settings_path = os.path.join(base_dir, "page_settings.json")
+        logger.debug(f"Looking for page_settings.json at: {page_settings_path}")
+        
+        ps = PageSettings(page_settings_path)
         cs = AspectsConfig.init_from_list([
             {"Aspect": aspect.Aspect, "Separator": aspect.Separator}
             for aspect in self.aspects

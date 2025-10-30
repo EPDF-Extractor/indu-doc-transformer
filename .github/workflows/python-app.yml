@@ -123,6 +123,9 @@ jobs:
           # Build with static files included
           uv run nicegui-pack --onefile --windowed --name "$EXE_NAME" \
             --add-data "static:static" \
+            --add-data "page_settings.json:." \
+            --add-data "config.json:." \
+            --add-data "extraction_settings.json:." \
             src/gui/gui.py
 
       - name: Upload Native Window GUI Executable
@@ -178,6 +181,9 @@ jobs:
           # Build with static files included
           uv run nicegui-pack --onefile --name "$EXE_NAME" \
             --add-data "static:static" \
+            --add-data "page_settings.json:." \
+            --add-data "config.json:." \
+            --add-data "extraction_settings.json:." \
             src/gui/gui.py
 
       - name: Upload Browser Window GUI Executable
