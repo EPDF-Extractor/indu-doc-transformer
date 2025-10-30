@@ -3,7 +3,7 @@ from typing import cast
 
 from indu_doc.god import God
 from indu_doc.xtarget import XTarget
-from indu_doc.attributes import Attribute, SimpleAttribute
+from indu_doc.attributes import Attribute, SimpleAttribute, PDFLocationAttribute
 from indu_doc.configs import AspectsConfig, LevelConfig
 from indu_doc.connection import Connection, Link, Pin
 from indu_doc.tag import Tag, Aspect
@@ -53,8 +53,9 @@ class InternalPin(InternalElementBase):
         root.set("ID", self.id)
         # Add all atributes
         for attr in self.pin.attributes:
-            item = InternalAttribute(attr.name, str(attr)).serialize()
-            root.append(item)
+            if not isinstance(attr, PDFLocationAttribute):
+                item = InternalAttribute(attr.name, str(attr)).serialize()
+                root.append(item)
         # Add external interface
         root.append(self.external.serialize())
         return root
@@ -87,8 +88,9 @@ class InternalConnection(InternalElementBase):
         root.set("ID", self.id)
         # Add all atributes
         for attr in self.link.attributes:
-            item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
-            root.append(item)
+            if not isinstance(attr, PDFLocationAttribute):
+                item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
+                root.append(item)
 
         # Add external interfaces
         root.append(self.external_a.serialize())
@@ -166,8 +168,9 @@ class InternalAspect(InternalElementBase):
         # Add all atributes (if ECAD)
         if self.perspective == MAIN_TREE_NAME:
             for attr in self.aspect.attributes:
-                item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
-                root.append(item)
+                if not isinstance(attr, PDFLocationAttribute):
+                    item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
+                    root.append(item)
         #
         return root
 
@@ -223,8 +226,9 @@ class InternalXTarget(InternalElementBase):
 
         # Add all attributes
         for attr in self.xtarget.attributes:
-            item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
-            root.append(item)
+            if not isinstance(attr, PDFLocationAttribute):
+                item = InternalAttribute(attr.name, str(attr.get_value())).serialize()
+                root.append(item)
         # TODO IDK what are two elements called Function
         # item = et.SubElement(root, "InternalElement")
         # item.set("Name", "Function")
