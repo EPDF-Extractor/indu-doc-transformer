@@ -152,15 +152,34 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Download all artifacts
+      - name: Download CLI artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: cli-windows
+          path: release-artifacts/
+
+      - name: Download GUI artifacts (Windows)
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-windows-latest
+          path: release-artifacts/
+
+      - name: Download GUI artifacts (Ubuntu)
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-ubuntu-latest
+          path: release-artifacts/
+
+      - name: Download GUI artifacts (macOS)
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-macos-latest
+          path: release-artifacts/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**/*
+          files: release-artifacts/*
           draft: false
           prerelease: false
         env:
