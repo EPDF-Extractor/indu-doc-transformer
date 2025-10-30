@@ -366,3 +366,84 @@ class TestAspectsConfigIntegration:
         assert config["="].Aspect == "Test-Aspect"
         assert config["+"].Aspect == "Aspect (1)"
         assert config["-"].Aspect == "Aspect/2"
+
+
+class TestAspectsConfigAdditional:
+    """Additional tests for AspectsConfig."""
+
+    def test_from_json_str(self):
+        """Test creating AspectsConfig from JSON string."""
+        json_str = json.dumps({
+            "aspects": [
+                {"Aspect": "Functional", "Separator": "="},
+                {"Aspect": "Location", "Separator": "+"},
+            ]
+        })
+
+        config = AspectsConfig.from_json_str(json_str)
+
+        assert len(config.levels) == 2
+        assert config["="].Aspect == "Functional"
+        assert config["+"].Aspect == "Location"
+
+    def test_from_json_str_empty_aspects(self):
+        """Test creating AspectsConfig from JSON with empty aspects."""
+        json_str = json.dumps({"aspects": []})
+
+        config = AspectsConfig.from_json_str(json_str)
+
+        assert len(config.levels) == 0
+
+    def test_separator_ge_with_empty(self):
+        """Test separator_ge with empty list."""
+        config = AspectsConfig.init_from_list([
+            {"Aspect": "Functional", "Separator": "="},
+            {"Aspect": "Location", "Separator": "+"},
+            {"Aspect": "Product", "Separator": "-"},
+        ])
+
+        result = config.separator_ge([])
+
+        # Should return all separators when others is empty
+        assert result == ["=", "+", "-"]
+
+    def test_separator_ge_with_separator(self):
+        """Test separator_ge with specific separator."""
+        config = AspectsConfig.init_from_list([
+            {"Aspect": "Functional", "Separator": "="},
+            {"Aspect": "Location", "Separator": "+"},
+            {"Aspect": "Product", "Separator": "-"},
+        ])
+
+        result = config.separator_ge(["+"])
+
+        # Should return separators >= "+" in priority
+        assert result == ["=", "+"]
+
+    def test_separator_ge_with_multiple(self):
+        """Test separator_ge with multiple separators."""
+        config = AspectsConfig.init_from_list([
+            {"Aspect": "Functional", "Separator": "="},
+            {"Aspect": "Location", "Separator": "+"},
+            {"Aspect": "Product", "Separator": "-"},
+        ])
+
+        result = config.separator_ge(["-", "+"])
+
+        # Should return separators >= lowest priority (which is "-" as it has max index)
+        assert result == ["=", "+", "-"]
+
+    def test_get_db_representation(self):
+        """Test converting config to database representation."""
+        config = AspectsConfig.init_from_list([
+            {"Aspect": "Functional", "Separator": "="},
+            {"Aspect": "Location", "Separator": "+"},
+        ])
+
+        db_repr = config.get_db_representation()
+
+        assert len(db_repr) == 2
+        assert db_repr[0]["Separator"] == "="
+        assert db_repr[0]["Aspect"] == "Functional"
+        assert db_repr[1]["Separator"] == "+"
+        assert db_repr[1]["Aspect"] == "Location"

@@ -30,17 +30,17 @@ class EplanPDFPlugin(InduDocPlugin):
         if not isinstance(paths, tuple):
             paths = (paths,)
 
-        docs = [pymupdf.open(p) for p in paths]
-
-        # Calculate total pages
-        total_pages = sum(len(doc) for doc in docs)
-        current_page = 0
-
-        # Update progress tracking
-        self._total_pages = total_pages
-        self._current_page = 0
-
+        docs = []
         try:
+            docs = [pymupdf.open(p) for p in paths]
+
+            # Calculate total pages
+            total_pages = sum(len(doc) for doc in docs)
+            current_page = 0
+
+            # Update progress tracking
+            self._total_pages = total_pages
+            self._current_page = 0
             for doc, file_path in zip(docs, paths):
                 logger.info(f"Processing file: {file_path}")
                 self._current_file = file_path

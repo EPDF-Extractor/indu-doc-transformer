@@ -346,3 +346,155 @@ class TestTagEdgeCases:
         assert tag.tag_str == "=ProductName"
         parts = tag.get_tag_parts()
         assert parts["="] == ("ProductName",)
+
+
+class TestAspect:
+    """Test cases for the Aspect class."""
+
+    def test_aspect_creation(self):
+        """Test creating an Aspect instance."""
+        from indu_doc.tag import Aspect
+        aspect = Aspect(separator="=", value="Product")
+
+        assert aspect.separator == "="
+        assert aspect.value == "Product"
+        assert aspect.attributes == set()
+
+    def test_aspect_with_attributes(self):
+        """Test creating an Aspect with attributes."""
+        from indu_doc.tag import Aspect
+        from indu_doc.attributes import SimpleAttribute
+
+        attr = SimpleAttribute("color", "red")
+        aspect = Aspect(separator="=", value="Product", attributes=[attr])
+
+        assert attr in aspect.attributes
+
+    def test_aspect_str(self):
+        """Test string representation of Aspect."""
+        from indu_doc.tag import Aspect
+        aspect = Aspect(separator="=", value="Product")
+
+        assert str(aspect) == "=Product"
+
+    def test_aspect_repr(self):
+        """Test repr of Aspect."""
+        from indu_doc.tag import Aspect
+        aspect = Aspect(separator="=", value="Product")
+
+        repr_str = repr(aspect)
+        assert "Aspect" in repr_str
+        assert "=Product" in repr_str
+
+    def test_aspect_get_guid(self):
+        """Test getting GUID of Aspect."""
+        from indu_doc.tag import Aspect
+        import uuid
+
+        aspect = Aspect(separator="=", value="Product")
+        guid = aspect.get_guid()
+
+        # Should be a valid UUID
+        uuid_obj = uuid.UUID(guid)
+        assert str(uuid_obj) == guid
+
+    def test_aspect_guid_consistency(self):
+        """Test that GUID is consistent for same aspects."""
+        from indu_doc.tag import Aspect
+
+        aspect1 = Aspect(separator="=", value="Product")
+        aspect2 = Aspect(separator="=", value="Product")
+
+        assert aspect1.get_guid() == aspect2.get_guid()
+
+    def test_aspect_guid_different_for_different_aspects(self):
+        """Test that GUID is different for different aspects."""
+        from indu_doc.tag import Aspect
+
+        aspect1 = Aspect(separator="=", value="Product1")
+        aspect2 = Aspect(separator="=", value="Product2")
+
+        assert aspect1.get_guid() != aspect2.get_guid()
+
+    def test_aspect_add_attribute(self):
+        """Test adding attribute to Aspect."""
+        from indu_doc.tag import Aspect
+        from indu_doc.attributes import SimpleAttribute
+
+        aspect = Aspect(separator="=", value="Product")
+        attr = SimpleAttribute("color", "red")
+
+        aspect.add_attribute(attr)
+
+        assert attr in aspect.attributes
+
+    def test_aspect_equality_same(self):
+        """Test equality of same aspects."""
+        from indu_doc.tag import Aspect
+
+        aspect1 = Aspect(separator="=", value="Product")
+        aspect2 = Aspect(separator="=", value="Product")
+
+        assert aspect1 == aspect2
+
+    def test_aspect_equality_different_separator(self):
+        """Test inequality when separator differs."""
+        from indu_doc.tag import Aspect
+
+        aspect1 = Aspect(separator="=", value="Product")
+        aspect2 = Aspect(separator="==", value="Product")
+
+        assert aspect1 != aspect2
+
+    def test_aspect_equality_different_value(self):
+        """Test inequality when value differs."""
+        from indu_doc.tag import Aspect
+
+        aspect1 = Aspect(separator="=", value="Product1")
+        aspect2 = Aspect(separator="=", value="Product2")
+
+        assert aspect1 != aspect2
+
+    def test_aspect_equality_different_attributes(self):
+        """Test inequality when attributes differ."""
+        from indu_doc.tag import Aspect
+        from indu_doc.attributes import SimpleAttribute
+
+        attr1 = SimpleAttribute("color", "red")
+        attr2 = SimpleAttribute("color", "blue")
+
+        aspect1 = Aspect(separator="=", value="Product", attributes=[attr1])
+        aspect2 = Aspect(separator="=", value="Product", attributes=[attr2])
+
+        assert aspect1 != aspect2
+
+    def test_aspect_not_equal_to_other_type(self):
+        """Test that Aspect is not equal to other types."""
+        from indu_doc.tag import Aspect
+
+        aspect = Aspect(separator="=", value="Product")
+
+        assert aspect != "=Product"
+        assert aspect != 123
+        assert aspect is not None
+
+    def test_aspect_hash(self):
+        """Test that Aspect can be hashed."""
+        from indu_doc.tag import Aspect
+
+        aspect = Aspect(separator="=", value="Product")
+        hash_value = hash(aspect)
+
+        assert isinstance(hash_value, int)
+
+    def test_aspect_in_set(self):
+        """Test that Aspect can be used in sets."""
+        from indu_doc.tag import Aspect
+
+        aspect1 = Aspect(separator="=", value="Product")
+        aspect2 = Aspect(separator="=", value="Product")
+        aspect3 = Aspect(separator="=", value="Product2")
+
+        aspect_set = {aspect1, aspect2, aspect3}
+        # aspect1 and aspect2 are equal, so only 2 unique items
+        assert len(aspect_set) == 2

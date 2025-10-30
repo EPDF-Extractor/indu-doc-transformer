@@ -363,3 +363,266 @@ class TestAttributeIntegration:
         # if their string representation is similar. This is expected behavior.
         # The important thing is that the objects themselves are not equal.
         assert simple != routing
+
+
+class TestPLCAddressAttribute:
+    """Test PLCAddressAttribute class."""
+
+    def test_create_plc_address_attribute(self):
+        """Test creating a PLC address attribute."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        attr = PLCAddressAttribute("PLC1", {"type": "input", "value": "10"})
+        
+        assert attr.name == "PLC1"
+        assert attr.meta == {"type": "input", "value": "10"}
+
+    def test_get_value(self):
+        """Test getting PLC attribute value."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        meta = {"type": "output", "addr": "20"}
+        attr = PLCAddressAttribute("PLC2", meta)
+        
+        assert attr.get_value() == meta
+
+    def test_db_representation(self):
+        """Test DB representation."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        attr = PLCAddressAttribute("PLC3", {"type": "input"})
+        db_rep = attr.get_db_representation()
+        
+        assert db_rep["name"] == "PLC3"
+        assert db_rep["meta"] == {"type": "input"}
+
+    def test_from_db_representation(self):
+        """Test creating from DB representation."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        db_dict = {"name": "PLC4", "meta": {"type": "output", "value": "15"}}
+        attr = PLCAddressAttribute.from_db_representation(db_dict)
+        
+        assert attr.name == "PLC4"
+        assert attr.meta == {"type": "output", "value": "15"}
+
+    def test_get_search_entries(self):
+        """Test getting search entries."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        meta = {"type": "input", "addr": "5"}
+        attr = PLCAddressAttribute("PLC5", meta)
+        
+        assert attr.get_search_entries() == meta
+
+    def test_get_value_type(self):
+        """Test getting value type."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        assert PLCAddressAttribute.get_value_type() == dict[str, str]
+
+    def test_hash(self):
+        """Test hashing PLC attribute."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        attr1 = PLCAddressAttribute("PLC1", {"a": "1", "b": "2"})
+        attr2 = PLCAddressAttribute("PLC1", {"b": "2", "a": "1"})
+        
+        # Should have same hash (meta dict sorted)
+        assert hash(attr1) == hash(attr2)
+
+    def test_equality_always_false(self):
+        """Test that PLCAddressAttribute equality always returns False."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        attr1 = PLCAddressAttribute("PLC1", {"type": "input"})
+        attr2 = PLCAddressAttribute("PLC1", {"type": "input"})
+        
+        # Always returns False per implementation
+        assert attr1 != attr2
+
+    def test_equality_different_type(self):
+        """Test inequality with different type."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        attr = PLCAddressAttribute("PLC1", {"type": "input"})
+        
+        assert attr != "not an attribute"
+        assert attr != SimpleAttribute("PLC1", "value")
+
+    def test_repr(self):
+        """Test string representation."""
+        from indu_doc.attributes import PLCAddressAttribute
+        
+        attr = PLCAddressAttribute("PLC1", {"type": "input"})
+        repr_str = repr(attr)
+        
+        assert "PLC conn PLC1" in repr_str
+        assert "type" in repr_str
+
+    def test_get_guid(self):
+        """Test GUID generation."""
+        from indu_doc.attributes import PLCAddressAttribute
+        import uuid
+        
+        attr = PLCAddressAttribute("PLC1", {"a": "1", "b": "2"})
+        guid = attr.get_guid()
+        
+        # Should be valid UUID
+        uuid_obj = uuid.UUID(guid)
+        assert str(uuid_obj) == guid
+
+
+class TestPDFLocationAttribute:
+    """Test PDFLocationAttribute class."""
+
+    def test_create_pdf_location_attribute(self):
+        """Test creating a PDF location attribute."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        
+        assert attr.name == "loc1"
+        assert attr.page_no == 5
+        assert attr.bbox == (10.0, 20.0, 30.0, 40.0)
+
+    def test_create_with_list_bbox(self):
+        """Test creating with list bbox (converts to tuple)."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr = PDFLocationAttribute("loc2", (3, [15.0, 25.0, 35.0, 45.0]))
+        
+        assert attr.bbox == (15.0, 25.0, 35.0, 45.0)
+        assert isinstance(attr.bbox, tuple)
+
+    def test_get_value(self):
+        """Test getting PDF location value."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr = PDFLocationAttribute("loc3", (7, (5.0, 10.0, 15.0, 20.0)))
+        value = attr.get_value()
+        
+        assert value == (7, (5.0, 10.0, 15.0, 20.0))
+
+    def test_db_representation(self):
+        """Test DB representation."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr = PDFLocationAttribute("loc4", (2, (1.0, 2.0, 3.0, 4.0)))
+        db_rep = attr.get_db_representation()
+        
+        assert db_rep["name"] == "loc4"
+        assert db_rep["page_no"] == 2
+        assert db_rep["bbox"] == (1.0, 2.0, 3.0, 4.0)
+
+    def test_from_db_representation(self):
+        """Test creating from DB representation."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        db_dict = {"name": "loc5", "page_no": 8, "bbox": (10.0, 20.0, 30.0, 40.0)}
+        attr = PDFLocationAttribute.from_db_representation(db_dict)
+        
+        assert attr.name == "loc5"
+        assert attr.page_no == 8
+        assert attr.bbox == (10.0, 20.0, 30.0, 40.0)
+
+    def test_from_db_representation_with_list_bbox(self):
+        """Test creating from DB with list bbox."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        db_dict = {"name": "loc6", "page_no": 1, "bbox": [5.0, 10.0, 15.0, 20.0]}
+        attr = PDFLocationAttribute.from_db_representation(db_dict)
+        
+        assert attr.bbox == (5.0, 10.0, 15.0, 20.0)
+        assert isinstance(attr.bbox, tuple)
+
+    def test_get_search_entries(self):
+        """Test that search entries are empty."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr = PDFLocationAttribute("loc7", (3, (0.0, 0.0, 1.0, 1.0)))
+        
+        assert attr.get_search_entries() == {}
+
+    def test_get_value_type(self):
+        """Test getting value type."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        value_type = PDFLocationAttribute.get_value_type()
+        assert value_type == tuple[int, tuple[float, float, float, float]]
+
+    def test_hash(self):
+        """Test hashing PDF location attribute."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr1 = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        attr2 = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        
+        assert hash(attr1) == hash(attr2)
+
+    def test_equality_same(self):
+        """Test equality for same attributes."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr1 = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        attr2 = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        
+        assert attr1 == attr2
+
+    def test_equality_different_name(self):
+        """Test inequality for different names."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr1 = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        attr2 = PDFLocationAttribute("loc2", (5, (10.0, 20.0, 30.0, 40.0)))
+        
+        assert attr1 != attr2
+
+    def test_equality_different_page(self):
+        """Test inequality for different page numbers."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr1 = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        attr2 = PDFLocationAttribute("loc1", (6, (10.0, 20.0, 30.0, 40.0)))
+        
+        assert attr1 != attr2
+
+    def test_equality_with_close_bbox(self):
+        """Test equality with very close bbox values (allclose)."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr1 = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        attr2 = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.00000001)))
+        
+        assert attr1 == attr2
+
+    def test_equality_different_type(self):
+        """Test inequality with different type."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        
+        assert attr != "not an attribute"
+        assert attr != SimpleAttribute("loc1", "value")
+
+    def test_repr(self):
+        """Test string representation."""
+        from indu_doc.attributes import PDFLocationAttribute
+        
+        attr = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        repr_str = repr(attr)
+        
+        assert "Pos: page 5" in repr_str
+        assert "10.0" in repr_str
+
+    def test_get_guid(self):
+        """Test GUID generation."""
+        from indu_doc.attributes import PDFLocationAttribute
+        import uuid
+        
+        attr = PDFLocationAttribute("loc1", (5, (10.0, 20.0, 30.0, 40.0)))
+        guid = attr.get_guid()
+        
+        # Should be valid UUID
+        uuid_obj = uuid.UUID(guid)
+        assert str(uuid_obj) == guid
