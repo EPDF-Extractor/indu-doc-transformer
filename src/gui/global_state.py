@@ -8,16 +8,27 @@ from typing import Optional
 
 import logging
 import os
+import sys
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Check if running in EXE/native mode (single-user mode)
-IS_EXE_MODE = os.environ.get('NICEGUI_EXE_MODE', 'false').lower() == 'true'
+
+# Check if running as a PyInstaller frozen executable (packaged app)
+# When packaged with PyInstaller, sys.frozen is set to True
+IS_EXE_MODE = getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
 
 # Check if should use native window (only applicable when IS_EXE_MODE is True)
+# This can be overridden by environment variable for testing purposes
 # Options: 'true' = native window, 'false' = browser window
 USE_NATIVE_WINDOW = os.environ.get('NICEGUI_NATIVE_WINDOW', 'true').lower() == 'true'
+
+# Log the detected mode
+if IS_EXE_MODE:
+    logger.info("Running as PyInstaller bundled executable (frozen mode)")
+    logger.info(f"Native window mode: {USE_NATIVE_WINDOW}")
+else:
+    logger.info("Running in development mode (not frozen)")
 
 
 # Initialize with empty uploaded PDFs list
