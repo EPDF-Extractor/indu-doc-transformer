@@ -51,7 +51,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Download the 'coverage-reports' artifact to view detailed HTML coverage report." >> $GITHUB_STEP_SUMMARY
 
-  build-windows:
+  build-cli-windows:
+    name: Build CLI - Windows
     runs-on: windows-2025
     timeout-minutes: 30
     needs: test # Only build if tests pass
@@ -68,14 +69,14 @@ jobs:
         run: |
           uv sync
           uv pip install pyinstaller "setuptools<81"
-      - name: Build executable with PyInstaller
+      - name: Build CLI executable
         run: |
-          uv run pyinstaller --onefile --console --collect-all click --name indu_doc src/indu_doc/cli.py
+          uv run pyinstaller --onefile --console --collect-all click --name InduDoc-CLI-Windows src/indu_doc/cli.py
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: indu_doc-windows-executable
-          path: dist/indu_doc.exe
+          name: cli-windows
+          path: dist/InduDoc-CLI-Windows.exe
 
   build-gui-native-window:
     name: Build GUI - Native Window
@@ -108,11 +109,11 @@ jobs:
         run: |
           # Determine platform-specific executable name
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            EXE_NAME="InduDocTransformer-Native-Windows"
+            EXE_NAME="InduDoc-GUI-Native-Windows"
           elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-            EXE_NAME="InduDocTransformer-Native-macOS"
+            EXE_NAME="InduDoc-GUI-Native-macOS"
           else
-            EXE_NAME="InduDocTransformer-Native-Linux"
+            EXE_NAME="InduDoc-GUI-Native-Linux"
           fi
 
           # Set environment variable for native window preference at runtime
@@ -167,11 +168,11 @@ jobs:
         run: |
           # Determine platform-specific executable name
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            EXE_NAME="InduDocTransformer-Browser-Windows"
+            EXE_NAME="InduDoc-GUI-Browser-Windows"
           elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-            EXE_NAME="InduDocTransformer-Browser-macOS"
+            EXE_NAME="InduDoc-GUI-Browser-macOS"
           else
-            EXE_NAME="InduDocTransformer-Browser-Linux"
+            EXE_NAME="InduDoc-GUI-Browser-Linux"
           fi
 
           # Set environment variable for browser window preference at runtime
@@ -197,7 +198,12 @@ jobs:
   create-release:
     name: Create Release
     needs:
-      [test, build-windows, build-gui-native-window, build-gui-browser-window]
+      [
+        test,
+        build-cli-windows,
+        build-gui-native-window,
+        build-gui-browser-window,
+      ]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
