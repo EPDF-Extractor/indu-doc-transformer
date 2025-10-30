@@ -1,4 +1,6 @@
 import uuid
+import sys
+from pathlib import Path
 from nicegui import app, ui, Client
 
 from gui.connections_page import create_connections_page
@@ -67,14 +69,35 @@ def main_page(client: Client):
 
 if __name__ in {"__main__", "__mp_main__"}:
     """Entry point for running the GUI application."""
-    app.add_static_files(url_path='../../static', local_directory='static')
+    
+    # Determine the base directory for static files
+    if IS_EXE_MODE:
+        # In frozen mode, use the temporary extraction directory
+        base_dir = Path(getattr(sys, '_MEIPASS', '.'))
+    else:
+        # In development mode, use the current file's directory
+        base_dir = Path(__file__).parent.parent.parent
+    
+    static_dir = base_dir / 'static'
+    
+    # Only add static files if the directory exists
+    if static_dir.exists():
+        app.add_static_files(url_path='../../static', local_directory=str(static_dir))
+    else:
+        import logging
+        logging.warning(f"Static directory not found: {static_dir}")
     
     # Configure run parameters based on mode
     run_kwargs = {
         'title': "InduDoc Transformer",
         'dark': True,
-        'favicon': 'static/logo.jpeg'
     }
+    
+    # Only set favicon if static directory exists
+    if static_dir.exists():
+        favicon_path = static_dir / 'logo.jpeg'
+        if favicon_path.exists():
+            run_kwargs['favicon'] = str(favicon_path)
     
     if IS_EXE_MODE:
         # EXE mode: Use global state, optionally with native window
