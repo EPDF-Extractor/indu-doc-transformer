@@ -30,7 +30,7 @@ dependencies = [
     "peewee>=3.18.2",
     "types-peewee>=3.18.2.20250710",
     "python-magic>=0.4.27",
-    "python-magic-bin>=0.4.14",
+    "python-magic-bin>=0.4.14; sys_platform == 'win32'",
 ]
 
 [project.scripts]
