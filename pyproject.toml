@@ -52,6 +52,7 @@ dev = [
     "lxml-stubs>=0.5.1",
     "mypy>=1.18.2",
     "setuptools<81",
+    "pytest-asyncio>=1.2.0",
 ]
 test = ["pytest>=8.4.1", "pytest-timeout>=2.3.1"]
 
@@ -61,6 +62,7 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = ["--strict-markers", "--strict-config", "--verbose"]
+markers = ["asyncio: marks tests as async (using pytest-asyncio)"]
 filterwarnings = [
     "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
     "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
