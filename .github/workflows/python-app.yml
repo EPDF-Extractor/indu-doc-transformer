@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install pyinstaller setuptools<81
+          uv pip install pyinstaller "setuptools<81"
       - name: Build executable with PyInstaller
         run: |
           uv run pyinstaller --onefile --console --collect-all click --name indu_doc src/indu_doc/cli.py
@@ -101,7 +101,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install pyinstaller setuptools<81
+          uv pip install pyinstaller "setuptools<81"
 
       - name: Build GUI executable (Native Window)
         shell: bash
@@ -152,7 +152,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install pyinstaller setuptools<81
+          uv pip install pyinstaller "setuptools<81"
 
       - name: Build GUI executable (Browser Window)
         shell: bash
