@@ -120,7 +120,10 @@ jobs:
           # bundles will auto-detect frozen state via sys.frozen
           export NICEGUI_NATIVE_WINDOW=true
 
-          uv run nicegui-pack --onefile --windowed --name "$EXE_NAME" src/gui/gui.py
+          # Build with static files included
+          uv run nicegui-pack --onefile --windowed --name "$EXE_NAME" \
+            --add-data "static:static" \
+            src/gui/gui.py
 
       - name: Upload Native Window GUI Executable
         uses: actions/upload-artifact@v4
@@ -172,7 +175,10 @@ jobs:
           # Note: PyInstaller bundles will auto-detect frozen state via sys.frozen
           export NICEGUI_NATIVE_WINDOW=false
 
-          uv run nicegui-pack --onefile --name "$EXE_NAME" src/gui/gui.py
+          # Build with static files included
+          uv run nicegui-pack --onefile --name "$EXE_NAME" \
+            --add-data "static:static" \
+            src/gui/gui.py
 
       - name: Upload Browser Window GUI Executable
         uses: actions/upload-artifact@v4
