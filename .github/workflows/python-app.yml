@@ -55,6 +55,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 30
     needs: test # Only build if tests pass
+    env:
+      PYTHONWARNINGS: "ignore::DeprecationWarning"
 
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install pyinstaller
+          uv pip install pyinstaller setuptools<81
       - name: Build executable with PyInstaller
         run: |
           uv run pyinstaller --onefile --console --collect-all click --name indu_doc src/indu_doc/cli.py
@@ -82,6 +84,8 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      PYTHONWARNINGS: "ignore::DeprecationWarning"
 
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +101,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install pyinstaller
+          uv pip install pyinstaller setuptools<81
 
       - name: Build GUI executable (Native Window)
         shell: bash
@@ -131,6 +135,8 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      PYTHONWARNINGS: "ignore::DeprecationWarning"
 
     steps:
       - uses: actions/checkout@v4
@@ -146,7 +152,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install pyinstaller
+          uv pip install pyinstaller setuptools<81
 
       - name: Build GUI executable (Browser Window)
         shell: bash
