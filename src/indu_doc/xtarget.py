@@ -73,6 +73,19 @@ class XTarget(AttributedBase):
     def __repr__(self) -> str:
         return f"Object(tag={self.tag}, attributes={self.attributes})"
     
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, XTarget):
+            return False
+        return (
+            self.tag == other.tag and
+            self.target_type == other.target_type and
+            self.configs == other.configs and
+            self.attributes == other.attributes
+        )
+    
+    def __hash__(self) -> int:
+        return hash(self.get_guid())
+    
     def to_dict(self) -> dict[str, Any]:
         attrs = {}
         for attr in (self.attributes if self.attributes else []):

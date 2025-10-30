@@ -7,9 +7,9 @@ import logging
 from typing import Any, Optional, Union
 from collections import defaultdict
 import threading
-
+import os
 from indu_doc.attributes import Attribute, AttributeType, AvailableAttributes
-from indu_doc.common_utils import _is_pin_tag, _split_pin_tag
+from indu_doc.common_utils import is_pin_tag, split_pin_tag
 from indu_doc.plugins.eplan_pdfs.common_page_utils import PageInfo, PageError, ErrorType
 from indu_doc.configs import AspectsConfig
 from indu_doc.connection import Connection, Link, Pin
@@ -21,13 +21,22 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PageMapperEntry:
+    """ Represents a unique page in a document by its number and file path. """
+    # 1-based page number
     page_number: int
-    # page_type: PageType
+    # absolute path to the file
     file_path: str
 
     def __hash__(self) -> int:
-        return hash((self.page_number, self.file_path))
+        return hash((self.page_number, os.path.basename(self.file_path)))
+    
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PageMapperEntry):
+            return False
+        # we compare only basenames to avoid issues with different absolute paths when loading/saving 
+        return (self.page_number == other.page_number and
+                os.path.basename(self.file_path) == os.path.basename(other.file_path))
 
 SupportedMapObjects = Union[XTarget, Connection, Link, PageError]
 
@@ -43,11 +52,14 @@ class PagesObjectsMapper:
                                    set[SupportedMapObjects]] = defaultdict(set)
         self.object_to_pages: defaultdict[SupportedMapObjects,
                                    set[PageMapperEntry]] = defaultdict(set)
+        self._file_paths : set[str] = set()
         self._lock = threading.Lock()
 
     def add_mapping(self, page_info: PageInfo, obj: SupportedMapObjects):
-        page_num = page_info.page.number + 1 if page_info.page.number else -1
-        file_path = page_info.page.parent.name if page_info.page.parent else "unknown"
+        page_num = (page_info.page.number + 1) if page_info.page.number is not None else -1
+        file_path = os.path.abspath(page_info.page.parent.name) if page_info.page.parent else "unknown"
+        if file_path != "unknown":
+            self._file_paths.add(file_path)
         entry = PageMapperEntry(page_num, file_path)
 
         with self._lock:
@@ -58,6 +70,7 @@ class PagesObjectsMapper:
         return self.object_to_pages[obj].copy()
 
     def get_objects_in_page(self, page_number: int, file_path: str) -> set[SupportedMapObjects]:
+        file_path = os.path.abspath(file_path)
         entry = PageMapperEntry(page_number, file_path)
         return self.page_to_objects[entry]
 
@@ -67,7 +80,18 @@ class PagesObjectsMapper:
                 self.page_to_objects[page_entry].update(objects)
             for obj, page_entries in other.object_to_pages.items():
                 self.object_to_pages[obj].update(page_entries)
+            self._file_paths.update(other._file_paths)
         return self
+    
+    @property
+    def file_paths(self) -> set[str]:
+        return self._file_paths.copy()
+    
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, PagesObjectsMapper):
+            return False
+        return (self.page_to_objects == value.page_to_objects and
+                self.object_to_pages == value.object_to_pages)
 
 class God:
     """
@@ -113,7 +137,10 @@ class God:
         #     )
         attribute = attribute_cls(name, value)  # type: ignore
         with self._attributes_lock:
-            self.attributes[str(attribute)] = attribute
+            guid = attribute.get_guid()
+            if guid in self.attributes:
+                return self.attributes[guid]
+            self.attributes[guid] = attribute
         return attribute
 
     def create_tag(self, tag_str: str, page_info: PageInfo):
@@ -213,7 +240,7 @@ class God:
     ) -> Optional[XTarget]:
         ''' please provide location in the attributes '''
         # prohibit creation of xtargets with unparsed pins
-        if _is_pin_tag(tag_str):
+        if is_pin_tag(tag_str):
             logger.warning(f"XTarget tag has pins: {tag_str}")
             return None
 
@@ -277,7 +304,13 @@ class God:
             return None
 
         with self._pins_lock:
-            return self.pins.setdefault(current_pin.get_guid(), current_pin)
+            # Add all pins in the chain to god.pins (including child pins)
+            pin_iter = current_pin
+            while pin_iter:
+                self.pins.setdefault(pin_iter.get_guid(), pin_iter)
+                pin_iter = pin_iter.child
+            
+            return self.pins.get(current_pin.get_guid())
 
     def create_link(
         self,
@@ -376,9 +409,9 @@ class God:
             f"create_connection_with_link at {tag}: '{pin_tag_from}' -> '{pin_tag_to}' {attributes}"
         )
         # Split pin_tag into tag & pin
-        tag_from, pin_from = _split_pin_tag(pin_tag_from)
-        tag_to, pin_to = _split_pin_tag(pin_tag_to)
-        #
+        tag_from, pin_from = split_pin_tag(pin_tag_from)
+        tag_to, pin_to = split_pin_tag(pin_tag_to)
+        
         if not (pin_from and pin_to):
             msg = f"Linked connection where one/no pins specified: `{pin_from}` `{pin_to}`"
             self.create_error(page_info, msg, error_type=ErrorType.WARNING)
@@ -457,6 +490,8 @@ class God:
         return f"God(configs={self.configs},\n xtargets={len(self.xtargets)},\n connections={len(self.connections)},\n attributes={len(self.attributes)},\n links={len(self.links)},\n pins={len(self.pins)},\n aspects={len(self.aspects)})"
     
     def __iadd__(self, other: 'God') -> 'God':
+        if self.configs != other.configs:
+            raise ValueError("Cannot merge Gods with different configurations.")
         # Merge xtargets
         with self._xtargets_lock:
             self.xtargets.update(other.xtargets)
@@ -481,6 +516,28 @@ class God:
         self.pages_mapper += other.pages_mapper
         return self
     
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, God):
+            return False
+        
+        checks = [
+            ("configs", self.configs == value.configs),
+            ("xtargets", self.xtargets == value.xtargets),
+            ("connections", self.connections == value.connections),
+            ("attributes", self.attributes == value.attributes),
+            ("links", self.links == value.links),
+            ("pins", self.pins == value.pins),
+            ("aspects", self.aspects == value.aspects),
+            ("tags", self.tags == value.tags),
+            ("pages_mapper", self.pages_mapper == value.pages_mapper),
+        ]
+        
+        for name, result in checks:
+            if not result:
+                logger.debug(f"God equality check failed at: {name}")
+                return False
+        
+        return True
     
     def reset(self):
         with self._xtargets_lock:

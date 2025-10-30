@@ -48,6 +48,15 @@ class AspectsConfig:
         for _, level_config in entries_with_order.items():
             ret[level_config.Separator] = level_config
         return AspectsConfig(ret)
+    
+    @classmethod
+    def from_json_str(cls, json_str: str):
+        config = json.loads(json_str).get("aspects", [])
+        return cls.init_from_list(config)
+
+    # @classmethod
+    # def to_json_str(cls) -> str:
+    #     json.dumps()
 
     @classmethod
     def init_from_list(cls, config_list: List[dict]) -> "AspectsConfig":
@@ -99,6 +108,13 @@ class AspectsConfig:
             return False
         return self.levels == value.levels
 
+    def get_db_representation(self) -> List[dict]:
+        """
+        Converts the configuration to a list of dictionaries for database storage.
+        Each dictionary corresponds to a LevelConfig.
+        """
+        return [ {"Separator": level.Separator, "Aspect": level.Aspect} for level in self.levels.values() ]
+    
     def __repr__(self) -> str:
         return f"AspectsConfig(levels={self.levels})"
 

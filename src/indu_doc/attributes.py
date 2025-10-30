@@ -15,21 +15,21 @@ class Attribute(ABC):
         self.name: str = name
 
     @abstractmethod
-    def get_db_representation(self) -> str:
-        """return a string representation suitable for database storage.
+    def get_db_representation(self) -> dict[str, Any]:
+        """return a dict representation suitable for database storage.
 
         Returns:
-            str: A string representation suitable for database storage, can be JSON or other format.
+            dict[str, Any]: A dictionary representation suitable for database storage (will be stored as JSON).
         """
         pass
 
     @classmethod
     @abstractmethod
-    def from_db_representation(cls, db_str: str) -> "Attribute":
-        """Create an Attribute instance from its database string representation.
+    def from_db_representation(cls, db_dict: dict[str, Any]) -> "Attribute":
+        """Create an Attribute instance from its database dictionary representation.
 
         Args:
-            db_str (str): The string representation from the database.
+            db_dict (dict[str, Any]): The dictionary representation from the database.
 
         Returns:
             Attribute: An instance of Attribute or its subclass.
@@ -89,13 +89,12 @@ class SimpleAttribute(Attribute):
         super().__init__(name)
         self.value: str = value
 
-    def get_db_representation(self) -> str:
-        return json.dumps({"name": self.name, "value": self.value})
+    def get_db_representation(self) -> dict[str, Any]:
+        return {"name": self.name, "value": self.value}
 
     @classmethod
-    def from_db_representation(cls, db_str: str) -> "SimpleAttribute":
-        data = json.loads(db_str)
-        return cls(name=data["name"], value=data["value"])
+    def from_db_representation(cls, db_dict: dict[str, Any]) -> "SimpleAttribute":
+        return cls(name=db_dict["name"], value=db_dict["value"])
 
     def get_search_entries(self) -> dict[str, Any]:
         return {normalize_string(self.name): normalize_string(self.value)}
@@ -134,13 +133,12 @@ class RoutingTracksAttribute(Attribute):
         self.tracks: list[str] = tracks
         self.sep = sep
 
-    def get_db_representation(self) -> str:
-        return json.dumps({"name": self.name, "tracks": self.tracks})
+    def get_db_representation(self) -> dict[str, Any]:
+        return {"name": self.name, "tracks": self.tracks}
 
     @classmethod
-    def from_db_representation(cls, db_str: str) -> "RoutingTracksAttribute":
-        data = json.loads(db_str)
-        return cls(name=data["name"], tracks=data["tracks"])
+    def from_db_representation(cls, db_dict: dict[str, Any]) -> "RoutingTracksAttribute":
+        return cls(name=db_dict["name"], tracks=db_dict["tracks"])
 
     def get_search_entries(self) -> dict[str, Any]:
         return {"tracks": self.tracks}
@@ -177,13 +175,12 @@ class PLCAddressAttribute(Attribute):
         self.meta = meta
 
 
-    def get_db_representation(self) -> str:
-        return json.dumps({"name": self.name, "meta": self.meta})
+    def get_db_representation(self) -> dict[str, Any]:
+        return {"name": self.name, "meta": self.meta}
 
     @classmethod
-    def from_db_representation(cls, db_str: str) -> "PLCAddressAttribute":
-        data = json.loads(db_str)
-        return cls(address=data["name"], meta=data["meta"])
+    def from_db_representation(cls, db_dict: dict[str, Any]) -> "PLCAddressAttribute":
+        return cls(address=db_dict["name"], meta=db_dict["meta"])
 
     def get_search_entries(self) -> dict[str, Any]:
         return self.meta
@@ -200,7 +197,7 @@ class PLCAddressAttribute(Attribute):
         return hash((self.name, meta_str))
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, RoutingTracksAttribute):
+        if not isinstance(other, PLCAddressAttribute):
             return False
         return False # temporality assume theyre unique; self.name == other.name and self.meta == other.meta
 
@@ -220,16 +217,23 @@ class PDFLocationAttribute(Attribute):
 
     def __init__(self, name: str, meta: tuple[int, tuple[float, float, float, float]]) -> None:
         super().__init__(name)
-        self.bbox = meta[1]
+        # Ensure bbox is a tuple (in case it comes from JSON as a list)
+        bbox = meta[1]
+        if isinstance(bbox, list):
+            bbox = tuple(bbox)  # type: ignore
+        self.bbox: tuple[float, float, float, float] = bbox  # type: ignore
         self.page_no = meta[0]
 
-    def get_db_representation(self) -> str:
-        return json.dumps({"name": self.name, "bbox": self.bbox, "page_no": self.page_no})
+    def get_db_representation(self) -> dict[str, Any]:
+        return {"name": self.name, "bbox": self.bbox, "page_no": self.page_no}
 
     @classmethod
-    def from_db_representation(cls, db_str: str) -> "PDFLocationAttribute":
-        data = json.loads(db_str)
-        return cls(name=data["name"], meta=(data["page_no"], data["bbox"]))
+    def from_db_representation(cls, db_dict: dict[str, Any]) -> "PDFLocationAttribute":
+        # Ensure bbox is a tuple (JSON deserializes it as a list)
+        bbox = db_dict["bbox"]
+        if isinstance(bbox, list):
+            bbox = tuple(bbox)
+        return cls(name=db_dict["name"], meta=(db_dict["page_no"], bbox))
 
     def get_search_entries(self) -> dict[str, Any]:
         return {}  # can not be searched
@@ -275,3 +279,10 @@ AvailableAttributes: dict[AttributeType, type[Attribute]] = {
     AttributeType.PLC_ADDRESS: PLCAddressAttribute,
     AttributeType.PDF_LOCATION: PDFLocationAttribute,
 }
+
+ReverseAttributes = {cls: attr_type for attr_type, cls in AvailableAttributes.items()}
+def get_attribute_type(cls) -> AttributeType:
+    type = ReverseAttributes.get(cls, None)
+    if type is None:
+        raise ValueError("Attribute class is not in the AvailableAttributes lookup")
+    return type

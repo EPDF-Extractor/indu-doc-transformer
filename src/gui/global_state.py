@@ -1,21 +1,34 @@
-from dataclasses import dataclass
-
 from indu_doc.plugins.eplan_pdfs.page_settings import PageSettings
-from .aspects_menu import load_default_aspects, make_config_opener
-from indu_doc.manager import Manager
-from indu_doc.configs import AspectsConfig, LevelConfig
-from indu_doc.plugins.eplan_pdfs.eplan_pdf_plugin import EplanPDFPlugin
 from .aspects_menu import load_default_aspects
 from indu_doc.manager import Manager
 from indu_doc.configs import AspectsConfig, LevelConfig
+from indu_doc.plugins.eplan_pdfs.eplan_pdf_plugin import EplanPDFPlugin
 import pymupdf 
 from typing import Optional
 
 import logging
 import os
+import sys
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# Check if running as a PyInstaller frozen executable (packaged app)
+# When packaged with PyInstaller, sys.frozen is set to True
+IS_EXE_MODE = getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+# Check if should use native window (only applicable when IS_EXE_MODE is True)
+# This can be overridden by environment variable for testing purposes
+# Options: 'true' = native window, 'false' = browser window
+USE_NATIVE_WINDOW = os.environ.get('NICEGUI_NATIVE_WINDOW', 'true').lower() == 'true'
+
+# Log the detected mode
+if IS_EXE_MODE:
+    logger.info("Running as PyInstaller bundled executable (frozen mode)")
+    logger.info(f"Native window mode: {USE_NATIVE_WINDOW}")
+else:
+    logger.info("Running in development mode (not frozen)")
 
 
 # Initialize with empty uploaded PDFs list
@@ -36,9 +49,22 @@ logger = logging.getLogger(__name__)
 class ClientState:
     def __init__(self) -> None:
         self.uploaded_pdfs: list[str] = []
+        self.processed_files: set[str] = set()  # Track files that have been processed
         self.aspects: list[LevelConfig] = load_default_aspects()
         logger.debug(f"Loaded aspects: {self.aspects}")
-        ps = PageSettings(os.path.join(os.getcwd(), "page_settings.json"))
+        
+        # Determine the base directory for config files
+        if IS_EXE_MODE:
+            # In frozen mode, config files are extracted to sys._MEIPASS
+            base_dir = getattr(sys, '_MEIPASS', os.getcwd())
+        else:
+            # In development mode, config files are in the project root
+            base_dir = os.getcwd()
+        
+        page_settings_path = os.path.join(base_dir, "page_settings.json")
+        logger.debug(f"Looking for page_settings.json at: {page_settings_path}")
+        
+        ps = PageSettings(page_settings_path)
         cs = AspectsConfig.init_from_list([
             {"Aspect": aspect.Aspect, "Separator": aspect.Separator}
             for aspect in self.aspects
@@ -55,3 +81,33 @@ class ClientState:
 
 # Mapping from client ID to its state, saves session-specific data
 clients_to_state: dict[str, ClientState] = {}
+
+# Global state for EXE mode (single-user, no browser storage needed)
+_global_state: Optional[ClientState] = None
+
+
+def get_global_state() -> ClientState:
+    """Get or create the global state for EXE mode."""
+    global _global_state
+    if _global_state is None:
+        logger.info("Creating global state for EXE mode")
+        _global_state = ClientState()
+    return _global_state
+
+
+def get_state(client_id: Optional[str] = None) -> Optional[ClientState]:
+    """
+    Get the appropriate state based on the mode.
+    
+    Args:
+        client_id: Browser client ID (only used in browser mode)
+        
+    Returns:
+        ClientState instance or None if not initialized
+    """
+    if IS_EXE_MODE:
+        return get_global_state()
+    else:
+        if client_id is None:
+            return None
+        return clients_to_state.get(client_id)

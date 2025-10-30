@@ -132,10 +132,6 @@ class EventEmitter:
 
     def __init__(self):
         self._listeners: Dict[EventType, List[Callable[[PluginEvent], Awaitable[None]]]] = {}
-        try:
-            self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._loop = None
 
     def on(self, event_type: EventType, listener: Callable[[PluginEvent], Awaitable[None]]):
         """Register an event listener."""
@@ -160,12 +156,3 @@ class EventEmitter:
 
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
-
-    def emit_sync(self, event: PluginEvent):
-        """Emit an event synchronously (for use in non-async contexts)."""
-        if self._loop.is_running():
-            # If loop is running, schedule the emit
-            asyncio.create_task(self.emit(event))
-        else:
-            # If no loop running, run it
-            asyncio.run(self.emit(event))

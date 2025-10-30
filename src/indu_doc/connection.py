@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import cache
 from typing import Any, List, Optional
 import uuid
 
@@ -15,7 +14,7 @@ class Pin(AttributedBase):
     def __init__(
         self,
         name: str,  # +A1:1
-        role: str,  # src/dest
+        role: str,  # src/dst
         parentLink: Link,  # a pin belongs to a link
         attributes: Optional[List[Attribute]] = None,
         child: Optional[Pin] = None,
@@ -46,6 +45,14 @@ class Pin(AttributedBase):
 
     def get_recursive_name(self) -> str:
         return self.name + (f"{self.child.get_recursive_name()}" if self.child else "")
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Pin):
+            return False
+        return self.get_guid() == other.get_guid()
+    
+    def __hash__(self) -> int:
+        return hash(self.get_guid())
 
     def to_dict(self) -> dict[str, Any]:
         attrs = {}
@@ -94,6 +101,15 @@ class Link(AttributedBase):
         e += self.parent.get_guid() if self.parent else ["PARENT:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"LINK:{':'.join(e)}".encode()).digest()))
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Link):
+         
+            return False
+        return self.get_guid() == other.get_guid()
+    
+    def __hash__(self) -> int:
+        return hash(self.get_guid())
+
     def to_dict(self) -> dict[str, Any]:
         attrs = {}
         for attr in (self.attributes if self.attributes else []):
@@ -135,6 +151,15 @@ class Connection:
         e += self.dest.get_guid() if self.dest else ["DEST:None"]
         e += self.through.get_guid() if self.through else ["THROUGH:None"]
         return str(uuid.UUID(bytes=hashlib.md5(f"CONN:{':'.join(e)}".encode()).digest()))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Connection):
+            return False
+        # Compare by GUID which is based on src, dest, and through
+        return self.get_guid() == other.get_guid()
+    
+    def __hash__(self) -> int:
+        return hash(self.get_guid())
 
     def to_dict(self) -> dict[str, Any]:
         return {

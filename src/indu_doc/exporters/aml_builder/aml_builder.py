@@ -1,4 +1,5 @@
 from collections import defaultdict
+from io import BytesIO
 from typing import cast
 
 from indu_doc.god import God
@@ -8,7 +9,7 @@ from indu_doc.configs import AspectsConfig, LevelConfig
 from indu_doc.connection import Connection, Link, Pin
 from indu_doc.tag import Tag, Aspect
 
-from indu_doc.plugins.aml_builder.aml_abstractions import (
+from indu_doc.exporters.aml_builder.aml_abstractions import (
     InternalElementBase,
     ExternalInterface,
     InternalAttribute,
@@ -310,9 +311,9 @@ class AMLBuilder():
     :param configs: Aspect configuration defining hierarchy levels.
     """
 
-    def __init__(self, god: God, configs: AspectsConfig) -> None:
+    def __init__(self, god: God) -> None:
         self.god = god
-        self.configs = configs
+        self.configs = god.configs
         self.tree: et._ElementTree | None = None
 
     def process(self) -> None:
@@ -418,6 +419,26 @@ class AMLBuilder():
         )
         return xml_string.decode("utf-8")
     
+    def bytes_output(self) -> BytesIO:
+        """
+        Return the serialized AML document as a BytesIO stream.
+
+        :return: Serialized AML XML as BytesIO.
+        :rtype: BytesIO
+        :raises ValueError: If process() has not been called.
+        """
+        if self.tree is None:
+            raise ValueError("Nothing to output. Process first")
+        # Serialize to bytes
+        byte_stream = BytesIO()
+        self.tree.write(
+            byte_stream,
+            pretty_print=True,
+            xml_declaration=True,
+            encoding="utf-8"
+        )
+        byte_stream.seek(0)
+        return byte_stream
 
     def output_file(self, file_name):
         """
@@ -583,6 +604,6 @@ if __name__ == "__main__":
     if success:
         print(manager.get_stats())
 
-        builder = AMLBuilder(manager.god, manager.configs)
+        builder = AMLBuilder(manager.god)
         builder.process()
         builder.output_file("text.aml")

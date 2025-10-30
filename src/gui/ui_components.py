@@ -2,9 +2,12 @@ from typing import Any, Callable
 from nicegui import ui, run
 from gui.aspects_menu import make_config_opener
 from gui.global_state import ClientState
-from indu_doc.plugins.aml_builder.aml_builder import AMLBuilder
+from indu_doc.exporters.aml_builder.aml_exporter import AMLExporter
+from indu_doc.exporters.db_builder.db_exporter import SQLITEDBExporter
 from indu_doc.configs import AspectsConfig
 import logging
+import tempfile
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,48 +35,342 @@ def preview_page_callback():
     ui.navigate.to("/pdf-preview?file=", new_tab=True)
 
 
-def export_aml_callback(state: ClientState):
+async def export_data_callback(state: ClientState, export_format: str):
+    """Export data in the selected format (AML or SQLite DB)."""
     if not state.manager:
-        logger.warning("Manager not initialized, cannot export AML.")
+        logger.warning("Manager not initialized, cannot export data.")
         ui.notify("No data to export", color='negative')
         return
-    builder = AMLBuilder(state.manager.god, state.manager.configs)
+    
+    try:
+        if export_format == 'aml':
+            # Export as AML (fast, no need for io_bound)
+            ui.notify('Exporting AML...', color='info')
+            data_stream = AMLExporter.export_data(state.manager.god)
+            ui.download(data_stream.read(), 'exported_data.aml')
+            ui.notify('AML file exported successfully', color='positive')
+        elif export_format == 'sqlite':
+            # Export as SQLite database (IO-bound operation)
+            ui.notify('Exporting database... Please wait', color='info')
+            data_stream = await run.io_bound(SQLITEDBExporter.export_data, state.manager.god)
+            ui.download(data_stream.read(), 'exported_data.db')
+            ui.notify('SQLite database exported successfully', color='positive')
+        else:
+            ui.notify(f'Unknown export format: {export_format}', color='negative')
+    except Exception as e:
+        logger.error(f"Error exporting data: {e}")
+        ui.notify(f'Export failed: {str(e)}', color='negative')
 
-    builder.process()
-    aml = builder.output_str()
-    ui.download.content(aml, 'exported_data.aml')
+
+def show_export_dialog(state: ClientState):
+    """Show a dialog to choose export format and download the file."""
+    export_format = {'value': 'aml'}  # Default format
+    
+    async def handle_export():
+        await export_data_callback(state, export_format['value'])
+        dialog.close()
+    
+    dialog = ui.dialog()
+    with dialog, ui.card().classes('bg-gray-800 border-2 border-gray-600 min-w-96'):
+        with ui.card_section().classes('bg-gray-800'):
+            ui.label('Export Data').classes('text-xl font-bold text-white')
+            ui.label('Choose export format:').classes('text-gray-200 mt-2')
+            
+            with ui.column().classes('w-full gap-2 mt-4'):
+                ui.select(
+                    options={
+                        'aml': 'AML Format (.aml)',
+                        'sqlite': 'SQLite Database (.db)'
+                    },
+                    value='aml',
+                    label='Export Format'
+                ).classes('w-full').bind_value(export_format, 'value')
+        
+        with ui.card_section().classes('bg-gray-800 pt-0'):
+            with ui.row().classes('w-full gap-2 justify-end'):
+                ui.button('Cancel', on_click=dialog.close).props('flat color=gray')
+                ui.button(
+                    'Export',
+                    color='primary',
+                    on_click=handle_export
+                ).props('color=blue-6')
+    
+    dialog.open()
 
 
-def create_secondary_action_buttons(state):
+async def import_from_db_callback(state: ClientState, db_file_content: bytes, filename: str):
+    """Import data from a SQLite database file."""
+    if not state.manager:
+        logger.warning("Manager not initialized, cannot import data.")
+        ui.notify("Manager not initialized", color='negative')
+        return
+    
+    try:
+        ui.notify(f'Importing database {filename}... Please wait', color='info')
+        
+        # Create a temporary directory for extracted documents
+        extract_dir = tempfile.mkdtemp(prefix='indu_doc_import_')
+        logger.info(f"Extracting documents to: {extract_dir}")
+        
+        # Import from the database (IO-bound operation)
+        from io import BytesIO
+        db_stream = BytesIO(db_file_content)
+        imported_god = await run.io_bound(SQLITEDBExporter.import_from_bytes, db_stream, extract_dir)
+        
+        # Merge the imported God into the current manager's God
+        state.manager.god += imported_god
+        
+        # Add extracted PDF files to uploaded_pdfs list
+        imported_files = list(imported_god.pages_mapper.file_paths)
+        for file_path in imported_files:
+            if os.path.exists(file_path) and file_path not in state.uploaded_pdfs:
+                state.uploaded_pdfs.append(file_path)
+                state.processed_files.add(file_path)  # Mark as processed
+                logger.info(f"Added imported file to state: {file_path}")
+        
+        file_count = len(imported_files)
+        ui.notify(f'Successfully imported data from {filename} ({file_count} file(s))', color='positive')
+        
+    except Exception as e:
+        logger.error(f"Error importing database: {e}", exc_info=True)
+        ui.notify(f'Import failed: {str(e)}', color='negative')
+
+
+def show_import_dialog(state: ClientState, upload_component=None):
+    """Show a dialog to upload PDFs and/or import a database file."""
+    uploaded_db = {'content': None, 'name': None}
+    uploaded_pdfs = []
+    
+    dialog = ui.dialog()
+    with dialog, ui.card().classes('bg-gray-800 border-2 border-gray-600 min-w-[600px]'):
+        with ui.card_section().classes('bg-gray-800'):
+            ui.label('Import Data').classes('text-xl font-bold text-white')
+            
+            # Database import section
+            ui.label('Import from Database').classes('text-lg font-semibold text-white mt-4')
+            ui.label('Upload a SQLite database file (.db):').classes('text-gray-200 mt-2')
+            
+            with ui.column().classes('w-full gap-2 mt-2'):
+                ui.upload(
+                    on_upload=lambda e: handle_db_upload(e, uploaded_db),
+                    auto_upload=True,
+                    multiple=False,
+                ).props('dark accept=.db color=blue-5 label="Upload Database File"').classes('w-full')
+            
+            ui.separator().classes('my-4')
+            
+            # PDF upload section
+            ui.label('Upload PDF Files').classes('text-lg font-semibold text-white')
+            ui.label('Upload PDF files to extract data from:').classes('text-gray-200 mt-2')
+            
+            with ui.column().classes('w-full gap-2 mt-2'):
+                ui.upload(
+                    on_upload=lambda e: handle_pdf_upload_in_dialog(e, uploaded_pdfs),
+                    auto_upload=True,
+                    multiple=True,
+                ).props('dark accept=.pdf color=green-5 label="Upload PDF Files"').classes('w-full')
+        
+        with ui.card_section().classes('bg-gray-800 pt-0'):
+            with ui.row().classes('w-full gap-2 justify-end'):
+                ui.button('Cancel', on_click=dialog.close).props('flat color=gray')
+                ui.button(
+                    'Import',
+                    color='primary',
+                    on_click=lambda: (
+                        import_and_close_combined(state, uploaded_db, uploaded_pdfs, dialog)
+                    )
+                ).props('color=blue-6')
+    
+    dialog.open()
+
+
+def handle_pdf_upload_in_dialog(e, uploaded_pdfs: list):
+    """Handle PDF file upload in the import dialog."""
+    if not e.content:
+        ui.notify('No file selected', color='warning')
+        return
+    
+    filename = e.name
+    if not filename.lower().endswith('.pdf'):
+        ui.notify('Please upload a PDF file', color='negative')
+        return
+    
+    # Save to temp directory
+    temp_dir = tempfile.gettempdir()
+    file_path = os.path.join(temp_dir, filename)
+    
+    try:
+        with open(file_path, 'wb') as f:
+            f.write(e.content.read())
+        
+        uploaded_pdfs.append(file_path)
+        ui.notify(f'Added {filename}', color='positive')
+    except Exception as ex:
+        ui.notify(f'Error uploading {filename}: {str(ex)}', color='negative')
+
+
+def handle_db_upload(e, uploaded_db: dict):
+    """Handle database file upload for import."""
+    if not e.content:
+        ui.notify('No file selected', color='warning')
+        return
+    
+    filename = e.name
+    if not filename.lower().endswith('.db'):
+        ui.notify('Please upload a .db file', color='negative')
+        return
+    
+    uploaded_db['content'] = e.content.read()
+    uploaded_db['name'] = filename
+    ui.notify(f'Uploaded {filename}', color='positive')
+
+
+async def import_and_close(state: ClientState, uploaded_db: dict, dialog, upload_component=None):
+    """Import the database and close the dialog."""
+    if uploaded_db['content']:
+        await import_from_db_callback(state, uploaded_db['content'], uploaded_db['name'])
+        dialog.close()
+
+
+async def import_and_close_combined(state: ClientState, uploaded_db: dict, uploaded_pdfs: list, dialog):
+    """Import database and/or PDFs, then close the dialog."""
+    imported_anything = False
+    
+    # Import database if provided
+    if uploaded_db['content']:
+        await import_from_db_callback(state, uploaded_db['content'], uploaded_db['name'])
+        imported_anything = True
+    
+    # Add uploaded PDFs to state
+    if uploaded_pdfs:
+        for file_path in uploaded_pdfs:
+            if os.path.exists(file_path) and file_path not in state.uploaded_pdfs:
+                state.uploaded_pdfs.append(file_path)
+                logger.info(f"Added PDF to state: {file_path}")
+        
+        ui.notify(f'Added {len(uploaded_pdfs)} PDF file(s)', color='positive')
+        imported_anything = True
+    
+    if not imported_anything:
+        ui.notify('No files were uploaded', color='warning')
+    else:
+        dialog.close()
+
+
+
+def create_imported_files_list(state: ClientState):
+    """Create a simple list display of imported/uploaded files."""
+    with ui.card().classes('flex-grow min-w-0 bg-gray-800 border-2 border-gray-600 shadow-lg').style('height: 300px; display: flex; flex-direction: column;'):
+        with ui.card_section().classes('bg-gray-750 border-b border-gray-600 py-3'):
+            with ui.row().classes('w-full items-center justify-between'):
+                ui.label('Imported Files').classes('text-lg font-bold text-white')
+                with ui.row().classes('gap-2'):
+                    processed_count = len([f for f in state.uploaded_pdfs if f in state.processed_files])
+                    pending_count = len(state.uploaded_pdfs) - processed_count
+                    if processed_count > 0:
+                        ui.badge(f'{processed_count} Processed', color='green').classes('text-xs')
+                    if pending_count > 0:
+                        ui.badge(f'{pending_count} Pending', color='orange').classes('text-xs')
+        
+        with ui.card_section().classes('flex-grow overflow-hidden p-3').style('flex: 1; overflow: hidden;'):
+            file_list_container = ui.column().classes('w-full gap-2 h-full overflow-y-auto')
+            
+            def update_file_list():
+                """Update the file list display."""
+                file_list_container.clear()
+                with file_list_container:
+                    if not state.uploaded_pdfs:
+                        ui.label('No files imported yet.').classes('text-gray-400 text-sm italic text-center py-8')
+                    else:
+                        for file_path in state.uploaded_pdfs:
+                            if os.path.exists(file_path):
+                                filename = os.path.basename(file_path)
+                                is_processed = file_path in state.processed_files
+                                
+                                # Different styling for processed vs unprocessed files
+                                if is_processed:
+                                    bg_class = 'bg-green-900 hover:bg-green-800'
+                                    icon_name = 'check_circle'
+                                    icon_color = 'text-green-400'
+                                    badge_text = 'Processed'
+                                    badge_color = 'green'
+                                else:
+                                    bg_class = 'bg-gray-700 hover:bg-gray-600'
+                                    icon_name = 'pending'
+                                    icon_color = 'text-yellow-400'
+                                    badge_text = 'Pending'
+                                    badge_color = 'orange'
+                                
+                                with ui.row().classes(f'w-full items-center gap-2 p-3 {bg_class} rounded-lg transition-colors'):
+                                    ui.icon(icon_name).classes(f'{icon_color} text-2xl')
+                                    ui.label(filename).classes('text-gray-200 text-sm flex-grow truncate')
+                                    ui.badge(badge_text, color=badge_color).classes('text-xs')
+            
+            update_file_list()
+            
+            # Update list periodically to show new imports
+            ui.timer(1.0, update_file_list)
+
+
+def remove_imported_file(state: ClientState, file_path: str):
+    """Remove an imported file from the state."""
+    if file_path in state.uploaded_pdfs:
+        state.uploaded_pdfs.remove(file_path)
+        filename = os.path.basename(file_path)
+        ui.notify(f'Removed {filename}', color='info')
+        
+        # Try to delete the file from disk
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            logger.warning(f"Could not delete file {file_path}: {e}")
+
+
+def create_secondary_action_buttons(state, upload_component=None):
     """Create the secondary action buttons section (row of square icon+text buttons)."""
     with ui.row().classes('w-full justify-center gap-6 py-4'):
-        actions = [
+        # Actions that require data
+        data_dependent_actions = [
             ('View Tree', 'account_tree', tree_page_callback),
             ('View Connections', 'cable', connections_page_callback),
             ('View Uploaded Files', 'feed', preview_page_callback),
-            ('Export to AML', 'ios_share', lambda: export_aml_callback(state)),
+            ('Export Data', 'ios_share', lambda: show_export_dialog(state)),
         ]
-        for label, icon, handler in actions:
+        
+        # Actions that don't require data
+        always_enabled_actions = [
+            ('Import Data', 'upload_file', lambda: show_import_dialog(state, upload_component)),
+        ]
+        
+        # Create data-dependent buttons
+        for label, icon, handler in data_dependent_actions:
             with ui.button(on_click=handler, color='primary').props('flat').classes(
                     'w-32 h-32 flex flex-col items-center justify-center gap-2 border-2 border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-all').bind_enabled(state.manager, 'has_data'):
+                ui.icon(icon).classes('text-4xl text-blue-400')
+                ui.separator().classes('w-full border-t visible md:invisible')
+                ui.label(label).classes('text-sm font-semibold text-gray-200')
+        
+        # Create always-enabled buttons
+        for label, icon, handler in always_enabled_actions:
+            with ui.button(on_click=handler, color='primary').props('flat').classes(
+                    'w-32 h-32 flex flex-col items-center justify-center gap-2 border-2 border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-all'):
                 ui.icon(icon).classes('text-4xl text-blue-400')
                 ui.separator().classes('w-full border-t visible md:invisible')
                 ui.label(label).classes('text-sm font-semibold text-gray-200')
 
 
 def create_top_section(config_dialog, extract_callback: Callable, state):
-    """Create the top section with PDF list and primary action buttons."""
-    from . import pdf_handler
+    """Create the top section with file list and primary action buttons."""
     with ui.row().classes('w-full p-4 gap-8'):
-        pdf_list_container = pdf_handler.create_pdf_picker(state)
+        create_imported_files_list(state)
         create_primary_action_buttons(config_dialog, extract_callback)
-    return pdf_list_container
 
 
 def create_bottom_section(state):
     """Create the bottom section with secondary action buttons."""
     with ui.row().classes('w-full p-4 gap-8'):
-        create_secondary_action_buttons(state)
+        create_secondary_action_buttons(state, None)
 
 
 def create_main_content(config_dialog, extract_callback: Callable, state):
@@ -92,6 +389,7 @@ def create_gui(state: ClientState):
     progress_bar = None
     cancel_button = None
     was_processing = False  # Track previous processing state
+    currently_processing_files = []  # Track files being processed in current session
 
     def show_progress_dialog():
         """Show the progress monitoring dialog."""
@@ -123,7 +421,7 @@ def create_gui(state: ClientState):
 
     def check_and_update_progress():
         """Automatically check if processing is active and update progress."""
-        nonlocal was_processing
+        nonlocal was_processing, currently_processing_files
         
         is_processing = state.manager.is_processing()
         
@@ -148,7 +446,12 @@ def create_gui(state: ClientState):
                                     for s in states if s['state'] == 'error']
                     ui.notify(f'Processing failed: {"; ".join(error_messages)}', color='negative')
                 elif all_done:
+                    # Mark only the files that were just processed
+                    for file_path in currently_processing_files:
+                        state.processed_files.add(file_path)
                     ui.notify('Processing completed successfully', color='positive')
+                    # Clear the list for next processing session
+                    currently_processing_files.clear()
         
         # Update progress if currently processing
         if is_processing:
@@ -192,10 +495,19 @@ def create_gui(state: ClientState):
 
     async def extract_pdfs():
         """Extract data from uploaded PDFs and update tree."""
+        nonlocal currently_processing_files
+        
         if not state.uploaded_pdfs:
             ui.notify('No PDFs uploaded', color='negative')
             return
 
+        # Filter out already processed files
+        pending_files = [f for f in state.uploaded_pdfs if f not in state.processed_files]
+        
+        if not pending_files:
+            ui.notify('No pending files to extract. All files are already processed.', color='info')
+            return
+        
         # Check if already processing
         if state.manager.is_processing():
             ui.notify('Processing already in progress', color='warning')
@@ -209,14 +521,19 @@ def create_gui(state: ClientState):
             ])
             state.manager.update_configs(current_aspects_config)
 
-            # Start processing (non-blocking)
-            ui.notify('Starting PDF processing...', color='info')
+            # Store which files we're about to process
+            currently_processing_files.clear()
+            currently_processing_files.extend(pending_files)
+            
+            # Start processing only pending files (non-blocking)
+            ui.notify(f'Starting PDF processing for {len(pending_files)} file(s)...', color='info')
             # Run it as blocking in another thread to avoid blocking the UI
-            await run.io_bound(state.manager.process_files, tuple(state.uploaded_pdfs), True)
+            await run.io_bound(state.manager.process_files, tuple(pending_files), True)
 
         except Exception as e:
             logger.error(f"Error starting extraction: {e}")
             ui.notify(f'Error starting extraction: {str(e)}', color='negative')
+            currently_processing_files.clear()
 
     # Start automatic progress monitoring timer that runs continuously
     # Check every 500ms if processing state has changed

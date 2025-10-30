@@ -476,27 +476,31 @@ def extract_table(page: pymupdf.Page, key: str, table_setup: TableSetup) -> tupl
 
     df = pd.concat(dfs, ignore_index=True)
 
-    # apply overlap fix
-    if overlap_fixes:
-        for row, _, repl1, repl2 in overlap_fixes:
-            # as index counts from 1 in detect_row_overlaps
-            row -= 1 + table_setup.row_offset
-            # apply replacements
-            if repl1:
-                msg = f"row #{row} overlap detected: replaced col #{repl1[0]}: {df.iloc[row, repl1[0]]} -> {repl1[1]}"
-                errors.append(PageError(msg, error_type=ErrorType.INFO))
-                logger.warning(msg)
-                df.iloc[row, repl1[0]] = repl1[1]
-            if repl2:
-                msg = f"row #{row} overlap detected: replaced col #{repl2[0]}: {df.iloc[row, repl2[0]]} -> {repl2[1]}"
-                errors.append(PageError(msg, error_type=ErrorType.INFO))
-                logger.warning(msg)
-                df.iloc[row, repl2[0]] = repl2[1]
-            # log
-            if not (repl1 and repl2):
-                msg = f"row #{row} overlap detected: could not repair (fully)"
-                errors.append(PageError(msg, error_type=ErrorType.WARNING))
-                logger.warning(msg)
+    # apply overlap fix 
+    if overlap_fixes: 
+        for row, _, repl1, repl2 in overlap_fixes: 
+            # as index counts from 1 in detect_row_overlaps 
+            row -= 1 + table_setup.row_offset 
+            # apply replacements 
+            if repl1: 
+                msg = f"row #{row} overlap detected: replaced col #{repl1[0]}: {df.iloc[row, repl1[0]]} -> {repl1[1]}" 
+                errors.append(PageError(msg, error_type=ErrorType.INFO)) 
+                logger.warning(msg) 
+                col_name = df.columns[repl1[0]] 
+                df[col_name] = df[col_name].astype(str) 
+                df.iloc[row, repl1[0]] = repl1[1] 
+            if repl2: 
+                msg = f"row #{row} overlap detected: replaced col #{repl2[0]}: {df.iloc[row, repl2[0]]} -> {repl2[1]}" 
+                errors.append(PageError(msg, error_type=ErrorType.INFO)) 
+                logger.warning(msg) 
+                col_name = df.columns[repl2[0]] 
+                df[col_name] = df[col_name].astype(str) 
+                df.iloc[row, repl2[0]] = repl2[1] 
+            # log 
+            if not (repl1 and repl2): 
+                msg = f"row #{row} overlap detected: could not repair (fully)" 
+                errors.append(PageError(msg, error_type=ErrorType.WARNING)) 
+                logger.warning(msg) 
 
     # remove ignored columns
     ignored = [k for k, v in table_setup.columns.items() if not v[0]]

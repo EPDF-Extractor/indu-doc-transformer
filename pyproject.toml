@@ -20,7 +20,6 @@ dependencies = [
     "pyvis",
     "treelib",
     "graphviz",
-    "tqdm",
     "pdfplumber>=0.11.7",
     "pandas-stubs>=2.3.2.250827",
     "click>=8.0.0",
@@ -28,6 +27,8 @@ dependencies = [
     "lxml>=6.0.2",
     "pywebview>=6.0",
     "lark>=1.2.2",
+    "peewee>=3.18.2",
+    "types-peewee>=3.18.2.20250710",
 ]
 
 [project.scripts]
@@ -38,20 +39,21 @@ gui = "gui.gui:main"
 dev = [
     "ipykernel>=6.29.5",
     "pip",
-    "pyinstaller>=6.15.0",
+    "pyinstaller>=6.16.0",
     "pytest>=8.4.1",
     "ruff>=0.12.11",
     "jupyterlab>=4.4.6",
     "ipywidgets>=8.0.0",
     "flake8>=7.3.0",
     "pytest-cov>=6.2.1",
+    "pytest-timeout>=2.3.1",
     "types-tqdm>=4.67.0.20250809",
     "pandas-stubs>=2.3.2.250827",
     "lxml-stubs>=0.5.1",
     "mypy>=1.18.2",
-    "types-tqdm>=4.67.0.20250809",
+    "setuptools<81",
 ]
-test = ["pytest>=8.4.1"]
+test = ["pytest>=8.4.1", "pytest-timeout>=2.3.1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -59,6 +61,15 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = ["--strict-markers", "--strict-config", "--verbose"]
+filterwarnings = [
+    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+    "ignore:pkg_resources is deprecated:DeprecationWarning",
+]
+
+[tool.coverage.run]
+omit = ["src/gui/*"]
 
 [build-system]
 requires = ["uv_build>=0.8.14,<0.9.0"]

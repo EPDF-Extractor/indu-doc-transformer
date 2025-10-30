@@ -5,35 +5,37 @@ name: Python application
 
 on:
   push:
-    branches: [ "master", "dev" ]
+    branches: ["master", "dev"]
+    tags:
+      - "v*"
   pull_request:
-    branches: [ "master", "dev" ]
+    branches: ["master", "dev"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
-    runs-on: windows-2025
+  test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v3
-        with:
-          python-version: "3.10"
-      - name: Install the latest version of uv and activate the environment
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmagic1
+      - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
         with:
-          activate-environment: true
-      - run: uv pip install pip
+          enable-cache: true
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install pyinstaller pytest-cov
+          uv pip install pytest-cov pytest-timeout
       - name: Test with pytest and generate coverage
         run: |
-          pytest --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing
+          uv run pytest tests/ --cov=src/indu_doc --cov-report=xml --cov-report=html -v --timeout=300 --tb=short
       - name: Upload coverage reports as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -43,16 +45,142 @@ jobs:
             htmlcov/
       - name: Coverage Summary
         run: |
-          echo "## Coverage Report" >> $env:GITHUB_STEP_SUMMARY
-          echo "" >> $env:GITHUB_STEP_SUMMARY
-          echo "Coverage reports have been generated and uploaded as artifacts." >> $env:GITHUB_STEP_SUMMARY
-          echo "" >> $env:GITHUB_STEP_SUMMARY
-          echo "Download the 'coverage-reports' artifact to view detailed HTML coverage report." >> $env:GITHUB_STEP_SUMMARY
-      - name: Build executable with PyInstaller
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage reports have been generated and uploaded as artifacts." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the 'coverage-reports' artifact to view detailed HTML coverage report." >> $GITHUB_STEP_SUMMARY
+
+  build-cli-windows:
+    name: Build CLI - Windows
+    runs-on: windows-2025
+    timeout-minutes: 30
+    needs: test # Only build if tests pass
+    env:
+      PYTHONWARNINGS: "ignore::DeprecationWarning"
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install dependencies
         run: |
-          pyinstaller --onefile --console --collect-all click --name indu_doc src/indu_doc/cli.py
+          uv sync
+          uv pip install pyinstaller "setuptools<81"
+      - name: Build CLI executable
+        run: |
+          uv run pyinstaller --onefile --console --collect-all click --name InduDoc-CLI-Windows src/indu_doc/cli.py
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: indu_doc-executable
-          path: dist/indu_doc_cli.exe
+          name: cli-windows
+          path: dist/InduDoc-CLI-Windows.exe
+
+  build-gui:
+    name: Build GUI
+    needs: test
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONWARNINGS: "ignore::DeprecationWarning"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv pip install pyinstaller "setuptools<81"
+
+      - name: Build GUI executable
+        shell: bash
+        run: |
+          # Determine platform-specific executable name
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            EXE_NAME="InduDoc-GUI-Windows"
+          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+            EXE_NAME="InduDoc-GUI-macOS"
+          else
+            EXE_NAME="InduDoc-GUI-Linux"
+          fi
+
+          # Set environment variable for native window preference at runtime
+          # Note: This is for potential future runtime detection, but PyInstaller
+          # bundles will auto-detect frozen state via sys.frozen
+          export NICEGUI_NATIVE_WINDOW=true
+
+          # Build with static files included
+          uv run nicegui-pack --onefile --windowed --name "$EXE_NAME" \
+            --add-data "static:static" \
+            --add-data "page_settings.json:." \
+            --add-data "config.json:." \
+            --add-data "extraction_settings.json:." \
+            src/gui/gui.py
+
+      - name: Package macOS app bundle
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          cd dist
+          zip -r InduDoc-GUI-macOS.zip InduDoc-GUI-macOS.app
+          rm -rf InduDoc-GUI-macOS.app
+
+      - name: Upload GUI Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-${{ matrix.os }}
+          path: |
+            dist/*
+          retention-days: 30
+
+  create-release:
+    name: Create Release
+    needs: [test, build-cli-windows, build-gui]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-windows
+          path: release-artifacts/
+
+      - name: Download GUI artifacts (Windows)
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-windows-latest
+          path: release-artifacts/
+
+      - name: Download GUI artifacts (Ubuntu)
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-ubuntu-latest
+          path: release-artifacts/
+
+      - name: Download GUI artifacts (macOS)
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-macos-latest
+          path: release-artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-artifacts/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
