@@ -575,6 +575,88 @@ def test_db_exporter_import_from_file(temp_db_file, temp_pdf_file):
         assert list(loaded_god.xtargets.values())[0].tag.tag_str == "TestDevice"
 
 
+def test_db_exporter_import_from_bytes(temp_pdf_file):
+    """Test SQLITEDBExporter.import_from_bytes()"""
+    # Create a God instance
+    configs = AspectsConfig.init_from_list([])
+    original_god = God(configs)
+    
+    from indu_doc.xtarget import XTarget
+    from indu_doc.tag import Tag
+    from io import BytesIO
+    
+    tag = Tag("BytesTestDevice", configs)
+    xtarget = XTarget(tag, configs)
+    original_god.xtargets[xtarget.get_guid()] = xtarget
+    
+    # Export to BytesIO
+    db_bytes = SQLITEDBExporter.export_data(original_god)
+    
+    # Import from BytesIO
+    with tempfile.TemporaryDirectory() as extract_dir:
+        loaded_god = SQLITEDBExporter.import_from_bytes(db_bytes, extract_dir)
+        
+        # Verify the data
+        assert len(loaded_god.xtargets) == 1
+        assert list(loaded_god.xtargets.values())[0].tag.tag_str == "BytesTestDevice"
+
+
+def test_db_exporter_import_data_not_implemented():
+    """Test that SQLITEDBExporter.import_data() raises NotImplementedError"""
+    with pytest.raises(NotImplementedError, match="Use SQLITEDBExporter.import_from_bytes"):
+        SQLITEDBExporter.import_data()
+
+
+def test_db_exporter_export_roundtrip():
+    """Test export and import roundtrip via BytesIO"""
+    # Create a more complex God instance
+    configs = AspectsConfig.init_from_list([
+        {"Aspect": "Functional", "Separator": "="},
+        {"Aspect": "Location", "Separator": "+"},
+    ])
+    original_god = God(configs)
+    
+    from indu_doc.xtarget import XTarget
+    from indu_doc.tag import Tag
+    from indu_doc.connection import Connection
+    from indu_doc.attributes import SimpleAttribute, AttributeType
+    
+    # Create attributes via god.create_attribute to ensure they're properly registered
+    attr1 = original_god.create_attribute(AttributeType.SIMPLE, "color", "red")
+    
+    # Create XTargets with attributes
+    tag1 = Tag("=FUNC+LOC1", configs)
+    xt1 = XTarget(tag1, configs)
+    xt1.add_attribute(attr1)
+    original_god.xtargets[xt1.get_guid()] = xt1
+    
+    tag2 = Tag("=FUNC+LOC2", configs)
+    xt2 = XTarget(tag2, configs)
+    original_god.xtargets[xt2.get_guid()] = xt2
+    
+    # Create connection
+    conn = Connection(src=xt1, dest=xt2)
+    original_god.connections[conn.get_guid()] = conn
+    
+    # Export to BytesIO
+    db_bytes = SQLITEDBExporter.export_data(original_god)
+    
+    # Import from BytesIO
+    with tempfile.TemporaryDirectory() as extract_dir:
+        loaded_god = SQLITEDBExporter.import_from_bytes(db_bytes, extract_dir)
+        
+        # Verify the data
+        assert len(loaded_god.xtargets) == 2
+        assert len(loaded_god.connections) == 1
+        
+        # Verify XTarget attributes were preserved
+        loaded_xt1 = next(xt for xt in loaded_god.xtargets.values() 
+                         if "LOC1" in xt.tag.tag_str)
+        assert len(loaded_xt1.attributes) >= 1  # At least the color attribute
+
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
 
