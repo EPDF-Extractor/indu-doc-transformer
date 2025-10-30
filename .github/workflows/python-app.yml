@@ -106,9 +106,6 @@ jobs:
       - name: Build GUI executable (Native Window)
         shell: bash
         run: |
-          export NICEGUI_EXE_MODE=true
-          export NICEGUI_NATIVE_WINDOW=true
-
           # Determine platform-specific executable name
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             EXE_NAME="InduDocTransformer-Native-Windows"
@@ -117,6 +114,11 @@ jobs:
           else
             EXE_NAME="InduDocTransformer-Native-Linux"
           fi
+
+          # Set environment variable for native window preference at runtime
+          # Note: This is for potential future runtime detection, but PyInstaller
+          # bundles will auto-detect frozen state via sys.frozen
+          export NICEGUI_NATIVE_WINDOW=true
 
           uv run nicegui-pack --onefile --windowed --name "$EXE_NAME" src/gui/gui.py
 
@@ -157,9 +159,6 @@ jobs:
       - name: Build GUI executable (Browser Window)
         shell: bash
         run: |
-          export NICEGUI_EXE_MODE=true
-          export NICEGUI_NATIVE_WINDOW=false
-
           # Determine platform-specific executable name
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             EXE_NAME="InduDocTransformer-Browser-Windows"
@@ -168,6 +167,10 @@ jobs:
           else
             EXE_NAME="InduDocTransformer-Browser-Linux"
           fi
+
+          # Set environment variable for browser window preference at runtime
+          # Note: PyInstaller bundles will auto-detect frozen state via sys.frozen
+          export NICEGUI_NATIVE_WINDOW=false
 
           uv run nicegui-pack --onefile --name "$EXE_NAME" src/gui/gui.py
 
