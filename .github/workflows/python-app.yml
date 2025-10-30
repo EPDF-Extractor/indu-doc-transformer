@@ -129,6 +129,14 @@ jobs:
             --add-data "extraction_settings.json:." \
             src/gui/gui.py
 
+      - name: Package macOS app bundle
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          cd dist
+          zip -r InduDoc-GUI-macOS.zip InduDoc-GUI-macOS.app
+          rm -rf InduDoc-GUI-macOS.app
+
       - name: Upload GUI Executable
         uses: actions/upload-artifact@v4
         with:
