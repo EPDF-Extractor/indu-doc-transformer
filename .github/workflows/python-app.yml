@@ -78,8 +78,8 @@ jobs:
           name: cli-windows
           path: dist/InduDoc-CLI-Windows.exe
 
-  build-gui-native-window:
-    name: Build GUI - Native Window
+  build-gui:
+    name: Build GUI
     needs: test
     strategy:
       matrix:
@@ -104,16 +104,16 @@ jobs:
           uv sync
           uv pip install pyinstaller "setuptools<81"
 
-      - name: Build GUI executable (Native Window)
+      - name: Build GUI executable
         shell: bash
         run: |
           # Determine platform-specific executable name
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            EXE_NAME="InduDoc-GUI-Native-Windows"
+            EXE_NAME="InduDoc-GUI-Windows"
           elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-            EXE_NAME="InduDoc-GUI-Native-macOS"
+            EXE_NAME="InduDoc-GUI-macOS"
           else
-            EXE_NAME="InduDoc-GUI-Native-Linux"
+            EXE_NAME="InduDoc-GUI-Linux"
           fi
 
           # Set environment variable for native window preference at runtime
@@ -129,81 +129,17 @@ jobs:
             --add-data "extraction_settings.json:." \
             src/gui/gui.py
 
-      - name: Upload Native Window GUI Executable
+      - name: Upload GUI Executable
         uses: actions/upload-artifact@v4
         with:
-          name: gui-native-${{ matrix.os }}
-          path: |
-            dist/*
-          retention-days: 30
-
-  build-gui-browser-window:
-    name: Build GUI - Browser Window
-    needs: test
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    env:
-      PYTHONWARNINGS: "ignore::DeprecationWarning"
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Install dependencies
-        run: |
-          uv sync
-          uv pip install pyinstaller "setuptools<81"
-
-      - name: Build GUI executable (Browser Window)
-        shell: bash
-        run: |
-          # Determine platform-specific executable name
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            EXE_NAME="InduDoc-GUI-Browser-Windows"
-          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-            EXE_NAME="InduDoc-GUI-Browser-macOS"
-          else
-            EXE_NAME="InduDoc-GUI-Browser-Linux"
-          fi
-
-          # Set environment variable for browser window preference at runtime
-          # Note: PyInstaller bundles will auto-detect frozen state via sys.frozen
-          export NICEGUI_NATIVE_WINDOW=false
-
-          # Build with static files included
-          uv run nicegui-pack --onefile --name "$EXE_NAME" \
-            --add-data "static:static" \
-            --add-data "page_settings.json:." \
-            --add-data "config.json:." \
-            --add-data "extraction_settings.json:." \
-            src/gui/gui.py
-
-      - name: Upload Browser Window GUI Executable
-        uses: actions/upload-artifact@v4
-        with:
-          name: gui-browser-${{ matrix.os }}
+          name: gui-${{ matrix.os }}
           path: |
             dist/*
           retention-days: 30
 
   create-release:
     name: Create Release
-    needs:
-      [
-        test,
-        build-cli-windows,
-        build-gui-native-window,
-        build-gui-browser-window,
-      ]
+    needs: [test, build-cli-windows, build-gui]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
