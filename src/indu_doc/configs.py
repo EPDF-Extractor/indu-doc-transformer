@@ -124,8 +124,8 @@ class AspectsConfig:
 __DEFAULT_CONFIG_LIST = [
     {"Aspect": "Functional", "Separator": "="},
     {"Aspect": "Location", "Separator": "+"},
-    {"Aspect": "Product Aspect", "Separator": "-"},
-    {"Aspect": "Pins", "Separator": ":"},
+    {"Aspect": "Product", "Separator": "-"},
+    {"Aspect": "Pin", "Separator": ":"},
     {"Aspect": "Subdivision", "Separator": "/"},
     {"Aspect": "Document", "Separator": "&"},
 ]
