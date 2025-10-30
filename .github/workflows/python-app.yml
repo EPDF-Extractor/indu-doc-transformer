@@ -6,11 +6,13 @@ name: Python application
 on:
   push:
     branches: ["master", "dev"]
+    tags:
+      - "v*"
   pull_request:
     branches: ["master", "dev"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
@@ -72,3 +74,123 @@ jobs:
         with:
           name: indu_doc-windows-executable
           path: dist/indu_doc.exe
+
+  build-gui-native-window:
+    name: Build GUI - Native Window
+    needs: test
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv pip install pyinstaller
+
+      - name: Build GUI executable (Native Window)
+        shell: bash
+        run: |
+          export NICEGUI_EXE_MODE=true
+          export NICEGUI_NATIVE_WINDOW=true
+
+          # Determine platform-specific executable name
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            EXE_NAME="InduDocTransformer-Native-Windows"
+          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+            EXE_NAME="InduDocTransformer-Native-macOS"
+          else
+            EXE_NAME="InduDocTransformer-Native-Linux"
+          fi
+
+          uv run nicegui-pack --onefile --windowed --name "$EXE_NAME" src/gui/gui.py
+
+      - name: Upload Native Window GUI Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-native-${{ matrix.os }}
+          path: |
+            dist/*
+          retention-days: 30
+
+  build-gui-browser-window:
+    name: Build GUI - Browser Window
+    needs: test
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv pip install pyinstaller
+
+      - name: Build GUI executable (Browser Window)
+        shell: bash
+        run: |
+          export NICEGUI_EXE_MODE=true
+          export NICEGUI_NATIVE_WINDOW=false
+
+          # Determine platform-specific executable name
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            EXE_NAME="InduDocTransformer-Browser-Windows"
+          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+            EXE_NAME="InduDocTransformer-Browser-macOS"
+          else
+            EXE_NAME="InduDocTransformer-Browser-Linux"
+          fi
+
+          uv run nicegui-pack --onefile --name "$EXE_NAME" src/gui/gui.py
+
+      - name: Upload Browser Window GUI Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-browser-${{ matrix.os }}
+          path: |
+            dist/*
+          retention-days: 30
+
+  create-release:
+    name: Create Release
+    needs:
+      [test, build-windows, build-gui-native-window, build-gui-browser-window]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
