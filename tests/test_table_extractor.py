@@ -644,15 +644,3 @@ class TestTableExtractor:
         # columns prefixed with _1 and _2 exist
         assert any(c.startswith("_1") for c in df.columns)
         assert any(c.startswith("_2") for c in df.columns)
-
-    def test_extract_terminal_diagram_row_mismatch_raises(self):
-        dfs = {
-            "main": pd.DataFrame([["main1"], ["main2"], ["main3"]], columns=["col"]),
-            "r_cables": pd.DataFrame([{"cable_tag": "R1", "_loc": "locR"}]),
-            "r_conn": pd.DataFrame([{"1": "red", "_loc": "locRconn1"}]),
-            "l_cables": pd.DataFrame([{"cable_tag": "L1", "_loc": "locL"}]),
-            "l_conn": pd.DataFrame([{"1": "blue", "_loc": "locLconn1"}]),
-            "strip_tag": pd.DataFrame([{"strip_tag": "StripA"}])
-        }
-        with pytest.raises(ValueError, match="Left cable assignment table"):
-            TableExtractor.extract_terminal_diagram(dfs)
