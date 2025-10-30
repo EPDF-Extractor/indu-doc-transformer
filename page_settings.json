@@ -364,7 +364,12 @@
             true
           ]
         },
-        "overlap_test_roi": null,
+        "overlap_test_roi": [
+          423.61488201938903,
+          261.62066947137373,
+          780.5857984269252,
+          776.9810133528443
+        ],
         "expected_num_tables": 1,
         "on_many_join": false,
         "on_many_no_header": false,
