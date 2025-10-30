@@ -15,9 +15,14 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 30 # Prevent infinite hangs
 
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmagic1
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -38,11 +43,11 @@ jobs:
             htmlcov/
       - name: Coverage Summary
         run: |
-          echo "## Coverage Report" >> $env:GITHUB_STEP_SUMMARY
-          echo "" >> $env:GITHUB_STEP_SUMMARY
-          echo "Coverage reports have been generated and uploaded as artifacts." >> $env:GITHUB_STEP_SUMMARY
-          echo "" >> $env:GITHUB_STEP_SUMMARY
-          echo "Download the 'coverage-reports' artifact to view detailed HTML coverage report." >> $env:GITHUB_STEP_SUMMARY
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage reports have been generated and uploaded as artifacts." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the 'coverage-reports' artifact to view detailed HTML coverage report." >> $GITHUB_STEP_SUMMARY
       - name: Build executable with PyInstaller
         run: |
           uv run pyinstaller --onefile --console --collect-all click --name indu_doc src/indu_doc/cli.py
@@ -50,4 +55,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: indu_doc-executable
-          path: dist/indu_doc_cli.exe
+          path: dist/indu_doc
