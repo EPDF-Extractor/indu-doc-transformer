@@ -298,7 +298,7 @@ def do_table_setup(page: pymupdf.Page, table_setup: TableSetup, tables: list[Any
             if not match:
                 raise ValueError("Invalid forward fill command")
             ffill = match.group(1)  # may be empty
-            name = match.group(2)
+            name = match.group(2) or title
 
         new_map[i] = {
             "name": name,
@@ -313,7 +313,7 @@ def do_table_setup(page: pymupdf.Page, table_setup: TableSetup, tables: list[Any
     for i, n in new_map.items():
         name = n["name"]
         count = name_counts[name]
-        unique_name = n if count == 0 else f"{name}{count}"
+        unique_name = name if count == 0 else f"{name}{count}"
         name_counts[name] += 1
         new_map[i] = {"name": unique_name, "index": i}
     
@@ -322,7 +322,8 @@ def do_table_setup(page: pymupdf.Page, table_setup: TableSetup, tables: list[Any
     click.echo(f"New column names: {[v["name"] for v in new_map.values()]}")
 
     # save (TODO very very nasty format)
-    for v in new_map.values():
+    for v in list(new_map.values()):
+        print(v)
         if "ffill" in v:
             table_setup.columns[v["name"]] = (not v.get("ignore", False), v["ffill"])
         else:
