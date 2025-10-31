@@ -13,14 +13,41 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def create_primary_action_buttons(config_dialog, extract_callback: Callable):
+def create_primary_action_buttons(config_dialog, extract_callback: Callable, state: ClientState, import_callback: Callable):
     """Create the primary action buttons section."""
 
     with ui.column().classes('gap-3 min-w-48'):
         ui.button('Configuration', on_click=config_dialog.open).classes(
             'w-full text-base font-semibold').props('outline color=blue-5')
-        ui.button('Extract', color='positive',
+        
+        # Import Data button - always enabled
+        ui.button('Import Data', on_click=import_callback).classes(
+            'w-full text-base font-semibold').props('outline color=blue-5').style('color: #60A5FA')
+        
+        # Extract button - disabled if no pending files
+        extract_button = ui.button('Extract', color='positive',
                   on_click=extract_callback).classes('w-full text-base font-semibold').props('color=green-6')
+        
+        # Function to check if there are pending files
+        def has_pending_files():
+            pending_count = len([f for f in state.uploaded_pdfs if f not in state.processed_files])
+            return pending_count > 0
+        
+        # Update button state and tooltip
+        def update_extract_button():
+            has_pending = has_pending_files()
+            extract_button.enabled = has_pending
+            if has_pending:
+                pending_count = len([f for f in state.uploaded_pdfs if f not in state.processed_files])
+                extract_button.tooltip(f'Extract data from {pending_count} pending file(s)')
+            else:
+                extract_button.tooltip('No pending files to extract. Import PDFs first.')
+        
+        # Initial update
+        update_extract_button()
+        
+        # Update button state periodically
+        ui.timer(1.0, update_extract_button)
 
 
 def tree_page_callback():
@@ -338,23 +365,10 @@ def create_secondary_action_buttons(state, upload_component=None):
             ('Export Data', 'ios_share', lambda: show_export_dialog(state)),
         ]
         
-        # Actions that don't require data
-        always_enabled_actions = [
-            ('Import Data', 'upload_file', lambda: show_import_dialog(state, upload_component)),
-        ]
-        
         # Create data-dependent buttons
         for label, icon, handler in data_dependent_actions:
             with ui.button(on_click=handler, color='primary').props('flat').classes(
                     'w-32 h-32 flex flex-col items-center justify-center gap-2 border-2 border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-all').bind_enabled(state.manager, 'has_data'):
-                ui.icon(icon).classes('text-4xl text-blue-400')
-                ui.separator().classes('w-full border-t visible md:invisible')
-                ui.label(label).classes('text-sm font-semibold text-gray-200')
-        
-        # Create always-enabled buttons
-        for label, icon, handler in always_enabled_actions:
-            with ui.button(on_click=handler, color='primary').props('flat').classes(
-                    'w-32 h-32 flex flex-col items-center justify-center gap-2 border-2 border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-all'):
                 ui.icon(icon).classes('text-4xl text-blue-400')
                 ui.separator().classes('w-full border-t visible md:invisible')
                 ui.label(label).classes('text-sm font-semibold text-gray-200')
@@ -364,7 +378,13 @@ def create_top_section(config_dialog, extract_callback: Callable, state):
     """Create the top section with file list and primary action buttons."""
     with ui.row().classes('w-full p-4 gap-8'):
         create_imported_files_list(state)
-        create_primary_action_buttons(config_dialog, extract_callback)
+        # Pass import dialog callback to primary action buttons
+        create_primary_action_buttons(
+            config_dialog, 
+            extract_callback, 
+            state,
+            lambda: show_import_dialog(state, None)
+        )
 
 
 def create_bottom_section(state):
