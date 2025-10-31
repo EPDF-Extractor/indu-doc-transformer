@@ -1,3 +1,10 @@
+"""
+PDF preview page GUI components for InduDoc Transformer.
+
+This module provides the PDF preview interface for displaying document pages
+with highlighted extracted components and navigation controls.
+"""
+
 import base64
 from collections import defaultdict
 from nicegui import ui
@@ -10,12 +17,12 @@ import pymupdf
 def render_pdf_page_with_highlights(page: pymupdf.Page, selected_bboxes: list[tuple[float, float, float, float]]) -> str:
     """Render a PDF page with red rectangles highlighting selected areas.
     
-    Args:
-        page: PyMuPDF page object
-        selected_bboxes: List of bounding boxes (x0, y0, x1, y1) to highlight
-        
-    Returns:
-        Base64 encoded PNG image data URL
+    :param page: PyMuPDF page object
+    :type page: pymupdf.Page
+    :param selected_bboxes: List of bounding boxes (x0, y0, x1, y1) to highlight
+    :type selected_bboxes: list[tuple[float, float, float, float]]
+    :return: Base64 encoded PNG image data URL
+    :rtype: str
     """
     print(f"[DEBUG] render_pdf_page_with_highlights called with {len(selected_bboxes)} bboxes")
     print(f"[DEBUG] Bboxes: {selected_bboxes}")

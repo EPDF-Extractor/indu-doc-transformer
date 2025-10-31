@@ -1,3 +1,10 @@
+"""
+Global state management for InduDoc GUI.
+
+This module manages the global application state, including client sessions,
+manager instances, and configuration for different execution modes (EXE vs browser).
+"""
+
 from indu_doc.plugins.eplan_pdfs.page_settings import PageSettings
 from .aspects_menu import load_default_aspects
 from indu_doc.manager import Manager

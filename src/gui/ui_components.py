@@ -1,3 +1,11 @@
+"""
+UI components for the InduDoc Transformer GUI.
+
+This module contains reusable UI components and layout functions for the
+NiceGUI-based interface, including buttons, dialogs, file handling, and
+main interface creation.
+"""
+
 from typing import Any, Callable
 from nicegui import ui, run
 from gui.aspects_menu import make_config_opener
@@ -16,7 +24,21 @@ logger = logging.getLogger(__name__)
 
 
 def create_primary_action_buttons(config_dialog, extract_callback: Callable, state: ClientState, import_callback: Callable, page_settings_callback: Callable):
-    """Create the primary action buttons section."""
+    """Create the primary action buttons section.
+    
+    Creates a column of buttons for main application actions including
+    configuration, page settings, import, and extraction.
+    
+    :param config_dialog: Dialog object for configuration settings
+    :param extract_callback: Callback function for extraction operation
+    :type extract_callback: Callable
+    :param state: Current client state
+    :type state: ClientState
+    :param import_callback: Callback function for import operation
+    :type import_callback: Callable
+    :param page_settings_callback: Callback function for page settings
+    :type page_settings_callback: Callable
+    """
 
     with ui.column().classes('gap-3 min-w-48'):
         ui.button('Configuration', on_click=config_dialog.open).classes(
