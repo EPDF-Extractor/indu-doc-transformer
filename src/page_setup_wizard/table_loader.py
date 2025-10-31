@@ -1,3 +1,11 @@
+"""
+Interactive table and page setup for PDF processing.
+
+This module provides interactive setup functionality for defining table structures
+and page layouts in PDF documents. It allows users to configure extraction
+parameters for different page types and table formats.
+"""
+
 from indu_doc.plugins.eplan_pdfs.common_page_utils import PageType, detect_page_type
 from indu_doc.plugins.eplan_pdfs.table_extractor import extract_tables
 from indu_doc.plugins.eplan_pdfs.page_settings import PageSetup, TableSetup, PageSettings
@@ -147,6 +155,16 @@ INITIAL_SETUP: dict[PageType, PageSetup] = {
 import click
 
 def do_main_loop(pdf: pymupdf.Document, settings: PageSettings):
+    """Main interactive loop for page setup configuration.
+    
+    Provides an interactive CLI interface for configuring page extraction
+    settings for different page types in the PDF document.
+    
+    :param pdf: The PDF document to configure
+    :type pdf: pymupdf.Document
+    :param settings: Page settings object to update
+    :type settings: PageSettings
+    """
 
     while True:
         # Select page for setup

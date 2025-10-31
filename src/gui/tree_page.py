@@ -1,3 +1,10 @@
+"""
+Tree page GUI components for InduDoc Transformer.
+
+This module provides the tree view interface for displaying hierarchical
+document components, including search functionality and detail panels.
+"""
+
 from nicegui import ui
 from typing import List, Dict, Any
 from gui.global_state import ClientState
@@ -12,7 +19,13 @@ from gui.detail_panel_components import (
 
 
 def sanitize_tree_data(tree_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Recursively sanitize tree data to ensure all children arrays are properly initialized."""
+    """Recursively sanitize tree data to ensure all children arrays are properly initialized.
+    
+    :param tree_data: Raw tree data that may have None children
+    :type tree_data: List[Dict[str, Any]]
+    :return: Sanitized tree data with proper children arrays
+    :rtype: List[Dict[str, Any]]
+    """
     if not tree_data:
         return []
 

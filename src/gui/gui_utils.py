@@ -1,3 +1,11 @@
+"""
+GUI utility functions for InduDoc Transformer.
+
+This module provides utility functions for formatting and displaying
+document objects in the GUI, including HTML generation for tree views
+and description panels.
+"""
+
 from indu_doc.attributes import PDFLocationAttribute
 from indu_doc.tag import Aspect
 from indu_doc.xtarget import XTarget
@@ -5,6 +13,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 def get_gui_description(target: XTarget) -> str:
+    """Generate HTML description for a target in the GUI.
+    
+    :param target: The target object to describe
+    :type target: XTarget
+    :return: HTML string for display
+    :rtype: str
+    """
     lines = []
     lines.append(f"<div class='tree-description'>")
     lines.append(

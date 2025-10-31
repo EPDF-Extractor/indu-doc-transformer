@@ -1,5 +1,10 @@
-"""_summary_
-This module contains the factory class for creating Different objects.
+"""
+Central data container and factory for document objects.
+
+This module contains the God class, which serves as the central repository
+and factory for all extracted document objects including targets, connections,
+tags, and their mappings to PDF pages. It also provides the PagesObjectsMapper
+for tracking which objects appear on which pages.
 """
 
 from dataclasses import dataclass
@@ -21,17 +26,42 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PageMapperEntry:
-    """ Represents a unique page in a document by its number and file path. """
+    """
+    Represents a unique page in a document by its number and file path.
+    
+    :param page_number: 1-based page number
+    :type page_number: int
+    :param file_path: Absolute path to the PDF file
+    :type file_path: str
+    """
     # 1-based page number
     page_number: int
     # absolute path to the file
     file_path: str
 
     def __hash__(self) -> int:
+        """
+        Return hash value based on page number and filename.
+        
+        Uses basename to avoid issues with different absolute paths.
+        
+        :return: Hash value
+        :rtype: int
+        """
         return hash((self.page_number, os.path.basename(self.file_path)))
     
 
     def __eq__(self, other: object) -> bool:
+        """
+        Check equality with another PageMapperEntry.
+        
+        Compares only basenames to avoid issues with different absolute paths
+        when loading/saving.
+        
+        :param other: Another object to compare with
+        :return: True if page number and filename are equal
+        :rtype: bool
+        """
         if not isinstance(other, PageMapperEntry):
             return False
         # we compare only basenames to avoid issues with different absolute paths when loading/saving 
@@ -39,14 +69,24 @@ class PageMapperEntry:
                 os.path.basename(self.file_path) == os.path.basename(other.file_path))
 
 SupportedMapObjects = Union[XTarget, Connection, Link, PageError]
+"""Type alias for objects that can be mapped to pages."""
 
 
 class PagesObjectsMapper:
     """
-    mapping between pages and objects (xtargets, connections, links)
+    Bidirectional mapping between pages and document objects.
+    
+    Maintains a many-to-many relationship between PDF pages and the objects
+    (xtargets, connections, links) that appear on those pages. Thread-safe
+    for concurrent access.
+    
+    :ivar page_to_objects: Maps page entries to sets of objects on that page
+    :ivar object_to_pages: Maps objects to sets of pages they appear on
+    :ivar _file_paths: Set of all processed file paths
     """
 
     def __init__(self) -> None:
+        """Initialize empty page-object mappings."""
         # many-to-many mapping
         self.page_to_objects: defaultdict[PageMapperEntry,
                                    set[SupportedMapObjects]] = defaultdict(set)
@@ -56,6 +96,17 @@ class PagesObjectsMapper:
         self._lock = threading.Lock()
 
     def add_mapping(self, page_info: PageInfo, obj: SupportedMapObjects):
+        """
+        Add a mapping between a page and an object.
+        
+        Creates bidirectional links so you can find objects on a page
+        or pages containing an object.
+        
+        :param page_info: Information about the page
+        :type page_info: PageInfo
+        :param obj: The object to map (XTarget, Connection, Link, or PageError)
+        :type obj: SupportedMapObjects
+        """
         page_num = (page_info.page.number + 1) if page_info.page.number is not None else -1
         file_path = os.path.abspath(page_info.page.parent.name) if page_info.page.parent else "unknown"
         if file_path != "unknown":
@@ -67,14 +118,40 @@ class PagesObjectsMapper:
             self.object_to_pages[obj].add(entry)
 
     def get_pages_of_object(self, obj: SupportedMapObjects) -> set[PageMapperEntry]:
+        """
+        Get all pages where an object appears.
+        
+        :param obj: The object to look up
+        :type obj: SupportedMapObjects
+        :return: Set of page entries where the object appears
+        :rtype: set[PageMapperEntry]
+        """
         return self.object_to_pages[obj].copy()
 
     def get_objects_in_page(self, page_number: int, file_path: str) -> set[SupportedMapObjects]:
+        """
+        Get all objects that appear on a specific page.
+        
+        :param page_number: The 1-based page number
+        :type page_number: int
+        :param file_path: Path to the PDF file
+        :type file_path: str
+        :return: Set of objects on that page
+        :rtype: set[SupportedMapObjects]
+        """
         file_path = os.path.abspath(file_path)
         entry = PageMapperEntry(page_number, file_path)
         return self.page_to_objects[entry]
 
     def __iadd__(self, other: 'PagesObjectsMapper') -> 'PagesObjectsMapper':
+        """
+        Merge another mapper into this one.
+        
+        :param other: Another mapper to merge
+        :type other: PagesObjectsMapper
+        :return: This mapper with merged data
+        :rtype: PagesObjectsMapper
+        """
         with self._lock:
             for page_entry, objects in other.page_to_objects.items():
                 self.page_to_objects[page_entry].update(objects)
@@ -85,9 +162,22 @@ class PagesObjectsMapper:
     
     @property
     def file_paths(self) -> set[str]:
+        """
+        Get all processed file paths.
+        
+        :return: Copy of the file paths set
+        :rtype: set[str]
+        """
         return self._file_paths.copy()
     
     def __eq__(self, value: object) -> bool:
+        """
+        Check equality with another mapper.
+        
+        :param value: Another object to compare with
+        :return: True if mappings are equal
+        :rtype: bool
+        """
         if not isinstance(value, PagesObjectsMapper):
             return False
         return (self.page_to_objects == value.page_to_objects and
@@ -95,17 +185,36 @@ class PagesObjectsMapper:
 
 class God:
     """
-    Factory class for creating different objects.
-    Operates:
-    - xtargets
-    - connections
-    - attributes
-    - connections
-    - links
-    - pins
+    Central factory and repository for all extracted document objects.
+    
+    The God class serves as the main data container for the document processing
+    system. It manages the creation and storage of:
+    - XTargets (cross-referenceable targets like devices, cables, strips)
+    - Connections (electrical connections between targets)
+    - Tags and Aspects (hierarchical identifiers)
+    - Page mappings (tracking which objects appear on which pages)
+    
+    It provides factory methods for creating these objects and maintains
+    unique collections indexed by GUID.
+    
+    :param configs: Configuration for aspect parsing
+    :type configs: AspectsConfig
+    
+    :ivar configs: The aspect configuration
+    :ivar xtargets: Dictionary of all XTargets indexed by GUID
+    :ivar connections: Dictionary of all Connections indexed by GUID
+    :ivar aspects: Dictionary of all Aspects indexed by GUID
+    :ivar pages_mapper: Bidirectional mapping between pages and objects
+    :ivar errors: List of processing errors encountered
     """
-
-    def __init__(self, configs: AspectsConfig):
+    
+    def __init__(self, configs: AspectsConfig) -> None:
+        """
+        Initialize the God instance.
+        
+        :param configs: Configuration for aspect parsing
+        :type configs: AspectsConfig
+        """
         self.configs: AspectsConfig = configs
         self.xtargets: dict[str, XTarget] = dict[str, XTarget]()
         self.connections: dict[str, Connection] = dict[str, Connection]()

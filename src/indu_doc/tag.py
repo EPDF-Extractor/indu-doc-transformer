@@ -1,3 +1,12 @@
+"""
+Tag and aspect parsing for industrial documentation.
+
+This module provides classes and functions for parsing and managing hierarchical
+tags with aspects (separators and values) commonly found in industrial electrical
+diagrams. Tags represent equipment identifiers with multiple hierarchical levels
+separated by specific characters.
+"""
+
 from __future__ import annotations
 from typing import OrderedDict
 from indu_doc.configs import AspectsConfig, LevelConfig
@@ -15,54 +24,146 @@ logger = logging.getLogger(__name__)
 
 
 class Aspect(AttributedBase):
+    """
+    Represents a single aspect (separator + value) of a tag.
+    
+    An aspect is a component of a hierarchical tag, consisting of a separator
+    character and a value. For example, in "+A1-M2", "+A1" and "-M2" are aspects.
+    
+    :param separator: The separator character (e.g., "+", "-", "=")
+    :type separator: str
+    :param value: The value following the separator (e.g., "A1", "M2")
+    :type value: str
+    :param attributes: Optional list of attributes to attach
+    :type attributes: list[Attribute] | None, optional
+    """
+    
     def __init__(
         self,
         separator: str,
         value: str,
         attributes: list[Attribute] | None = None,
     ) -> None:
+        """
+        Initialize an Aspect.
+        
+        :param separator: The separator character
+        :type separator: str
+        :param value: The value following the separator
+        :type value: str
+        :param attributes: Optional list of attributes, defaults to None
+        :type attributes: list[Attribute] | None, optional
+        """
         super().__init__(attributes)
         self.separator: str = separator
         self.value: str = value
 
     def get_guid(self) -> str:
+        """
+        Get the globally unique identifier for this aspect.
+        
+        Uses the same logic as for xtargets. Every time we process the PDF,
+        we generate the same ID for the same aspect. The aspect string should
+        always be the same for the same object as it appears in the PDF.
+        
+        :return: A globally unique identifier string
+        :rtype: str
+        """
         # same logic as for xtargets
         # Everytime we process the pdf -> generate the same ID for the same tag
         # The tag string should always be the same for the same object -> It's how we see them in the PDF
         return str(uuid.UUID(bytes=hashlib.md5(str(self).encode("utf-8")).digest()))
     
     def add_attribute(self, attribute: Attribute) -> None:
+        """
+        Add an attribute to this aspect.
+        
+        :param attribute: The attribute to add
+        :type attribute: Attribute
+        """
         self.attributes.add(attribute)
 
     def __str__(self) -> str:
+        """
+        Return string representation of the aspect.
+        
+        :return: String in format "separator + value"
+        :rtype: str
+        """
         return f"{self.separator}{self.value}"
 
     def __repr__(self) -> str:
+        """
+        Return detailed string representation of the aspect.
+        
+        :return: String showing aspect and its attributes
+        :rtype: str
+        """
         return f"Aspect({str(self)}, attributes={self.attributes})"
     
     def __eq__(self, other: object) -> bool:
+        """
+        Check equality with another Aspect.
+        
+        :param other: Another object to compare with
+        :return: True if separator, value, and attributes are equal
+        :rtype: bool
+        """
         if not isinstance(other, Aspect):
             return False
         return self.separator == other.separator and self.value == other.value and self.attributes == other.attributes
     
     def __hash__(self) -> int:
+        """
+        Return hash value for this aspect.
+        
+        :return: Hash value based on GUID
+        :rtype: int
+        """
         return hash(self.get_guid())
 
 
 class Tag:
     """
-    Represents a tag with its associated parts.
-
-    Attributes:
-        tag_str (str): The original tag string.
+    Represents a hierarchical tag with its associated aspects.
+    
+    A tag represents an equipment or component identifier in industrial diagrams.
+    It consists of multiple aspects (separator-value pairs) that form a hierarchy.
+    For example: "+A1-M2=K1" has aspects ["+A1", "-M2", "=K1"].
+    
+    :param tag_: The raw tag string
+    :type tag_: str
+    :param config: Configuration for aspect parsing
+    :type config: AspectsConfig
+    
+    :ivar tag_str: The processed tag string (may exclude terminal separators)
+    :ivar aspects: Dictionary mapping separator to tuple of aspects, None until parsed
     """
 
     def __init__(self, tag_: str, config: AspectsConfig):
+        """
+        Initialize a Tag.
+        
+        :param tag_: The raw tag string to parse
+        :type tag_: str
+        :param config: Configuration defining aspect levels and separators
+        :type config: AspectsConfig
+        """
         self.config = config
         self.tag_str = self.get_tag_str(tag_)
         self.aspects: dict[str, tuple[Aspect, ...]] | None = None
 
     def get_tag_str(self, tag_: str) -> str:
+        """
+        Extract the base tag string, excluding terminal separator and pin designation.
+        
+        Removes the pin designation (anything after ':') from the tag string.
+        
+        :param tag_: The raw tag string that may include pin designation
+        :type tag_: str
+        :return: The base tag string without pin designation
+        :rtype: str
+        """
         # TODO: We want to consider the terminal separator from the config, change config to mark the terminal separator
         # terminal_sep = self.config["Pins"] if "Pins" in self.config.levels else None
         # if not terminal_sep:
@@ -79,9 +180,20 @@ class Tag:
         cls, tag_str: str, footer: PageFooter, config: AspectsConfig
     ) -> Tag:
         """
-        Merge this tag with another tag, We take the order of levels into considerations
-        This Function is needed to Merging Footer Tags with the page incomplete tags.
-        -> It returns a new Tag object.
+        Create a complete tag by merging with footer information.
+        
+        Merges incomplete tag strings with footer tags to create complete
+        hierarchical tags. Takes the order of levels into consideration.
+        This is needed for merging footer tags with incomplete page tags.
+        
+        :param tag_str: The incomplete tag string from the page
+        :type tag_str: str
+        :param footer: The page footer containing additional tag information
+        :type footer: PageFooter
+        :param config: Configuration for aspect parsing
+        :type config: AspectsConfig
+        :return: A new Tag object with merged information
+        :rtype: Tag
         """
         temp_tag = cls(tag_str, config)
         temp_tag_parts = temp_tag.get_tag_parts()
@@ -113,14 +225,24 @@ class Tag:
     
 
     def set_aspects(self, aspects: dict[str, tuple[Aspect, ...]]):
+        """
+        Set the aspects dictionary for this tag.
+        
+        :param aspects: Dictionary mapping separators to tuples of Aspect objects
+        :type aspects: dict[str, tuple[Aspect, ...]]
+        """
         self.aspects = aspects
 
 
     def get_tag_parts(self) -> dict[str, tuple[str, ...]]:
         """
-        Returns the tag parts but based on a different, provided configuration.
-        Returns:
-            dict[str, tuple[str, ...]]: A dictionary mapping separators to their corresponding values, ordered by their appearance in the tag string.
+        Get the tag parts as a dictionary of separators to value tuples.
+        
+        Returns tag parts based on the configuration. If aspects are already
+        set, extracts values from them. Otherwise, parses the tag string.
+        
+        :return: Dictionary mapping separators to tuples of their values, ordered by appearance
+        :rtype: dict[str, tuple[str, ...]]
         """
         aspects = self.get_aspects()
         if aspects:
@@ -136,8 +258,13 @@ class Tag:
         
     def get_aspects(self) -> dict[str, tuple[Aspect, ...]] | None:
         """
-        Returns the aspects of the tag as a dictionary mapping separators to their corresponding Aspect objects.
-        If no aspects are set, returns None.
+        Get the aspects of this tag.
+        
+        Returns the aspects as a dictionary mapping separators to their
+        corresponding Aspect objects. Only returns aspects that are configured.
+        
+        :return: Dictionary of configured aspects, or None if no aspects are set
+        :rtype: dict[str, tuple[Aspect, ...]] | None
         """
         if not self.aspects:
             return None
@@ -147,12 +274,18 @@ class Tag:
     @staticmethod
     def is_valid_tag(tag_str: str, config: AspectsConfig) -> bool:
         """
-        Validates if the provided tag string can be parsed into a Tag object based on the provided configurations.
-        Args:
-            tag_str (str): The tag string to validate.
-            config (AspectsConfig): The configurations to use for validation.
-        Returns:
-            bool: True if the tag string is valid, otherwise False.
+        Validate if a tag string can be parsed based on the configuration.
+        
+        Checks if the provided tag string can be parsed into a Tag object
+        based on the provided configurations.
+        
+        :param tag_str: The tag string to validate
+        :type tag_str: str
+        :param config: The configurations to use for validation
+        :type config: AspectsConfig
+        :return: True if the tag string is valid, otherwise False
+        :rtype: bool
+        :raises NotImplementedError: This method is not yet implemented/tested
         """
         raise NotImplementedError("This method is not tested yet.")
         seps = list(config.separators())
@@ -162,29 +295,70 @@ class Tag:
         return pattern_accepted_text.match(tag_str) is not None
 
     def __repr__(self):
+        """
+        Return string representation of the tag.
+        
+        :return: String showing the tag string
+        :rtype: str
+        """
         return f"Tag(tag_str='{self.tag_str}'"
 
     def __eq__(self, other):
+        """
+        Check equality with another Tag.
+        
+        :param other: Another object to compare with
+        :return: True if tag strings are equal
+        :rtype: bool
+        """
         if not isinstance(other, Tag):
             return False
         return self.tag_str == other.tag_str
 
     def __lt__(self, other):
+        """
+        Compare if this tag is less than another tag.
+        
+        :param other: Another Tag to compare with
+        :return: True if this tag's string is less than the other's
+        :raises TypeError: If other is not a Tag instance
+        """
         if not isinstance(other, Tag):
             return NotImplemented
         return self.tag_str < other.tag_str
 
     def __hash__(self):
+        """
+        Return hash value for this tag.
+        
+        :return: Hash value based on tag string
+        :rtype: int
+        """
         return hash(self.tag_str)
 
 
 def try_parse_tag(tag_str: str, configs: AspectsConfig) -> dict[str, tuple[str, ...]] | None:
     """
-    Attempts to parse a tag string into a Tag object based on the provided configurations.
-    Args:
-        tag_str (str): The tag string to parse.
-        configs (AspectsConfig): The configurations to use for parsing.
-    Returns:
+    Attempt to parse a tag string into its component parts.
+    
+    Parses a tag string based on the provided separator configuration,
+    extracting the values associated with each separator. Returns a dictionary
+    mapping separators to tuples of their values.
+    
+    :param tag_str: The tag string to parse
+    :type tag_str: str
+    :param configs: The configurations defining valid separators
+    :type configs: AspectsConfig
+    :return: Dictionary mapping separators to tuples of values, or None if parsing fails
+    :rtype: dict[str, tuple[str, ...]] | None
+    
+    Example:
+        >>> config = AspectsConfig.init_from_list([
+        ...     {"Separator": "+", "Aspect": "Location"},
+        ...     {"Separator": "-", "Aspect": "Device"}
+        ... ])
+        >>> try_parse_tag("+A1-M2", config)
+        {'+': ('A1',), '-': ('M2',)}
     """
     tag_str = tag_str.strip()
 

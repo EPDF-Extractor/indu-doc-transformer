@@ -1,3 +1,11 @@
+"""
+Main GUI application for InduDoc Transformer.
+
+This module sets up the NiceGUI-based web interface for the InduDoc Transformer,
+providing routes for different pages including the main interface, tree view,
+connections view, and PDF preview.
+"""
+
 import uuid
 import sys
 from pathlib import Path
@@ -14,6 +22,10 @@ from gui.ui_components import create_gui
 
 @ui.page('/tree', dark=True)
 def tree_page():
+    """Handle the tree page route.
+    
+    Displays the hierarchical tree view of extracted document components.
+    """
     client_id = None if IS_EXE_MODE else app.storage.browser.get('id')
     state = get_state(client_id)
     if state:
@@ -26,6 +38,10 @@ def tree_page():
 # Register connections page route
 @ui.page('/connections', dark=True)
 def connections_page():
+    """Handle the connections page route.
+    
+    Displays the connections view showing relationships between components.
+    """
     client_id = None if IS_EXE_MODE else app.storage.browser.get('id')
     state = get_state(client_id)
     if state:
@@ -38,6 +54,15 @@ def connections_page():
 # Register PDF preview page route
 @ui.page('/pdf-preview', dark=True)
 async def pdf_preview_page(file: str = '', page: int = 1):
+    """Handle the PDF preview page route.
+    
+    Displays a preview of PDF pages with extracted components highlighted.
+    
+    :param file: Path to the PDF file to preview
+    :type file: str
+    :param page: Page number to display (1-based)
+    :type page: int
+    """
     await ui.context.client.connected()
     client_id = None if IS_EXE_MODE else app.storage.browser.get('id')
     state = get_state(client_id)
@@ -52,6 +77,13 @@ async def pdf_preview_page(file: str = '', page: int = 1):
 
 @ui.page('/', dark=True)
 def main_page(client: Client):
+    """Handle the main page route.
+    
+    Sets up the client state and creates the main GUI interface.
+    
+    :param client: The NiceGUI client instance
+    :type client: Client
+    """
     if IS_EXE_MODE:
         # In EXE mode, use global state (always returns a valid state)
         state = get_state()
