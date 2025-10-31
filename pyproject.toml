@@ -53,6 +53,8 @@ dev = [
     "mypy>=1.18.2",
     "setuptools<81",
     "pytest-asyncio>=1.2.0",
+    "sphinx>=8.2.3",
+    "sphinx-autodoc-typehints>=3.5.2",
 ]
 test = ["pytest>=8.4.1", "pytest-timeout>=2.3.1"]
 

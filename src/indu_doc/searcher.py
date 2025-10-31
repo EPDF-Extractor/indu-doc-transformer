@@ -1,3 +1,11 @@
+"""
+Search and indexing functionality for document objects.
+
+This module provides the Searcher class which creates searchable indexes
+of targets and connections extracted from documents. It supports both
+simple text matching and advanced query syntax for filtered searches.
+"""
+
 from typing import Any
 from indu_doc.common_utils import normalize_string
 from indu_doc.god import God
@@ -9,6 +17,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 def _merge_search_tree(tree: dict[str, Any], data: Any, path: list[str] | None = None) -> None:
+    """
+    Recursively merge data into a search tree structure.
+    
+    Builds a hierarchical search index from nested dictionary and list data.
+    Creates filters for searchable paths within the data structure.
+    
+    :param tree: The search tree dictionary to merge into
+    :type tree: dict[str, Any]
+    :param data: The data to merge (dict, list, or primitive)
+    :type data: Any
+    :param path: Current path in the tree, defaults to None
+    :type path: list[str] | None, optional
+    """
     if path is None:
         path = []
     if isinstance(data, dict):
@@ -49,7 +70,31 @@ def _merge_search_tree(tree: dict[str, Any], data: Any, path: list[str] | None =
 
 
 class Searcher:
+    """
+    Search and indexing engine for document objects.
+    
+    The Searcher creates searchable indexes of targets and connections,
+    allowing for efficient querying and filtering of extracted data.
+    
+    :param god: The God instance containing all extracted data
+    :type god: God
+    :param init_index: List of index types to initialize ("conns", "targets"), defaults to []
+    :type init_index: list[str], optional
+    
+    :ivar god: Reference to the God instance
+    :ivar xtargets_index: Index of all targets
+    :ivar connections_index: Index of all connections
+    """
+    
     def __init__(self, god: God, init_index: list[str]=[]) -> None:
+        """
+        Initialize the Searcher.
+        
+        :param god: The God instance with data to index
+        :type god: God
+        :param init_index: Types to index initially, defaults to []
+        :type init_index: list[str], optional
+        """
         self.god = god
         self.xtargets_index: dict[str, dict[str, Any]] = {}
         self.connections_index: dict[str, dict[str, Any]] = {}
@@ -59,15 +104,38 @@ class Searcher:
             self.index_targets(self.god.xtargets)
 
     def start_indexing(self) -> None:
+        """
+        Start the indexing process.
+        
+        This method is currently a placeholder for future implementation.
+        """
         pass
     
     def index_targets(self, targets: dict[str, XTarget]):
+        """
+        Create searchable index of targets.
+        
+        Converts target objects to dictionary representations and adds
+        them to the targets index.
+        
+        :param targets: Dictionary mapping GUIDs to XTarget objects
+        :type targets: dict[str, XTarget]
+        """
         for guid, target in targets.items():
             ind_obj = target.to_dict()
 
             self.xtargets_index[guid] = ind_obj
 
     def index_connections(self, connections: dict[str, Connection] ):
+        """
+        Create searchable index of connections.
+        
+        Converts connection objects to dictionary representations with
+        special fields for source, destination, and through tags.
+        
+        :param connections: Dictionary mapping GUIDs to Connection objects
+        :type connections: dict[str, Connection]
+        """
         for guid, conn in connections.items():
             ind_obj = conn.to_dict()
             # add special fields for connection
@@ -77,6 +145,18 @@ class Searcher:
             self.connections_index[guid] = ind_obj
     
     def __partial_match(self, text: str, q: str) -> bool:
+        """
+        Check if query matches within text (partial match).
+        
+        Uses normalized string comparison for case-insensitive matching.
+        
+        :param text: The text to search within
+        :type text: str
+        :param q: The query string to search for
+        :type q: str
+        :return: True if query is found within text
+        :rtype: bool
+        """
         return normalize_string(q) in normalize_string(text)
     
     def search_targets(self, query: str) -> list[str]:

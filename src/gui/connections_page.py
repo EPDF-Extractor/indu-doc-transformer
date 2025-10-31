@@ -1,3 +1,10 @@
+"""
+Connections page GUI components for InduDoc Transformer.
+
+This module provides the connections view interface for displaying and
+exploring component connections, including search and filtering capabilities.
+"""
+
 from nicegui import ui
 from typing import List, Dict, Any
 from gui.global_state import ClientState
@@ -10,7 +17,17 @@ from gui.detail_panel_components import (create_info_card,
 
 
 def filter_connections_by_searcher(connections: List[Connection], searcher: Searcher, query: str) -> List[Connection]:
-    """Filter connections using the Searcher class with query syntax."""
+    """Filter connections using the Searcher class with query syntax.
+    
+    :param connections: List of connections to filter
+    :type connections: List[Connection]
+    :param searcher: Searcher instance for query processing
+    :type searcher: Searcher
+    :param query: Search query string
+    :type query: str
+    :return: Filtered list of connections
+    :rtype: List[Connection]
+    """
     if not query or not query.strip():
         return connections
     

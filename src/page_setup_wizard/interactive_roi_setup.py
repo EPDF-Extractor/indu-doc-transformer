@@ -1,20 +1,43 @@
+"""
+Interactive ROI setup for PDF page regions.
+
+This module provides interactive tools for selecting regions of interest (ROI)
+on PDF pages, including table boundaries and column separators.
+"""
+
 import matplotlib.pyplot as plt
 from matplotlib.widgets import RectangleSelector
 import numpy as np
 
 import click
 
+
 def bbox_to_plt_rect(bbox):
+    """Convert bounding box to matplotlib rectangle format.
+    
+    :param bbox: Bounding box as (x0, y0, x1, y1)
+    :type bbox: tuple
+    :return: Matplotlib rectangle parameters
+    :rtype: tuple
+    """
     tx0, ty0, tx1, ty1 = bbox
     return (tx0, ty0), tx1-tx0, ty1-ty0
 
+
 class InteractiveROISetup:
-    """
-    Interactive table setup tool for a single PDF page.
-    - Draw table ROI
-    - Add vertical column separators
-    - Restart selection
-    - Finalize selection
+    """Interactive table setup tool for a single PDF page.
+    
+    Provides an interactive matplotlib interface for:
+    - Drawing table ROI (region of interest)
+    - Adding vertical column separators
+    - Restarting selection
+    - Finalizing selection
+    
+    :param page: PDF page to work with
+    :param hint: Hint text to display in the interface
+    :param roi: Initial bounding box of table (x0, y0, x1, y1)
+    :param dpi: DPI for rendering the page image
+    :param text_mode: Whether to operate in text mode
     """
 
     def __init__(self, page, hint: str, roi=None, dpi=150, text_mode: bool = False):

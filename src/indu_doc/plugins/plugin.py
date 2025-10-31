@@ -1,3 +1,12 @@
+"""
+Base plugin interface for document processing.
+
+This module defines the abstract base class for all InduDoc plugins. Plugins
+are responsible for processing specific document types and extracting structured
+information from them. Each plugin manages its own processing lifecycle and
+emits events to communicate progress and completion.
+"""
+
 from abc import ABC, abstractmethod
 import asyncio
 from typing import Optional, Any
