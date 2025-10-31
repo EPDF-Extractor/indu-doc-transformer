@@ -5,22 +5,56 @@ from gui.global_state import ClientState
 from indu_doc.exporters.aml_builder.aml_exporter import AMLExporter
 from indu_doc.exporters.db_builder.db_exporter import SQLITEDBExporter
 from indu_doc.configs import AspectsConfig
+from indu_doc.plugins.eplan_pdfs.page_settings import PageSettings
 import logging
 import tempfile
 import os
+import json
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def create_primary_action_buttons(config_dialog, extract_callback: Callable):
+def create_primary_action_buttons(config_dialog, extract_callback: Callable, state: ClientState, import_callback: Callable, page_settings_callback: Callable):
     """Create the primary action buttons section."""
 
     with ui.column().classes('gap-3 min-w-48'):
         ui.button('Configuration', on_click=config_dialog.open).classes(
             'w-full text-base font-semibold').props('outline color=blue-5')
-        ui.button('Extract', color='positive',
+        
+        # Page Settings button - always enabled
+        ui.button('Page Settings', on_click=page_settings_callback).classes(
+            'w-full text-base font-semibold').props('outline color=purple-5').style('color: #A78BFA')
+        
+        # Import Data button - always enabled
+        ui.button('Import Data', on_click=import_callback).classes(
+            'w-full text-base font-semibold').props('outline color=blue-5').style('color: #60A5FA')
+        
+        # Extract button - disabled if no pending files
+        extract_button = ui.button('Extract', color='positive',
                   on_click=extract_callback).classes('w-full text-base font-semibold').props('color=green-6')
+        
+        # Function to check if there are pending files
+        def has_pending_files():
+            pending_count = len([f for f in state.uploaded_pdfs if f not in state.processed_files])
+            return pending_count > 0
+        
+        # Update button state and tooltip
+        def update_extract_button():
+            has_pending = has_pending_files()
+            extract_button.enabled = has_pending
+            if has_pending:
+                pending_count = len([f for f in state.uploaded_pdfs if f not in state.processed_files])
+                extract_button.tooltip(f'Extract data from {pending_count} pending file(s)')
+            else:
+                extract_button.tooltip('No pending files to extract. Import PDFs first.')
+        
+        # Initial update
+        update_extract_button()
+        
+        # Update button state periodically
+        ui.timer(1.0, update_extract_button)
 
 
 def tree_page_callback():
@@ -257,6 +291,111 @@ async def import_and_close_combined(state: ClientState, uploaded_db: dict, uploa
         dialog.close()
 
 
+def update_page_settings_callback(state: ClientState, json_content: bytes, filename: str):
+    """Update page settings from an uploaded JSON file."""
+    if not state.manager:
+        logger.warning("Manager not initialized, cannot update page settings.")
+        ui.notify("Manager not initialized", color='negative')
+        return
+    
+    try:
+        # Validate JSON content
+        json_str = json_content.decode('utf-8')
+        _ = json.loads(json_str)  # Validate it's proper JSON
+        
+        # Create a temporary file to store the settings
+        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
+        temp_file.write(json_str)
+        temp_file.close()
+        
+        # Create new PageSettings from the uploaded file
+        new_page_settings = PageSettings(temp_file.name)
+        
+        # Update the plugin's page settings
+        # Get the plugin from manager
+        plugins = state.manager.plugins
+        updated_count = 0
+        for plugin in plugins:
+            # Check if it's an EplanPDFPlugin or has page_settings attribute
+            if hasattr(plugin, 'page_settings'):
+                setattr(plugin, 'page_settings', new_page_settings)
+                logger.info(f"Updated page settings for plugin: {type(plugin).__name__}")
+                updated_count += 1
+        
+        if updated_count == 0:
+            ui.notify('No plugins found that support page settings', color='warning')
+        else:
+            ui.notify(f'Successfully updated page settings from {filename}', color='positive')
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in page settings file: {e}")
+        ui.notify(f'Invalid JSON file: {str(e)}', color='negative')
+    except Exception as e:
+        logger.error(f"Error updating page settings: {e}", exc_info=True)
+        ui.notify(f'Failed to update page settings: {str(e)}', color='negative')
+
+
+def show_page_settings_dialog(state: ClientState):
+    """Show a dialog to upload a new page settings JSON file."""
+    uploaded_file: dict[str, bytes | str | None] = {'content': None, 'name': None}
+    
+    def handle_page_settings_upload(e):
+        """Handle page settings file upload."""
+        if not e.content:
+            ui.notify('No file selected', color='warning')
+            return
+        
+        filename = e.name
+        if not filename.lower().endswith('.json'):
+            ui.notify('Please upload a JSON file', color='negative')
+            return
+        
+        uploaded_file['content'] = e.content.read()
+        uploaded_file['name'] = filename
+        ui.notify(f'Uploaded {filename}', color='positive')
+    
+    def handle_update():
+        """Handle the update action."""
+        if uploaded_file['content'] and uploaded_file['name']:
+            update_page_settings_callback(
+                state, 
+                uploaded_file['content'],  # type: ignore
+                uploaded_file['name']  # type: ignore
+            )
+            dialog.close()
+        else:
+            ui.notify('No file uploaded', color='warning')
+    
+    dialog = ui.dialog()
+    with dialog, ui.card().classes('bg-gray-800 border-2 border-gray-600 min-w-[500px]'):
+        with ui.card_section().classes('bg-gray-800'):
+            ui.label('Update Page Settings').classes('text-xl font-bold text-white')
+            ui.label('Upload a new page settings JSON file to update extraction configuration:').classes('text-gray-200 mt-2')
+            
+            with ui.column().classes('w-full gap-2 mt-4'):
+                ui.upload(
+                    on_upload=handle_page_settings_upload,
+                    auto_upload=True,
+                    multiple=False,
+                ).props('dark accept=.json color=blue-5 label="Upload Page Settings (JSON)"').classes('w-full')
+                
+                # Info box
+                with ui.card().classes('bg-gray-700 mt-4'):
+                    with ui.card_section().classes('bg-gray-700 py-2'):
+                        ui.label('ℹ️ Information').classes('text-sm font-semibold text-blue-300')
+                        ui.label('The page settings file defines how to extract data from different page types. Updating this will affect future extractions.').classes('text-xs text-gray-300 mt-1')
+        
+        with ui.card_section().classes('bg-gray-800 pt-0'):
+            with ui.row().classes('w-full gap-2 justify-end'):
+                ui.button('Cancel', on_click=dialog.close).props('flat color=gray')
+                ui.button(
+                    'Update Settings',
+                    color='primary',
+                    on_click=handle_update
+                ).props('color=blue-6')
+    
+    dialog.open()
+
 
 def create_imported_files_list(state: ClientState):
     """Create a simple list display of imported/uploaded files."""
@@ -338,11 +477,6 @@ def create_secondary_action_buttons(state, upload_component=None):
             ('Export Data', 'ios_share', lambda: show_export_dialog(state)),
         ]
         
-        # Actions that don't require data
-        always_enabled_actions = [
-            ('Import Data', 'upload_file', lambda: show_import_dialog(state, upload_component)),
-        ]
-        
         # Create data-dependent buttons
         for label, icon, handler in data_dependent_actions:
             with ui.button(on_click=handler, color='primary').props('flat').classes(
@@ -364,7 +498,14 @@ def create_top_section(config_dialog, extract_callback: Callable, state):
     """Create the top section with file list and primary action buttons."""
     with ui.row().classes('w-full p-4 gap-8'):
         create_imported_files_list(state)
-        create_primary_action_buttons(config_dialog, extract_callback)
+        # Pass import dialog callback to primary action buttons
+        create_primary_action_buttons(
+            config_dialog, 
+            extract_callback, 
+            state,
+            lambda: show_import_dialog(state, None),
+            lambda: show_page_settings_dialog(state)
+        )
 
 
 def create_bottom_section(state):
